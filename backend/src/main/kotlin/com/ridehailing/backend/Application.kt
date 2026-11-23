@@ -110,7 +110,15 @@ fun Application.module(
     testProfile: Boolean = System.getenv("TEST_PROFILE") == "true",
     auth: AuthGraph = AuthGraph(),
 ) {
-    install(ContentNegotiation) { json() }
+    install(ContentNegotiation) {
+        // Forward-compatible parsing (D46): unknown keys are ignored (schema-valid requests
+        // must not 400 on additionalProperties), defaults are ALWAYS encoded so required
+        // fields like AuthSuccess.created never vanish from responses.
+        json {
+            ignoreUnknownKeys = true
+            encodeDefaults = true
+        }
+    }
     install(StatusPages) {
         status(HttpStatusCode.NotFound) { call, _ ->
             call.respond(
@@ -123,6 +131,14 @@ fun Application.module(
             val allow = allowFor(call.request.path())
             call.response.headers.append(HttpHeaders.Allow, allow)
             call.respond(HttpStatusCode.MethodNotAllowed, ErrorDto(code = "method_not_allowed", message = "Allowed: $allow"))
+        }
+        // Missing/unsupported Content-Type on POSTs -> 415 with the documented Error body
+        // (schemathesis ST103/ST108; Ktor's default 415 carries no JSON body).
+        status(HttpStatusCode.UnsupportedMediaType) { call, _ ->
+            call.respond(
+                HttpStatusCode.UnsupportedMediaType,
+                ErrorDto(code = "unsupported_media_type", message = "Content-Type must be application/json"),
+            )
         }
         // Malformed/unreadable request bodies are client errors (schemathesis ST101/ST103):
         // Ktor wraps body-conversion failures in BadRequestException; answer 400, not 500.
