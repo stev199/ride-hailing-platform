@@ -1,8 +1,8 @@
 # STATE - ride-hailing-platform
 
 Last updated: 2026-11-24
-Current phase: 1 (backend core) + 1b (mesh core, parallel track) - P1B-2b GATE 2 CLOSE-OUT DONE (beacons + PRESENCE + GATEWAY_RELAY, scenarios 16-19, local green; CI verification dispatched); parallel P1-3 users/roles/RBAC
-Current task: watch CI for the GATE 2 close-out push (mesh job = 19-scenario suite + baseline gate); then P1-3 users/roles/RBAC + P1-4 admin shell
+Current phase: 1 (backend core) + 1b (mesh core, parallel track) - GATE 2 CLOSED AND CI-VERIFIED (run 45256630914 ALL GREEN incl. mesh-core-sim + ci-summary); next: P1-3 users/roles/RBAC + P1-4 admin shell
+Current task: P1-3 users/roles/RBAC + Postgres-backed stores; then P1-4 admin shell + login (admin-web)
 Last completed task: P1B-2b beacons/PRESENCE/GATEWAY_RELAY - app primitives (22 tests) + sim scenarios 16-19 (all PASS) + baseline additive-only; scenario 19 caught a REAL replay hole (gateway early-return skipped seen-cache storage - D60), fixed and pinned by the suite
 
 ## Gate status table
@@ -10,7 +10,7 @@ Last completed task: P1B-2b beacons/PRESENCE/GATEWAY_RELAY - app primitives (22 
 | Gate | Status |
 |---|---|
 | Phase 0 (Part B delivery plan) | PENDING - one item open: D11.9 first-green pipeline with trivial tests on two emulators (needs Phase 1/2 module skeletons; see BACKLOG P0-C) |
-| Mesh GATE 1-2 (Part C) | GATE 2 CLOSED 2026-11-24: beacons (certified profiles, short MAC, adaptive pacing) + PRESENCE (backend-only seal) + GATEWAY_RELAY (opaque forward, internet shortcut) - scenarios 16-19 green locally, CI verification in flight |
+| Mesh GATE 1-2 (Part C) | GATE 2 CLOSED AND CI-VERIFIED 2026-11-24 (run 45256630914, mesh-core-sim success): beacons (certified profiles, short MAC, adaptive pacing) + PRESENCE (backend-only seal) + GATEWAY_RELAY (opaque forward, internet shortcut) - scenarios 16-19 PASS on CI + locally |
 | Mesh GATE 3 (Stage 3) | DONE 2026-11-24: 15/15 scenarios + baseline gate green on CI (run 45245604015, mesh-sim-evidence artifact uploaded) + locally; suite now 19 scenarios (16-19 = GATE 2 close-out) |
 | Mesh GATE 4-7 (Part C) | pending (Stage 4 starts with Phase 2 android) |
 | Phases 1-11 (Part B) | in progress (P1-1, P1-2, P1-6 done; P1-3/P1-4/P1-5 next) |
@@ -33,17 +33,17 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 16 (P1-2 auth, P1B-3 routing, D49 contract alignment, D50 pages rerun-safety, P0-9 keystore backup, P1B-4 GATE 3 - see PROGRESS_LOG.md)
-- CI runs green: 45222823793 (D49/D50), 45243331948 (GATE 3 suite on push), 45245604015 (forced full run: test+simReport, mesh-sim-evidence artifact, ALL GREEN incl. ci-summary); live-view 45243841560 guard+skip verified
+- Tasks completed this phase: 17 (P1B-2b GATE 2 close-out added - see PROGRESS_LOG.md)
+- CI runs green: 45245604015 (GATE 3 full run), 45249527259 (GATE 2 part 1), 45256630914 (GATE 2 close-out forced full run: 19-scenario suite + baseline gate + all component jobs, ALL GREEN incl. ci-summary; report-publish needed one --failed rerun after a transient artifact-upload hang); Pages gallery /runs/45256630914/ HTTP 200
 - Fix attempts used this turn: 6 distinct root causes (D51 hop-budget off-by-one, D52 dedup-before-discovery, D53 inline clock stall, relay TTL slack, stress rate-limit config, live-view guard) - within retry budget (D23), no blockers
 
 ## Next 5 tasks
 
-1. Verify GATE 2 close-out on CI (mesh job: 19 scenarios + baseline gate) - in flight
-2. P1-3 users/roles/RBAC + Postgres-backed stores + P1-4 admin shell + login (admin-web)
-3. P1-5 config service: signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig
-4. P1B-5 Stage 4 prep: sim-bridge topology engine wiring
-5. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell)
+1. P1-3 users/roles/RBAC + Postgres-backed stores + P1-4 admin shell + login (admin-web)
+2. P1-5 config service: signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig
+3. P1B-5 Stage 4 prep: sim-bridge topology engine wiring
+4. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell)
+5. P1-CONTRACT: authenticated schemathesis coverage (register/login hooks)
 
 ## Phase 0 setup record (from repository bootstrap)
 
