@@ -52,6 +52,15 @@ kotlin {
 
 tasks.test {
     useJUnitPlatform()
+    // Exact exception + stack trace on CI: PG-backed tests can only run there
+    // (sandbox has no Docker), so failures must be diagnosable from the log alone.
+    testLogging {
+        events("passed", "failed", "skipped")
+        exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+        showExceptions = true
+        showCauses = true
+        showStackTraces = true
+    }
     finalizedBy(tasks.jacocoTestReport)
 }
 

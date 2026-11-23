@@ -234,17 +234,18 @@ class PgEventStore private constructor(
         val record = super.append(type, payload, occurredAt)
         connect().use { c ->
             c.prepareStatement(
-                "INSERT INTO event_log (seq, event_id, type, actor_id, payload, occurred_at, occurred_at_text, prev_hash, hash) " +
-                    "VALUES (?, ?::uuid, ?, NULL, ?::jsonb, ?, ?, ?, ?)",
+                "INSERT INTO event_log (seq, event_id, type, actor_id, payload, payload_text, occurred_at, occurred_at_text, prev_hash, hash) " +
+                    "VALUES (?, ?::uuid, ?, NULL, ?::jsonb, ?, ?, ?, ?, ?)",
             ).use { ps ->
                 ps.setLong(1, record.seq)
                 ps.setString(2, UUID.randomUUID().toString())
                 ps.setString(3, record.type)
                 ps.setString(4, record.payloadJson)
-                ps.setTimestamp(5, Timestamp.from(Instant.parse(record.occurredAt)))
-                ps.setString(6, record.occurredAt)
-                ps.setString(7, record.prevHash)
-                ps.setString(8, record.hash)
+                ps.setString(5, record.payloadJson)
+                ps.setTimestamp(6, Timestamp.from(Instant.parse(record.occurredAt)))
+                ps.setString(7, record.occurredAt)
+                ps.setString(8, record.prevHash)
+                ps.setString(9, record.hash)
                 ps.executeUpdate()
             }
         }
@@ -262,7 +263,7 @@ class PgEventStore private constructor(
             val records = mutableListOf<EventRecord>()
             DriverManager.getConnection(url, user, password).use { c ->
                 c.prepareStatement(
-                    "SELECT seq, type, payload::text AS payload_json, occurred_at_text, prev_hash, hash FROM event_log ORDER BY seq ASC",
+                    "SELECT seq, type, payload_text, occurred_at_text, prev_hash, hash FROM event_log ORDER BY seq ASC",
                 ).use { ps ->
                     ps.executeQuery().use { rs ->
                         while (rs.next()) {
@@ -270,7 +271,7 @@ class PgEventStore private constructor(
                                 EventRecord(
                                     seq = rs.getLong("seq"),
                                     type = rs.getString("type"),
-                                    payloadJson = rs.getString("payload_json"),
+                                    payloadJson = rs.getString("payload_text"),
                                     occurredAt = rs.getString("occurred_at_text"),
                                     prevHash = rs.getString("prev_hash"),
                                     hash = rs.getString("hash"),
