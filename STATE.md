@@ -1,9 +1,9 @@
 # STATE - ride-hailing-platform
 
 Last updated: 2026-11-23
-Current phase: 1 (backend core) + 1b (mesh core, parallel track) - Stage 1 GATE scope green
-Current task: P1-2 auth (OTP providers + JWT + argon2id); next P1B-3 routing + Dijkstra oracle
-Last completed task: P1-1 + P1B Stage 1 verified end-to-end: forced full CI run green incl. api-contract (schemathesis; RFC 9110 Allow fix) - run 45174319535
+Current phase: 1 (backend core) + 1b (mesh core, parallel track) - P1-2 auth done; P1B Stage 2 routing implemented (GATE 2 close-out pending: beacons + GATEWAY_RELAY)
+Current task: P1B-4 simulator + 15 scenarios + baseline.json (Stage 3, GATE 3); parallel P1-3 users/roles/RBAC
+Last completed task: P1-2 auth (argon2id, OTP framework w/ 4 adapters, HS256 JWT + rotating refresh w/ reuse detection, rate limits, /v1/auth/* + /v1/me, openapi contract) + P1B-3 routing primitives + Dijkstra oracle - backend 53 + mesh 61 tests green; CI verified after push
 
 ## Gate status table
 
@@ -28,17 +28,17 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 10 (see PROGRESS_LOG.md)
+- Tasks completed this phase: 12 (P1-2 auth, P1B-3 routing - see PROGRESS_LOG.md)
 - CI runs green: 2 (skeleton) + new runs from this push (see PROGRESS_LOG)
 - Fix attempts used this turn: 5 distinct root causes fixed within retry budget (D23) - no blockers
 
 ## Next 5 tasks
 
-1. P1-2 auth: OTP providers (dev inbox adapter first), phone/email+password, JWT + rotating refresh, argon2id, rate limits
-2. P1B-3 routing: seen-cache, flooding, breadcrumbs, route discovery, cost fn + Dijkstra oracle (Stage 2)
-3. P1B-4 simulator + 15 scenarios + baseline.json (Stage 3, GATE 3)
-4. P1-3 users/roles/RBAC + P1-4 admin shell + login (admin-web)
-5. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell)
+1. P1B-4 simulator + 15 scenarios + baseline.json (Stage 3, GATE 3) - routing primitives ready
+2. P1B-2b beacons (DRIVER_BEACON/PRESENCE) + GATEWAY_RELAY internet shortcut (closes GATE 2)
+3. P1-3 users/roles/RBAC + Postgres-backed stores (users, refresh tokens) + P1-4 admin shell + login (admin-web)
+4. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell)
+5. P1-5 config service: signed bundle serving /v1/config + login-methods section wired to LoginMethodsConfig
 
 ## Phase 0 setup record (from repository bootstrap)
 

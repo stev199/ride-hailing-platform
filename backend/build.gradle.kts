@@ -19,10 +19,21 @@ dependencies {
     implementation("io.ktor:ktor-server-netty-jvm:$ktorVersion")
     implementation("io.ktor:ktor-server-content-negotiation-jvm:$ktorVersion")
     implementation("io.ktor:ktor-server-status-pages-jvm:$ktorVersion")
+    // JWT issuance/verification (P1-2): com.auth0 java-jwt, HS256, typ=access claims
+    implementation("com.auth0:java-jwt:4.4.0")
     implementation("io.ktor:ktor-serialization-kotlinx-json-jvm:$ktorVersion")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
     implementation("ch.qos.logback:logback-classic:1.4.14")
     implementation("org.flywaydb:flyway-core:9.22.3")
+    // argon2id password hashing (P1-2). JWT via com.auth0 java-jwt (single JWT
+    // implementation across the pipeline).
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+    // OTP adapter transports (P1-2): Telegram Bot API + self-hosted HTTP SMS gateway
+    implementation("io.ktor:ktor-client-core-jvm:$ktorVersion")
+    implementation("io.ktor:ktor-client-cio-jvm:$ktorVersion")
+    implementation("io.ktor:ktor-client-content-negotiation-jvm:$ktorVersion")
+    // SMTP email adapter (P1-2)
+    implementation("com.sun.mail:jakarta.mail:2.0.1")
     runtimeOnly("org.postgresql:postgresql:42.7.4")
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-server-test-host-jvm:$ktorVersion")

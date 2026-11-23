@@ -85,7 +85,7 @@ Phase mapping follows the Part B delivery plan (0-11).
 | ID | Pri | Feature | Tests | Phase | Status | Evidence |
 |----|-----|---------|-------|-------|--------|----------|
 | B-01 | P0 | Ktor backend skeleton, health, config service (signed bundles, versioned, rollback) | U,I,C | 1 | done | run 45171484716; commit cee6c2f |
-| B-02 | P0 | Auth: OTP providers (Telegram bot, SMTP, self-hosted SMS gateway; optional WhatsApp doc'd), phone/email+password, JWT + rotating refresh, argon2 | U,I,C | 1 | todo | |
+| B-02 | P0 | Auth: OTP providers (Telegram bot, SMTP, self-hosted SMS gateway; optional WhatsApp doc'd), phone/email+password, JWT + rotating refresh, argon2 | U,I,C | 1 | done | backend 53 tests green (auth 37 new); dev-inbox/telegram/SMS/SMTP adapters, HS256 + rotation w/ reuse detection, argon2id, rate limits; openapi contract updated |
 | B-03 | P0 | Users, roles, RBAC enforcement, sessions/devices | U,I,C | 1 | todo | |
 | B-04 | P0 | Append-only hash-chained event store (trips, pings, mesh metadata, quotes, wallet, config, admin actions, docs, logins, bans) + retention + search/export + GDPR anonymization w/ legal hold | U,I | 1/9 | doing | core chain done (run 45171484716); persistence+GDPR pending |
 | B-05 | P0 | PostgreSQL + PostGIS schema + Redis; migrations up tested (Flyway community = up-only, see DECISIONS D33) | I | 1 | doing | V1 schema + CI postgres run 45171484716 |
@@ -126,7 +126,7 @@ Phase mapping follows the Part B delivery plan (0-11).
 | ID | Pri | Feature | Tests | Phase | Status | Evidence |
 |----|-----|---------|-------|-------|--------|----------|
 | X-01 | P0 | Stage 1 protocol: binary envelope, immutable header + origin sig (Ed25519), mutable hop section + per-hop MAC, fragmentation, 18 message types, rotating originId, E2E X25519+ChaCha20-Poly1305 sealed box, signed config bundle + anti-rollback (backend side); GATE 1 fuzz/KAT/bit-flip all green | U | 1b | done | mesh run 45172363159; replay seen-cache + revocation sync land with Stage 2 (X-02) |
-| X-02 | P0 | Stage 2 routing: controlled flooding (jitter, suppression, rate limits), breadcrumbs, AODV-style discovery, cost function (hop/ETX/battery/load/stability/latency/gateway staleness) + Dijkstra oracle, source-routed return with HOP_ACK + ROUTE_ERROR + backup path + store-and-forward, internet shortcut (GATEWAY_RELAY), beacons (DRIVER_BEACON, PRESENCE); GATE 2 | U | 1b | todo | |
+| X-02 | P0 | Stage 2 routing: controlled flooding (jitter, suppression, rate limits), breadcrumbs, AODV-style discovery, cost function (hop/ETX/battery/load/stability/latency/gateway staleness) + Dijkstra oracle, source-routed return with HOP_ACK + ROUTE_ERROR + backup path + store-and-forward, internet shortcut (GATEWAY_RELAY), beacons (DRIVER_BEACON, PRESENCE); GATE 2 | U | 1b | doing | flooding/dedup/suppression/rate-limit, discovery w/ disjoint backup, cost fn (spec weights), source router (1+3 retries 100/200/400, failover chain), store-and-forward, oracle = 61 mesh tests green incl. 200-graph parity; beacons + GATEWAY_RELAY shortcut + GATE 2 close-out next |
 | X-03 | P0 | Stage 3 simulator + 15 mandatory scenarios w/ thresholds, deterministic seeds, metrics, Dijkstra oracle, baseline.json regression gate; GATE 3 | U | 1b | todo | |
 | X-04 | P0 | Stage 4 Android: BleMeshTransport (+ optional Nearby), foreground service, permissions 8-15, Keystore persistence, consent/settings, diagnostics, offline rider UX; sim bridge on emulators; GATE 4 | UI,emu | 10 | todo | |
 | X-05 | P0 | Stage 5 gateway + backend + driver blindness (byte-identical driver DTOs, timing normalization, RBAC denial, contract+diff+timing tests); admin mesh map + replay + analytics; GATE 5 | I,C,UI,E2E | 10 | todo | |
@@ -137,7 +137,7 @@ Phase mapping follows the Part B delivery plan (0-11).
 
 | ID | Pri | Feature | Tests | Phase | Status | Evidence |
 |----|-----|---------|-------|-------|--------|----------|
-| S-01 | P0 | JWT access + rotating refresh, argon2id, rate limits, account lockout | U,I | 1 | todo | |
+| S-01 | P0 | JWT access + rotating refresh, argon2id, rate limits, account lockout | U,I | 1 | doing | JWT/argon2id/rate limits + OTP attempt lockout done (B-02); password brute-force lockout + Postgres-backed stores land with P1-3 |
 | S-02 | P0 | Immutable audit log + tamper-evidence verification tooling | U,I | 1 | todo | |
 | S-03 | P0 | Encrypted document storage; PII minimization in logs/DTOs | U,I | 5 | todo | |
 | S-04 | P0 | GDPR export/delete (account-level) with legal-hold support | I | 9 | todo | |

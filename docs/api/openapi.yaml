@@ -2,6 +2,9 @@ openapi: "3.1.0"
 info:
   title: ride-hailing-platform API
   version: "0.1.0"
+  contact:
+    name: ride-hailing-platform maintainers
+    url: https://github.com/stev199/ride-hailing-platform
   description: >
     Tracks the IMPLEMENTED API surface only; endpoints are added as they land (B-01..). Auth endpoints return with P1-2. All writes are
     validated server-side; all admin endpoints are RBAC-gated; every state change is
@@ -9,6 +12,11 @@ info:
 servers:
   - url: http://localhost:8080
     description: local compose stack
+tags:
+  - name: system
+    description: Liveness and health probes.
+  - name: auth
+    description: Registration, login (password/OTP), token lifecycle, profile.
 paths:
   /health:
     get:
@@ -23,6 +31,142 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
+  /v1/auth/register:
+    post:
+      operationId: register
+      description: Registers a RIDER account with a password and a unique phone and/or email. Returns the initial token pair.
+      summary: Register with password and a unique phone or email
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Created; token pair returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSuccess"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/auth/login/password:
+    post:
+      operationId: loginWithPassword
+      description: Password login. Unknown identifier and wrong password return the same error (no user-enumeration oracle).
+      summary: Password login with phone/email identifier
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordLoginRequest"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSuccess"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /v1/auth/otp/request:
+    post:
+      operationId: requestOtp
+      description: Generates and dispatches a 6-digit OTP (hashed at rest, 5-minute expiry, attempt- and rate-limited).
+      summary: Issue a 6-digit OTP over an admin-enabled channel
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpRequest"
+      responses:
+        "200":
+          description: OTP dispatched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OtpIssued"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+        "502": { $ref: "#/components/responses/BadGateway" }
+  /v1/auth/otp/verify:
+    post:
+      operationId: verifyOtp
+      description: Verifies the OTP for an issued requestId. Logs the user in, or auto-registers a RIDER when enabled by admin config.
+      summary: Verify an OTP; logs in or auto-registers (admin toggle)
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpVerify"
+      responses:
+        "200":
+          description: Verified; token pair returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSuccess"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/auth/refresh:
+    post:
+      operationId: refreshTokens
+      description: Rotates the refresh token for the session family. Presenting a consumed token revokes the whole family.
+      summary: Rotate the refresh token; reuse revokes the family
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Rotated token pair
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Refreshed"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/auth/logout:
+    post:
+      operationId: logout
+      description: Revokes the refresh-token family so no further refreshes are possible.
+      summary: Revoke the refresh-token family
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LogoutRequest"
+      responses:
+        "204":
+          description: Logged out
+  /v1/me:
+    get:
+      operationId: getMe
+      description: Returns the profile of the authenticated user (bearer access token required).
+      summary: Current authenticated user profile
+      tags: [auth]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401": { $ref: "#/components/responses/Unauthorized" }
 components:
   securitySchemes:
     bearerAuth:
@@ -53,25 +197,119 @@ components:
           enum: [en, fr, ar]
     OtpVerify:
       type: object
-      required: [channel, target, code]
+      required: [requestId, code]
       properties:
-        channel:
-          type: string
-          enum: [sms, telegram, email, whatsapp]
-        target:
+        requestId:
           type: string
         code:
           type: string
           minLength: 6
           maxLength: 6
-    TokenPair:
+        displayName:
+          type: string
+          minLength: 2
+          maxLength: 64
+        locale:
+          type: string
+          enum: [en, fr, ar]
+    RegisterRequest:
       type: object
-      required: [accessToken, refreshToken]
+      required: [displayName, password]
+      properties:
+        displayName:
+          type: string
+          minLength: 2
+          maxLength: 64
+        password:
+          type: string
+          minLength: 10
+          maxLength: 128
+        phone:
+          type: string
+          minLength: 8
+          maxLength: 20
+        email:
+          type: string
+          format: email
+        locale:
+          type: string
+          enum: [en, fr, ar]
+    PasswordLoginRequest:
+      type: object
+      required: [identifier, password]
+      properties:
+        identifier:
+          type: string
+        password:
+          type: string
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+    LogoutRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+    OtpIssued:
+      type: object
+      required: [requestId, expiresInSeconds, resendAfterSeconds]
+      properties:
+        requestId:
+          type: string
+        expiresInSeconds:
+          type: integer
+        resendAfterSeconds:
+          type: integer
+    TokenPairDto:
+      type: object
+      required: [accessToken, refreshToken, accessExpiresAtEpochSec]
       properties:
         accessToken:
           type: string
         refreshToken:
           type: string
+        accessExpiresAtEpochSec:
+          type: integer
+    User:
+      type: object
+      required: [id, displayName, role, status, locale]
+      properties:
+        id:
+          type: string
+        phone:
+          type: [string, "null"]
+        email:
+          type: [string, "null"]
+        displayName:
+          type: string
+        role:
+          type: string
+          enum: [RIDER, DRIVER, ADMIN_SUPER, ADMIN_OPS, ADMIN_SUPPORT, ADMIN_FINANCE, ADMIN_VERIFIER, ADMIN_READONLY]
+        status:
+          type: string
+          enum: [ACTIVE, BANNED_TEMP, BANNED_PERM, DELETED]
+        locale:
+          type: string
+    AuthSuccess:
+      type: object
+      required: [user, tokens, created]
+      properties:
+        user:
+          $ref: "#/components/schemas/User"
+        tokens:
+          $ref: "#/components/schemas/TokenPairDto"
+        created:
+          type: boolean
+    Refreshed:
+      type: object
+      required: [tokens]
+      properties:
+        tokens:
+          $ref: "#/components/schemas/TokenPairDto"
     Error:
       type: object
       required: [code, message]
@@ -82,3 +320,40 @@ components:
           type: string
         traceId:
           type: string
+  responses:
+    ValidationError:
+      description: Invalid input
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Conflict:
+      description: Identifier already registered
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Method/channel disabled or account banned
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    RateLimited:
+      description: Too many requests
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    BadGateway:
+      description: Upstream provider failure
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

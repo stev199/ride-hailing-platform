@@ -1,5 +1,6 @@
 package com.ridehailing.backend.testprofile
 
+import com.ridehailing.backend.auth.DevInboxOtpProvider
 import com.ridehailing.backend.config.SignedConfigBundle
 import com.ridehailing.backend.events.EventChain
 import io.ktor.http.HttpStatusCode
@@ -17,7 +18,7 @@ import kotlinx.serialization.Serializable
  * A unit test proves they are absent (404) when the profile is off, i.e. release
  * builds expose no test surface.
  */
-fun Route.testRoutes(eventChain: EventChain, configBundle: SignedConfigBundle) {
+fun Route.testRoutes(eventChain: EventChain, configBundle: SignedConfigBundle, devInbox: DevInboxOtpProvider? = null) {
     route("/test") {
         get("/barrier/{name}") {
             // Cross-actor orchestration barrier (D5): actors poll until all participants
@@ -36,6 +37,17 @@ fun Route.testRoutes(eventChain: EventChain, configBundle: SignedConfigBundle) {
             )
             call.respond(HttpStatusCode.OK, SeedResponse(ok = true, namespace = req.namespace))
         }
+        get("/otp/latest") {
+            // Dev-inbox OTP retrieval for E2E (test profile only; P1-2). The production
+            // adapters (telegram/sms-gateway/smtp) never expose received codes.
+            val target = call.request.queryParameters["target"] ?: ""
+            val code = devInbox?.latestCode(target)
+            if (code == null) {
+                call.respond(HttpStatusCode.NotFound, SeedResponse(ok = false, namespace = "no-otp-for-target"))
+            } else {
+                call.respond(HttpStatusCode.OK, OtpCodeResponse(ok = true, code = code))
+            }
+        }
     }
 }
 
@@ -44,3 +56,6 @@ data class SeedRequest(val namespace: String)
 
 @Serializable
 data class SeedResponse(val ok: Boolean, val namespace: String)
+
+@Serializable
+data class OtpCodeResponse(val ok: Boolean, val code: String)
