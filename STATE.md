@@ -1,17 +1,19 @@
 # STATE - ride-hailing-platform
 
 Last updated: 2026-11-24
-Current phase: 1 (backend core) + 1b (mesh core, parallel track) - P1-2 auth done; P1B Stage 2 routing implemented (GATE 2 close-out pending: beacons + GATEWAY_RELAY)
-Current task: P1B-4 simulator + 15 scenarios + baseline.json (Stage 3, GATE 3); parallel P1-3 users/roles/RBAC
-Last completed task: D49 contract fix verified on CI: force-full-run 45222823793 ALL GREEN incl. api-contract (compose + pinned schemathesis) and report-publish; D50 rerun-safe Pages deploy; P0-9 keystore rotated + fresh encrypted backup in download/keystore-backup
+Current phase: 1 (backend core) + 1b (mesh core, parallel track) - P1-2 auth done; P1B Stage 3 (GATE 3) DONE: 15-scenario suite + baseline gate green locally, CI wiring pushed
+Current task: P1B Stage 4 prep (P1B-5 sim-bridge wiring) + P1B Stage 2 close-out (beacons + GATEWAY_RELAY, closes GATE 2); parallel P1-3 users/roles/RBAC
+Last completed task: P1B-4 GATE 3 - 15 mandatory scenarios ALL PASS (fixed seeds, virtual time), baseline.json + >10% regression gate, evidence in docs/evidence/mesh-sim; suite caught+fixed 6 real defects (D51-D58): Validator.relay hop-budget off-by-one, app-dedup starving backup candidates, inline return-leg clock stall, relay TTL slack, stress rate-limit config, live-view guard job
 
 ## Gate status table
 
 | Gate | Status |
 |---|---|
 | Phase 0 (Part B delivery plan) | PENDING - one item open: D11.9 first-green pipeline with trivial tests on two emulators (needs Phase 1/2 module skeletons; see BACKLOG P0-C) |
-| Mesh GATE 1-7 (Part C) | pending (Stage 1 starts with Phase 1b) |
-| Phases 1-11 (Part B) | pending |
+| Mesh GATE 1-2 (Part C) | GATE 1 done (Stage 1); GATE 2 close-out pending: beacons + GATEWAY_RELAY |
+| Mesh GATE 3 (Stage 3) | DONE locally 2026-11-24 (15/15 scenarios + regression gate; CI wiring pushed, first CI verification pending) |
+| Mesh GATE 4-7 (Part C) | pending (Stage 4 starts with Phase 2 android) |
+| Phases 1-11 (Part B) | in progress (P1-1, P1-2, P1-6 done; P1-3/P1-4/P1-5 next) |
 
 ## Environment status (A3 bootstrap audit, 2026-11-23)
 
@@ -31,16 +33,16 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 15 (P1-2 auth, P1B-3 routing, D49 contract alignment, D50 pages rerun-safety, P0-9 keystore backup - see PROGRESS_LOG.md)
-- CI runs green: push run 45222423620 + force-full-run 45222823793 (ALL GREEN incl. api-contract + report-publish + ci-summary)
-- Fix attempts used this turn: 4 distinct root causes (D49 ST202 phone schema gap, D49 ST201 multi-@ + null acceptance, Java \v class semantics in the test harness, D50 duplicate github-pages artifacts on rerun) - within retry budget (D23), no blockers
+- Tasks completed this phase: 16 (P1-2 auth, P1B-3 routing, D49 contract alignment, D50 pages rerun-safety, P0-9 keystore backup, P1B-4 GATE 3 - see PROGRESS_LOG.md)
+- CI runs green: push run 45222423620 + force-full-run 45222823793 (ALL GREEN incl. api-contract + report-publish + ci-summary); GATE 3 CI verification pending
+- Fix attempts used this turn: 6 distinct root causes (D51 hop-budget off-by-one, D52 dedup-before-discovery, D53 inline clock stall, relay TTL slack, stress rate-limit config, live-view guard) - within retry budget (D23), no blockers
 
 ## Next 5 tasks
 
-1. P1B-4 simulator + 15 scenarios + baseline.json (Stage 3, GATE 3) - routing primitives ready
-2. P1B-2b beacons (DRIVER_BEACON/PRESENCE) + GATEWAY_RELAY internet shortcut (closes GATE 2)
-3. P1-3 users/roles/RBAC + Postgres-backed stores + P1-4 admin shell + login (admin-web)
-4. P1-5 config service: signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig
+1. P1B-2b beacons (DRIVER_BEACON/PRESENCE) + GATEWAY_RELAY internet shortcut (closes GATE 2)
+2. P1-3 users/roles/RBAC + Postgres-backed stores + P1-4 admin shell + login (admin-web)
+3. P1-5 config service: signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig
+4. P1B-5 Stage 4 prep: sim-bridge topology engine wiring
 5. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell)
 
 ## Phase 0 setup record (from repository bootstrap)

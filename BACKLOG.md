@@ -31,7 +31,7 @@ Ordered granular tasks. Each is finishable and verifiable in one work session. D
 | P1B-1 | mesh-core module: Gradle setup, binary envelope codec + fragmentation + fuzz/KAT/bit-flip tests (Stage 1) | P0-3 | done | 20 tests green run 45172363159 |
 | P1B-2 | mesh-core crypto: Ed25519/X25519 + ChaCha20-Poly1305 via JDK built-ins (T-2 resolved, D32), rotating originId, hop MAC; RFC KATs pinned | P1B-1 | done | CryptoTest RFC 8032 + 8439 vectors green |
 | P1B-3 | mesh-core routing: seen-cache, flooding, breadcrumbs, route discovery, cost function + Dijkstra oracle (Stage 2) | P1B-2 | done | 61 tests incl. 200-graph oracle parity |
-| P1B-4 | mesh-core simulator: topology/mobility/loss models + 15 mandatory scenarios + metrics + baseline.json (Stage 3, GATE 3) | P1B-3 | todo |
+| P1B-4 | mesh-core simulator: topology/mobility/loss models + 15 mandatory scenarios + metrics + baseline.json (Stage 3, GATE 3) | P1B-3 | done | docs/evidence/mesh-sim/; mesh-core/baseline.json gate; 15/15 PASS local 2026-11-24; D51-D58; CI wiring in ci.yml mesh job (test simReport + artifact); first CI verification pending |
 | P1B-5 | mesh-core Stage 4 Android integration prep: sim-bridge topology engine wiring | P1B-4 | todo |
 
 ## Phase 2 (android shell) and beyond
