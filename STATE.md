@@ -2,8 +2,8 @@
 
 Last updated: 2026-11-23
 Current phase: 0 (near-complete; see gate table) - Phase 0 Part B items done, CI skeleton live, toolchain partially local
-Current task: push CI v2 + docs, watch CI, then Phase 1 backend skeleton
-Last completed task: Phase-0 CI skeleton (full D3 job graph), Part E tooling (viewer/report/storyboard/sim-bridge/e2e), spec docs saved, architecture docs written, local JDK17+Gradle installed
+Current task: Phase 1 - backend skeleton (P1-1) then mesh-core Stage 1 (P1B-1)
+Last completed task: Phase 0 - CI pipeline GREEN end-to-end (run 45166045752), Pages gallery publishing verified (E6), all specs/docs/tooling landed, Dependabot alerts clear
 
 ## Gate status table
 
@@ -28,9 +28,9 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 8 (see PROGRESS_LOG.md)
+- Tasks completed this phase: 10 (see PROGRESS_LOG.md)
 - CI runs green: 2 (skeleton) + new runs from this push (see PROGRESS_LOG)
-- Fix attempts used this turn: 3/3-category ok (actionlint hashFiles guard pattern, spectral ruleset, artifact-download resilience) - no blockers
+- Fix attempts used this turn: 5 distinct root causes fixed within retry budget (D23) - no blockers
 
 ## Next 5 tasks
 

@@ -29,3 +29,9 @@ Append-only log of non-obvious choices and fallbacks. Newest sections at the bot
 - **D20: Competitive audit is knowledge-based desktop research** (no scraping/paid tools), recorded as directional in docs/COMPETITIVE_AUDIT.md; adoption table drives FEATURES.md.
 - **D21: gitleaks/actionlint pinned releases** used identically locally (scripts/ci-local.sh) and in CI to avoid drift.
 - **D22: report-publish supersedes pages-report.yml**; Pages keeps last-run layout /runs/<run-id>/ and root = latest; artifact test-report-<run-id> is the fallback channel (E6.2).
+
+## 2026-11-23 - CI green bring-up (Phase 0 close-out)
+
+- **D23: CI fix trail (retry policy applied, all fixed within budget).** (1) `hashFiles()` is step-scoped only -> guard-step pattern; actionlint now also runs locally in scripts/ci-local.sh. (2) trivy-action tags are v-prefixed now -> `@v0.36.0` (validated against the live tag list). (3) dependency-review SPDX id `GPL-2.0-only-with-classpath-exception` rejected -> dropped. (4) CI runs shellcheck (sandbox does not) -> shellcheck 0.10.0 installed locally; workflows SC2016/SC2034/SC2035/SC2086 fixed. (5) gitleaks `generic-api-key` false positive on actions/cache `key:` -> `.gitleaksignore` fingerprint; **gitleaks fingerprints reference the introducing commit, so checkouts scanning history must use `fetch-depth: 0`** (this was the last red).
+- **D24: Required check is `ci-summary` and it behaved correctly** during the failures (failed the run, listed failing jobs) - branch protection + admin bypass verified end-to-end.
+- **D25: Report gallery publication verified live** (E6.1 mode): `/latest` + `/runs/<run-id>/` on Pages with artifact fallback uploaded.
