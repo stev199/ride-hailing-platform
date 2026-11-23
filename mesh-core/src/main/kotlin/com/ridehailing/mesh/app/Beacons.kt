@@ -211,8 +211,12 @@ object DriverCredentials {
 
     /** beaconMacKey = HKDF(profileSigningKeyRaw, salt=driverId, info="beacon-mac"). */
     fun beaconMacKey(profileSigningKey: java.security.KeyPair, driverId: ByteArray): ByteArray =
+        beaconMacKey(MeshCrypto.rawEd25519(profileSigningKey.public), driverId)
+
+    /** Raw-key variant: receivers derive the MAC key from the certificate's key material. */
+    fun beaconMacKey(profileSigningKeyRaw: ByteArray, driverId: ByteArray): ByteArray =
         MeshCrypto.hkdfSha256(
-            MeshCrypto.rawEd25519(profileSigningKey.public),
+            profileSigningKeyRaw,
             salt = driverId,
             info = "beacon-mac".toByteArray(),
             length = 32,
@@ -237,6 +241,8 @@ class BeaconLedger(private val clock: () -> Long) {
 
     private val beacons = LinkedHashMap<String, Entry>() // rotatingId hex -> entry
     private val profiles = HashMap<String, ProfileEntry>() // driverId hex -> entry
+    private val certs = HashMap<String, DriverCertificate>() // driverId hex -> verified cert
+    private val driverIdByRotating = HashMap<String, String>() // rotatingId hex -> driverId hex
     private val profileForwarded = HashSet<String>() // driverId hex, per generation
 
     var beaconTtlMs: Long = 30_000
@@ -284,7 +290,32 @@ class BeaconLedger(private val clock: () -> Long) {
     }
 
     fun profileCount(): Int = profiles.size
+
+    /** Pairs a heard rotating beacon id with the verified certificate (rider-side mapping). */
+    fun mapRotating(rotatingId: ByteArray, cert: DriverCertificate) {
+        driverIdByRotating[rotatingId.joinToString("") { "%02x".format(it) }] =
+            cert.driverId.joinToString("") { "%02x".format(it) }
+        certs[cert.driverId.joinToString("") { "%02x".format(it) }] = cert
+    }
+
+    /** (profileSigningKeyRaw, driverId) for a heard rotating beacon, or null when uncertified/expired. */
+    fun snapshotFor(rotatingId: ByteArray): Pair<ByteArray, ByteArray>? {
+        val driverIdHex = driverIdByRotating[rotatingId.joinToString("") { "%02x".format(it) }] ?: return null
+        val cert = certs[driverIdHex] ?: return null
+        return cert.profileSigningKeyRaw to cert.driverId
+    }
 }
+
+/**
+ * A driver's beacon material: the certified profile-signing key, the driver id
+ * and the signed certificate + snippet that ride the first beacon.
+ */
+data class DriverBeaconCredentials(
+    val profileSigningKey: java.security.KeyPair,
+    val driverId: ByteArray,
+    val certificate: DriverCertificate,
+    val snippet: ProfileSnippet,
+)
 
 /**
  * Adaptive beacon pacing (spec: "every beaconIntervalSec (default 5 s,
@@ -317,6 +348,90 @@ class BeaconScheduler(
 
     /** Test/verification hook: does not consume the due tick. */
     fun peekNextDueMs(): Long = nextDueMs
+}
+
+/**
+ * Wire format for the beacon's optional profile field: the backend-issued
+ * certificate + the signed profile snippet travel together so any receiver can
+ * verify the whole chain against the pinned backend key (spec: "verify against
+ * backend-issued driver certificates").
+ *
+ *   certLen u16 | cert (fixed 112B) | snippet
+ *   cert:  driverId 8B | profileSigningKeyRaw 32B | issued u32 | expires u32 | sig 64B
+ *   snippet: driverId 8B | nameLen u8 | name | ratingX10 u8 | vehLen u8 | vehicle |
+ *            photoHash 8B | issued u32 | sig 64B
+ */
+object ProfileWire {
+
+    const val CERT_LEN = 8 + 32 + 4 + 4 + 64
+
+    fun encodeBundle(cert: DriverCertificate, snippet: ProfileSnippet): ByteArray {
+        require(cert.driverId.size == 8 && cert.profileSigningKeyRaw.size == 32)
+        require(snippet.driverId.size == 8 && snippet.photoHash.size == 8)
+        require(snippet.displayName.toByteArray(Charsets.UTF_8).size <= 0xFF)
+        require(snippet.vehicleSummary.toByteArray(Charsets.UTF_8).size <= 0xFF)
+        val name = snippet.displayName.toByteArray(Charsets.UTF_8)
+        val vehicle = snippet.vehicleSummary.toByteArray(Charsets.UTF_8)
+        val out = java.io.ByteArrayOutputStream()
+        fun u8(v: Int) = out.write(v and 0xFF)
+        fun u16(v: Int) { out.write((v ushr 8) and 0xFF); out.write(v and 0xFF) }
+        fun i32(v: Int) {
+            out.write((v ushr 24) and 0xFF); out.write((v ushr 16) and 0xFF)
+            out.write((v ushr 8) and 0xFF); out.write(v and 0xFF)
+        }
+        u16(CERT_LEN)
+        out.write(cert.driverId)
+        out.write(cert.profileSigningKeyRaw)
+        i32(cert.issuedAtSec)
+        i32(cert.expiresSec)
+        out.write(cert.signature) // 64B
+        out.write(snippet.driverId)
+        u8(name.size); out.write(name)
+        u8(snippet.ratingX10 and 0xFF)
+        u8(vehicle.size); out.write(vehicle)
+        out.write(snippet.photoHash)
+        i32(snippet.issuedAtSec)
+        out.write(snippet.signature) // 64B
+        return out.toByteArray()
+    }
+
+    /** Never throws. Returns null on any structural deviation. */
+    fun decodeBundle(bytes: ByteArray): Pair<DriverCertificate, ProfileSnippet>? {
+        try {
+            if (bytes.size < 2 + CERT_LEN) return null
+            val certLen = ((bytes[0].toInt() and 0xFF) shl 8) or (bytes[1].toInt() and 0xFF)
+            if (certLen != CERT_LEN || bytes.size < 2 + certLen) return null
+            var p = 2
+            fun take(n: Int): ByteArray { val b = bytes.copyOfRange(p, p + n); p += n; return b }
+            fun i32(): Int {
+                val v = ((bytes[p].toInt() and 0xFF) shl 24) or ((bytes[p + 1].toInt() and 0xFF) shl 16) or
+                    ((bytes[p + 2].toInt() and 0xFF) shl 8) or (bytes[p + 3].toInt() and 0xFF)
+                p += 4
+                return v
+            }
+            val cert = DriverCertificate(
+                driverId = take(8), profileSigningKeyRaw = take(32),
+                issuedAtSec = i32(), expiresSec = i32(), signature = take(64),
+            )
+            if (p + 8 > bytes.size) return null
+            val driverId = take(8)
+            val nameLen = bytes[p++].toInt() and 0xFF
+            if (p + nameLen > bytes.size) return null
+            val name = String(take(nameLen), Charsets.UTF_8)
+            val rating = bytes[p++].toInt() and 0xFF
+            val vehLen = bytes[p++].toInt() and 0xFF
+            if (p + vehLen > bytes.size) return null
+            val vehicle = String(take(vehLen), Charsets.UTF_8)
+            if (p + 8 + 4 + 64 > bytes.size) return null
+            val photoHash = take(8)
+            val issued = i32()
+            val sig = take(64)
+            if (p != bytes.size) return null
+            return cert to ProfileSnippet(driverId, name, rating, vehicle, photoHash, issued, sig)
+        } catch (e: Exception) {
+            return null
+        }
+    }
 }
 
 /**

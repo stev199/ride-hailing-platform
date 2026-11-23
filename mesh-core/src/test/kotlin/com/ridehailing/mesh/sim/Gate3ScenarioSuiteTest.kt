@@ -65,6 +65,18 @@ class Gate3ScenarioSuiteTest {
     fun `scenario 15 - fragmentation under loss reordering - bounded memory`() = assertPasses(result("15-fragmentation"))
 
     @Test
+    fun `scenario 16 - driver beacons - coverage quantized marker profile relay once adaptive pacing`() = assertPasses(result("16-driver-beacons"))
+
+    @Test
+    fun `scenario 17 - presence to gateway - sealed to backend gateway cannot open`() = assertPasses(result("17-presence-to-gateway"))
+
+    @Test
+    fun `scenario 18 - internet shortcut - backend quote via gateway relay faster than mesh return`() = assertPasses(result("18-internet-shortcut"))
+
+    @Test
+    fun `scenario 19 - gateway opacity - revoked dropped replay suppressed no leaks`() = assertPasses(result("19-gateway-opacity-replay"))
+
+    @Test
     fun `baseline regression gate - no metric regresses more than 10 percent`() {
         val baselineFile = java.io.File("baseline.json")
         val results = SuiteCache.results()

@@ -288,9 +288,9 @@ class Gate2AppTest {
         val forwarded = mutableListOf<Pair<ByteArray, ByteArray>>() // bytes to gatewayId
         var reject = false
 
-        override fun forward(requestEnvelopeBytes: ByteArray, gatewayId: ByteArray): ByteArray? {
+        override fun forward(requestEnvelopeBytes: ByteArray, gatewayId: ByteArray): GatewayResponse {
             forwarded.add(requestEnvelopeBytes to gatewayId)
-            if (reject) return null
+            if (reject) return GatewayResponse.Rejected
             val quote = Validator.buildEnvelope(
                 type = MessageType.QUOTE,
                 flags = Flags.CRITICAL,
@@ -302,7 +302,7 @@ class Gate2AppTest {
                 originEpoch = 1,
                 createdAtSec = 1_700_000_000,
             )
-            return Codec.encode(quote)
+            return GatewayResponse.Payload(Codec.encode(quote))
         }
     }
 
@@ -366,7 +366,7 @@ class Gate2AppTest {
         assertEquals(hex(gwId), hex(wrapper.originId))
 
         // Rider-side unwrap: the inner envelope is the backend's QUOTE, signature intact.
-        val inner = svc.unwrap(wrapper.payload)
+        val inner = GatewayRelayCodec.unwrap(wrapper.payload, wrapper.originId)
         assertTrue(inner != null)
         assertEquals(MessageType.QUOTE, inner!!.type)
         assertEquals("quote|backend", String(inner.payload))
@@ -391,11 +391,12 @@ class Gate2AppTest {
         svc.onEnvelope(gatewayRequestEnvelope(rider, riderOriginId))
         val payload = injected.single().payload
 
-        assertNull(svc.unwrap(payload.copyOfRange(0, 10)), "truncated -> null")
+        assertNull(GatewayRelayCodec.unwrap(payload.copyOfRange(0, 10), gwId), "truncated -> null")
         val tampered = payload.copyOf().also { it[payload.size - 1] = (it[it.size - 1].toInt() xor 1).toByte() }
-        assertNull(svc.unwrap(tampered), "tampered gwTag -> null")
-        // full payload still unwraps
-        assertTrue(svc.unwrap(payload) != null)
+        assertNull(GatewayRelayCodec.unwrap(tampered, gwId), "tampered gwTag -> null")
+        // full payload still unwraps; a foreign gateway id cannot verify the tag
+        assertTrue(GatewayRelayCodec.unwrap(payload, gwId) != null)
+        assertNull(GatewayRelayCodec.unwrap(payload, MeshCrypto.sha256("other-gw".toByteArray()).copyOf(8)))
     }
 
     @Test

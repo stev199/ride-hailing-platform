@@ -64,7 +64,7 @@ object GatewayAnnounceCodec {
 }
 
 /**
- * The gateway's "HTTPS/WSS" - opaque bytes in, opaque response bytes out.
+ * The gateway's "HTTPS/WSS" - opaque bytes in, opaque response out.
  * Production (Stage 5) implements this over an HTTPS client; the simulator
  * (Stage 3, GATE 2 scenarios) implements it against an in-process fake backend.
  */
@@ -72,10 +72,18 @@ interface GatewayLink {
     /**
      * Forwards [requestEnvelopeBytes] (encoded envelope, payload untouched -
      * the gateway MUST NOT parse, decrypt, or re-sign it) with the gateway's
-     * identity for backend accounting. Returns the backend's response envelope
-     * bytes, or null when the backend rejected (revoked origin, replay, ...).
+     * identity for backend accounting.
      */
-    fun forward(requestEnvelopeBytes: ByteArray, gatewayId: ByteArray): ByteArray?
+    fun forward(requestEnvelopeBytes: ByteArray, gatewayId: ByteArray): GatewayResponse
+}
+
+sealed class GatewayResponse {
+    /** Backend response envelope bytes to re-inject into the mesh (a QUOTE / TRIP_UPDATE). */
+    data class Payload(val bytes: ByteArray) : GatewayResponse()
+    /** Accepted by the backend, nothing to return (e.g. PRESENCE ingestion). */
+    data object NoResponse : GatewayResponse()
+    /** Backend refused (revoked origin, replay, undecryptable) - nothing is injected. */
+    data object Rejected : GatewayResponse()
 }
 
 sealed class GatewayRelayResult {
@@ -103,14 +111,20 @@ class GatewayRelayService(
 
     /** Handles one received envelope; call after mesh validation, before flooding. */
     fun onEnvelope(env: Envelope): GatewayRelayResult {
-        val relayable = env.type == MessageType.GATEWAY_RELAY || env.type == MessageType.RIDE_REQUEST
+        // PRESENCE relays to the gateway too (spec: "relayed to gateways ... encrypted
+        // to the backend only"); the gateway handles it exactly as opaquely.
+        val relayable = env.type == MessageType.GATEWAY_RELAY || env.type == MessageType.RIDE_REQUEST ||
+            env.type == MessageType.PRESENCE
         val forGateway = env.destination.kind == DestKind.GATEWAY_ANY ||
             (env.destination.kind == DestKind.NODE && env.destination.id?.contentEquals(gatewayId) == true)
         if (!relayable || !forGateway) return GatewayRelayResult.NotRelayable
 
         // OPAQUE forward: original bytes with the original signature - the gateway
         // never decrypts payloads and never learns user identity (spec Stage 5).
-        val responseBytes = link.forward(Codec.encode(env), gatewayId) ?: return GatewayRelayResult.BackendRejected
+        val response = link.forward(Codec.encode(env), gatewayId)
+        if (response is GatewayResponse.Rejected) return GatewayRelayResult.BackendRejected
+        if (response !is GatewayResponse.Payload) return GatewayRelayResult.Forwarded
+        val responseBytes = response.bytes
 
         // Wrap the backend response for the remaining mesh hops. The backend built
         // the inner envelope already addressed to the rider; the gateway copies it
@@ -137,15 +151,19 @@ class GatewayRelayService(
         forwardIntoMesh(wrapper)
         return GatewayRelayResult.Forwarded
     }
+}
 
-    /** Rider-side unwrap. Returns the inner envelope or null (truncated/tampered gwTag). */
-    fun unwrap(gatewayRelayPayload: ByteArray): Envelope? {
-        if (gatewayRelayPayload.size < 2 + 64 + 8) return null
-        val innerLen = ((gatewayRelayPayload[0].toInt() and 0xFF) shl 8) or (gatewayRelayPayload[1].toInt() and 0xFF)
-        if (gatewayRelayPayload.size < 2 + innerLen + 8) return null
-        val innerBytes = gatewayRelayPayload.copyOfRange(2, 2 + innerLen)
-        val tag = gatewayRelayPayload.copyOfRange(2 + innerLen, 2 + innerLen + 8)
-        if (!MeshCrypto.hmacSha256(gatewayId, innerBytes).copyOf(8).contentEquals(tag)) return null
+/** Rider-side unwrapping of a GATEWAY_RELAY payload (tag keyed on the wrapper's originId = gateway). */
+object GatewayRelayCodec {
+
+    /** Returns the inner envelope or null (truncated/tampered gwTag). */
+    fun unwrap(payload: ByteArray, gatewayOriginId: ByteArray): Envelope? {
+        if (payload.size < 2 + 64 + 8) return null
+        val innerLen = ((payload[0].toInt() and 0xFF) shl 8) or (payload[1].toInt() and 0xFF)
+        if (payload.size < 2 + innerLen + 8) return null
+        val innerBytes = payload.copyOfRange(2, 2 + innerLen)
+        val tag = payload.copyOfRange(2 + innerLen, 2 + innerLen + 8)
+        if (!MeshCrypto.hmacSha256(gatewayOriginId, innerBytes).copyOf(8).contentEquals(tag)) return null
         return when (val r = Codec.decode(innerBytes)) {
             is DecodeResult.Ok -> r.envelope
             else -> null

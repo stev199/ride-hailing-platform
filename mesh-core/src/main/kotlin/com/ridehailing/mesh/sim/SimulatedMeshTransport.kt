@@ -91,6 +91,11 @@ class SimWorld private constructor(
     val revokedOrigins = mutableSetOf<String>() // originId hex
     val revokedNodes = mutableSetOf<String>() // node names (relay hard-reject)
 
+    // GATE 2 close-out: in-process fake backend (gateway HTTPS/WSS stand-in) + the
+    // sealed presence payloads the riders produced (gateway-opacity assertions).
+    var backendLink: SimulatedBackendLink? = null
+    val presenceSealedSent = mutableListOf<ByteArray>()
+
     // request bookkeeping (by app-level tag)
     private val sentAtByTag = HashMap<String, Long>()
     private val msgIdByTag = HashMap<String, String>()
@@ -300,11 +305,18 @@ class SimWorld private constructor(
         appRetries: Int = 0,
     ) {
         val origin = node(fromName)
+        // GATE 2: a request addressed to a gateway goes E2E-sealed to the BACKEND
+        // (spec crypto: payload rider<->backend); the gateway forwards opaquely.
+        val effectivePayload = if (destination.kind == DestKind.GATEWAY_ANY && backendLink != null) {
+            MeshCrypto.seal(backendLink!!.x25519Public, payload)
+        } else {
+            payload
+        }
         val env = Validator.buildEnvelope(
             type = MessageType.RIDE_REQUEST,
             flags = Flags.ACK_REQUIRED,
             destination = destination,
-            payload = payload,
+            payload = effectivePayload,
             maxHops = maxHops,
             ttlSec = ttlSec,
             identity = origin.identity,
@@ -346,6 +358,11 @@ class SimWorld private constructor(
     }
 
     fun requestTagOf(env: Envelope): String = tagByMsgId[hex(env.msgId)] ?: "untagged"
+
+    /** GATE 2 helpers: request send time / original envelope per app-level tag (scenario assertions). */
+    fun sentAtOf(tag: String): Long = sentAtByTag[tag] ?: 0L
+
+    fun sentEnvelopeOf(tag: String): Envelope? = sentEnvelopes[tag]
 
     /** Called when a QUOTE (or gateway response) reaches its destination rider. */
     fun onQuoteArrived(rider: SimNode, quote: Envelope) {
@@ -475,6 +492,13 @@ class SimNode(
     var appStatus = mutableListOf<String>()
     val appSeen = HashSet<String>()
 
+    // GATE 2 close-out: beacon emission (drivers), beacon ledger (riders), gateway relay (gateways)
+    var beaconScheduler: com.ridehailing.mesh.app.BeaconScheduler? = null
+    var beaconLedger: com.ridehailing.mesh.app.BeaconLedger? = null
+    var gatewayService: com.ridehailing.mesh.app.GatewayRelayService? = null
+    var beaconCredentials: com.ridehailing.mesh.app.DriverBeaconCredentials? = null
+    private var profileRelayPending = true // profile bundle rides the FIRST beacon only
+
     // mesh config (scenario 13): mutable, applied from signed bundles
     var meshConfig = MeshConfig(maxHops = world.maxHops, weights = world.weights)
     var lastAcceptedEpoch = Long.MIN_VALUE
@@ -519,6 +543,118 @@ class SimNode(
         for (n in world.neighborsOf(this)) world.transmit(this, n, flight)
     }
 
+    // ---------------- GATE 2: beacons, presence, gateway relay ----------------
+
+    /**
+     * Driver beacon tick (call once per second from the scenario driver loop).
+     * Emits DRIVER_BEACON only when the adaptive scheduler says it is due.
+     */
+    fun emitBeaconIfDue() {
+        val sched = beaconScheduler ?: return
+        if (!up) return
+        if (!sched.shouldEmit(neighborCount(), localClock.nowMs())) return
+        val creds = beaconCredentials
+        val macKey: ByteArray
+        val profileBytes: ByteArray?
+        if (creds != null) {
+            macKey = com.ridehailing.mesh.app.DriverCredentials.beaconMacKey(creds.profileSigningKey, creds.driverId)
+            profileBytes = if (profileRelayPending) {
+                profileRelayPending = false
+                com.ridehailing.mesh.app.ProfileWire.encodeBundle(creds.certificate, creds.snippet)
+            } else null
+        } else {
+            macKey = MeshCrypto.sha256("uncertified|$name".toByteArray())
+            profileBytes = null
+        }
+        val payload = com.ridehailing.mesh.app.BeaconCodec.encode(
+            rotatingId = originId,
+            latMeters = position.x, lonMeters = position.y,
+            rideTypeBitmap = 0b01, available = true, keyEpoch = 1,
+            macKey = macKey, profile = profileBytes,
+        )
+        world.metrics.beaconsEmitted++
+        if (profileBytes != null) world.metrics.beaconsWithProfile++
+        val env = Validator.buildEnvelope(
+            type = MessageType.DRIVER_BEACON, flags = 0,
+            destination = Destination(DestKind.ANY), payload = payload,
+            maxHops = meshConfig.maxHops, ttlSec = 30,
+            identity = identity, originId = originId, originEpoch = 1,
+            createdAtSec = localNowSec(),
+        )
+        startFlood(SimWorld.Flight(env, emptyList(), id))
+    }
+
+    /** Rider-side beacon intake: ledger observe + profile chain verification. */
+    private fun onBeaconHeard(env: Envelope) {
+        val ledger = beaconLedger ?: return
+        world.metrics.beaconsHeard++
+        when (val res = com.ridehailing.mesh.app.BeaconCodec.decode(env.payload, null)) {
+            is com.ridehailing.mesh.app.BeaconDecode.Ok -> {
+                var macKey: ByteArray? = null
+                val profile = res.payload.profile
+                if (profile != null && world.backendLink != null) {
+                    val bundle = com.ridehailing.mesh.app.ProfileWire.decodeBundle(profile)
+                    if (bundle != null) {
+                        val verdict = com.ridehailing.mesh.app.DriverCredentials.verify(
+                            bundle.first, bundle.second, world.backendLink!!.ed25519Public, localNowSec(),
+                        )
+                        if (verdict is com.ridehailing.mesh.app.ProfileVerdict.Ok) {
+                            world.metrics.profilesVerified++
+                            ledger.cacheProfile(bundle.second)
+                            ledger.mapRotating(res.payload.rotatingId, bundle.first)
+                            // From now on the rider derives the beacon MAC key from the cert.
+                            macKey = com.ridehailing.mesh.app.DriverCredentials.beaconMacKey(
+                                bundle.first.profileSigningKeyRaw, bundle.second.driverId,
+                            )
+                        } else {
+                            world.metrics.invalidDrops["beacon profile ${verdict}"] =
+                                (world.metrics.invalidDrops["beacon profile ${verdict}"] ?: 0) + 1
+                        }
+                    }
+                }
+                if (macKey == null) {
+                    // Cert cached from an earlier beacon: re-decode with the derived key.
+                    val cached = ledger.snapshotFor(res.payload.rotatingId)
+                    if (cached != null) {
+                        macKey = com.ridehailing.mesh.app.DriverCredentials.beaconMacKey(cached.first, cached.second)
+                    }
+                }
+                if (macKey != null) {
+                    when (val re = com.ridehailing.mesh.app.BeaconCodec.decode(env.payload, macKey)) {
+                        is com.ridehailing.mesh.app.BeaconDecode.Ok -> if (re.macVerified) world.metrics.beaconsMacVerified++
+                        is com.ridehailing.mesh.app.BeaconDecode.MacInvalid -> {
+                            world.metrics.invalidDrops["beacon mac"] = (world.metrics.invalidDrops["beacon mac"] ?: 0) + 1
+                            return
+                        }
+                        else -> return
+                    }
+                }
+                ledger.observe(res.payload, localClock.nowMs(), fromNeighbor = "")
+            }
+            is com.ridehailing.mesh.app.BeaconDecode.MacInvalid ->
+                world.metrics.invalidDrops["beacon mac"] = (world.metrics.invalidDrops["beacon mac"] ?: 0) + 1
+            is com.ridehailing.mesh.app.BeaconDecode.Malformed ->
+                world.metrics.invalidDrops["beacon malformed"] = (world.metrics.invalidDrops["beacon malformed"] ?: 0) + 1
+        }
+    }
+
+    /** Rider-side GATEWAY_RELAY intake: unwrap, verify the inner envelope, process the QUOTE. */
+    private fun onGatewayRelayArrived(env: Envelope) {
+        val inner = com.ridehailing.mesh.app.GatewayRelayCodec.unwrap(env.payload, env.originId)
+        if (inner == null) {
+            world.metrics.invalidDrops["gateway relay unwrap"] = (world.metrics.invalidDrops["gateway relay unwrap"] ?: 0) + 1
+            return
+        }
+        val originPub = world.keys[world.hex(inner.originId)]
+        val verdict = Validator.validate(inner, meshConfig.maxHops, localNowSec(), originPub)
+        if (verdict is Validator.Verdict.Invalid) {
+            world.metrics.invalidDrops["gateway inner ${verdict.reason}"] =
+                (world.metrics.invalidDrops["gateway inner ${verdict.reason}"] ?: 0) + 1
+            return
+        }
+        if (inner.type == MessageType.QUOTE) world.onQuoteArrived(this, inner)
+    }
+
     // ---------------- receive pipeline ----------------
 
     fun receive(flight: SimWorld.Flight) {
@@ -545,8 +681,41 @@ class SimNode(
             clockOffsetMs = gwSec * 1000L - world.engine.clock.nowMs()
         }
 
+        // GATE 2: replay protection FIRST - the seen-cache marks (originId, msgId) and
+        // gates every downstream app hook. A replayed envelope never re-reaches the
+        // gateway service or the backend behind it (scenario 19).
         val key = SeenCache.Key(env.originId, env.msgId)
         val alreadySeen = seenCache.seen(key, localClock.nowMs())
+
+        // GATE 2: wired gateways handle relayable envelopes (RIDE_REQUEST / PRESENCE /
+        // GATEWAY_RELAY addressed to them) exactly once per msgId, BEFORE any driver
+        // app or flood logic - a gateway forwards to the backend instead of quoting
+        // (spec Stage 5).
+        val gwSvc = gatewayService
+        if (gwSvc != null && !alreadySeen) {
+            when (gwSvc.onEnvelope(env)) {
+                com.ridehailing.mesh.app.GatewayRelayResult.Forwarded,
+                com.ridehailing.mesh.app.GatewayRelayResult.BackendRejected -> {
+                    // Early return: the Flooder never runs for handled envelopes, so
+                    // record the msgId HERE - otherwise the same envelope re-flooded
+                    // later (replay) reaches the service and the backend again
+                    // (scenario 19 pins this).
+                    seenCache.see(key, localClock.nowMs())
+                    return
+                }
+                com.ridehailing.mesh.app.GatewayRelayResult.NotRelayable -> {}
+            }
+        }
+        // GATE 2: a GATEWAY_RELAY response addressed to this node (rider side):
+        // unwrap, verify the inner envelope, process the backend's QUOTE.
+        if (env.type == MessageType.GATEWAY_RELAY && matchesDestination(env.destination)) {
+            onGatewayRelayArrived(env)
+            return
+        }
+
+        // GATE 2: riders observe driver beacons once per emission (before flood logic);
+        // beacons then continue through the normal flood relay path.
+        if (env.type == MessageType.DRIVER_BEACON && !alreadySeen) onBeaconHeard(env)
 
         if (matchesDestination(env.destination) &&
             (env.type == MessageType.RIDE_REQUEST || env.type == MessageType.QUOTE)

@@ -305,6 +305,49 @@
         "fragCapEnforced": 1.0,
         "fragTimeoutEvicted": 1.0
       }
+    },
+    {
+      "name": "16-driver-beacons",
+      "metrics": {
+        "beaconCoverage": 1.0,
+        "markerErrorM": 3.0,
+        "profileVerified": 1.0,
+        "profileAttachedCount": 1.0,
+        "beaconsEmittedSparse21s": 5.0,
+        "shortMacVerified": 5.0,
+        "adaptiveReduction": 0.6153846153846154
+      }
+    },
+    {
+      "name": "17-presence-to-gateway",
+      "metrics": {
+        "presenceDeliveredRatio": 1.0,
+        "gatewayOpenedRatio": 0.0,
+        "opaqueForwardRatio": 1.0,
+        "coarsePositionOnly": 1.0
+      }
+    },
+    {
+      "name": "18-internet-shortcut",
+      "metrics": {
+        "shortcutQuoteDelivered": 1.0,
+        "viaBackendOrigin": 1.0,
+        "shortcutMeshHops": 1.0,
+        "shortcutLatencyMs": 40.0,
+        "meshOnlyLatencyMs": 1346.0,
+        "shortcutFaster": 1.0,
+        "decisionCorrect": 1.0
+      }
+    },
+    {
+      "name": "19-gateway-opacity-replay",
+      "metrics": {
+        "revokedDrops": 1.0,
+        "backendRequestsFromOk": 1.0,
+        "gatewayPlaintextLeaks": 0.0,
+        "signaturePreserved": 1.0,
+        "injectedForRevoked": 0.0
+      }
     }
   ]
 }

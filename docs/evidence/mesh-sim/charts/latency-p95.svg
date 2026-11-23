@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="790" height="440" font-family="monospace" font-size="12">
-<rect width="790" height="440" fill="white"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="790" height="544" font-family="monospace" font-size="12">
+<rect width="790" height="544" fill="white"/>
 <text x="10" y="22" font-weight="bold">Latency p95 (ms) per scenario (0 when not measured)</text>
 <text x="8" y="53">1-line-lossless</text>
 <rect x="210" y="40" width="0" height="16" fill="#2563eb"/>
@@ -46,4 +46,16 @@
 <text x="8" y="417">15-fragmentation</text>
 <rect x="210" y="404" width="0" height="16" fill="#2563eb"/>
 <text x="216" y="417">0</text>
+<text x="8" y="443">16-driver-beacons</text>
+<rect x="210" y="430" width="0" height="16" fill="#2563eb"/>
+<text x="216" y="443">0</text>
+<text x="8" y="469">17-presence-to-gateway</text>
+<rect x="210" y="456" width="0" height="16" fill="#2563eb"/>
+<text x="216" y="469">0</text>
+<text x="8" y="495">18-internet-shortcut</text>
+<rect x="210" y="482" width="0" height="16" fill="#2563eb"/>
+<text x="216" y="495">0</text>
+<text x="8" y="521">19-gateway-opacity-replay</text>
+<rect x="210" y="508" width="0" height="16" fill="#2563eb"/>
+<text x="216" y="521">0</text>
 </svg>

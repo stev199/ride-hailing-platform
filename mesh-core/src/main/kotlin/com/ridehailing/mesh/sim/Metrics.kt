@@ -35,6 +35,16 @@ class RunMetrics {
     val quoteOriginByTag = HashMap<String, String>() // tag -> quoting node originId hex
     val chosenFirstHops = mutableListOf<String>() // first relay of the chosen return path per selection
 
+    // GATE 2 close-out counters (beacons/presence/gateway) - consumed by scenarios
+    // 16-19 directly; intentionally NOT part of summary() so the existing scenario
+    // baselines stay byte-stable.
+    var beaconsEmitted = 0L
+    var beaconsWithProfile = 0L
+    var beaconsHeard = 0L
+    var beaconsMacVerified = 0L
+    var profilesVerified = 0L
+    var presenceSent = 0L
+
     fun latencyP(percent: Int): Double = percentile(latenciesMs, percent)
     fun transmissionsPerDelivered(): Double =
         if (quotesDelivered == 0L) 0.0 else transmissions.toDouble() / quotesDelivered
@@ -93,9 +103,16 @@ object MetricDirections {
         "noRoute", "queuedExpired", "queuedDelivered", "appDuplicates", "relayBudgetViolations",
         "rateLimitedDrops", "revokedDrops", "replayDrops", "hopCountCorrect",
         "liveMaxHops", "staleRejected", "expiredRejected", "circulationViolations",
+        // GATE 2 close-out (scenarios 16-19): security/behavior invariants must hold exactly
+        "profileVerified", "profileAttachedCount", "beaconsEmittedSparse21s", "shortMacVerified",
+        "gatewayOpenedRatio", "opaqueForwardRatio", "coarsePositionOnly",
+        "shortcutQuoteDelivered", "viaBackendOrigin", "shortcutMeshHops", "shortcutFaster", "decisionCorrect",
+        "backendRequestsFromOk", "gatewayPlaintextLeaks", "signaturePreserved", "injectedForRevoked",
     )
+    // GATE 2 close-out: error/latency metrics where lower is better
+    private val LOWER_IS_BETTER_EXTRA = setOf("markerErrorM", "shortcutLatencyMs", "meshOnlyLatencyMs")
     fun directionOf(metric: String): MetricDirection = when {
-        metric in LOWER_IS_BETTER -> MetricDirection.LOWER_IS_BETTER
+        metric in LOWER_IS_BETTER || metric in LOWER_IS_BETTER_EXTRA -> MetricDirection.LOWER_IS_BETTER
         metric in EXACT -> MetricDirection.EXACT
         else -> MetricDirection.HIGHER_IS_BETTER
     }

@@ -4,9 +4,10 @@ import java.io.File
 import kotlin.system.exitProcess
 
 /**
- * GATE 3 runner (Part C): all 15 mandatory scenarios on fixed seeds; baseline.json
- * regression gate (>10% regression fails the build); evidence output to
- * /docs/evidence/mesh-sim (metrics table + charts) via [EvidenceWriter].
+ * GATE 3 runner (Part C): the 15 mandatory scenarios + the 4 GATE 2 close-out
+ * scenarios (16-19) on fixed seeds; baseline.json regression gate (>10%
+ * regression fails the build); evidence output to /docs/evidence/mesh-sim
+ * (metrics table + charts) via [EvidenceWriter].
  */
 object ScenarioSuite {
     fun runAll(): List<ScenarioResult> = listOf(
@@ -25,6 +26,10 @@ object ScenarioSuite {
         ScenariosAdvanced.configChangeLive(),
         ScenariosAdvanced.clockSkew(),
         ScenariosAdvanced.fragmentationLossReordering(),
+        ScenariosGate2.driverBeacons(),
+        ScenariosGate2.presenceToGateway(),
+        ScenariosGate2.internetShortcut(),
+        ScenariosGate2.gatewayOpacityAndReplay(),
     )
 }
 
