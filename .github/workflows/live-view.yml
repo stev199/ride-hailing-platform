@@ -70,7 +70,7 @@ jobs:
           tar -xzf /tmp/cloudflared.tgz -C /tmp cloudflared && chmod +x /tmp/cloudflared
           nohup /tmp/cloudflared tunnel --no-autoupdate --url http://localhost:7070 > /tmp/cloudflared.log 2>&1 &
           URL=""
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             URL=$(rg -o 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n1 || true)
             [ -n "$URL" ] && break
             sleep 2

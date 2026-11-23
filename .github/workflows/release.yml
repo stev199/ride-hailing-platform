@@ -137,9 +137,10 @@ jobs:
         with: { path: artifacts }
       - name: Checksums + conventional changelog
         run: |
-          cd artifacts && sha256sum * > SHA256SUMS || true
+          find artifacts -type f -print0 | xargs -0 sha256sum > artifacts/SHA256SUMS || true
           LAST=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || echo "")
-          { echo "## Changes"; git log --pretty=format:'- %s (%h)' ${LAST:+$LAST..}${GITHUB_REF_NAME} | grep -E '^- (feat|fix|perf|refactor|chore)' | head -40; } > /tmp/changelog.md || true
+          RANGE="${LAST:+$LAST..}${GITHUB_REF_NAME}"
+          { echo "## Changes"; git log --pretty=format:'- %s (%h)' "$RANGE" | grep -E '^- (feat|fix|perf|refactor|chore)' | head -40; } > /tmp/changelog.md || true
       - uses: softprops/action-gh-release@v2
         with:
           body_path: /tmp/changelog.md

@@ -319,7 +319,7 @@ jobs:
           tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
           /tmp/gitleaks detect --no-banner --redact
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@0.24.0
         with:
           scan-type: fs
           severity: HIGH,CRITICAL
@@ -390,6 +390,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          # shellcheck disable=SC2016
           node -e '
             const needs = JSON.parse(process.env.RESULTS);
             const order = ["changes","lint-and-static","backend-test","api-contract","admin-web-test","mesh-core-sim","android-build","android-ui-rider","android-ui-driver","e2e-cross-actor","security","report-publish","ci-summary"];
