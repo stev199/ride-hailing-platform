@@ -58,6 +58,8 @@ jobs:
     if: ${{ needs.changes.outputs.ci == 'true' || needs.changes.outputs.infra == 'true' || needs.changes.outputs.backend == 'true' || needs.changes.outputs.admin == 'true' || needs.changes.outputs.android == 'true' || needs.changes.outputs.mesh == 'true' }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # gitleaks attributes findings to the introducing commit (fingerprint match)
       - name: actionlint (pinned)
         run: |
           curl -fsSL -o /tmp/actionlint.tgz "https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz"
@@ -313,6 +315,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full-history scan; fingerprints in .gitleaksignore match introducing commits
       - name: gitleaks history scan (pinned)
         run: |
           curl -fsSL -o /tmp/gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz"
