@@ -377,8 +377,27 @@ jobs:
         run: |
           mkdir -p _site
           node tools/report/generate.js --artifacts artifacts --out _site
+      - name: Restore gallery history - last 30 successful runs (E6)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          repo="${{ github.repository }}"
+          ids="$(gh api "repos/$repo/actions/runs?status=success&per_page=60" \
+            --jq '[.workflow_runs[] | select(.name == "CI") | .id] | .[0:30][]' || true)"
+          for rid in $ids; do
+            if [ "$rid" = "${{ github.run_id }}" ]; then continue; fi
+            if gh run download "$rid" -n "test-report-$rid" -D "_hist/$rid" 2>/dev/null; then
+              mkdir -p "_site/runs/$rid"
+              cp -r "_hist/$rid/." "_site/runs/$rid/" || true
+              echo "restored gallery history for run $rid"
+            fi
+          done
+      - name: Snapshot current run + /latest alias
+        run: |
           mkdir -p _site/runs/${{ github.run_id }}
           cp -r _site/* _site/runs/${{ github.run_id }}/ || true
+          rm -rf _site/latest && mkdir -p _site/latest
+          cp -r _site/runs/${{ github.run_id }}/. _site/latest/ || true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
