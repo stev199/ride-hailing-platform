@@ -349,10 +349,23 @@ jobs:
       contents: read
       pages: write
       id-token: write
+      actions: write   # purge stale github-pages artifacts on reruns (D50)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: '20' }
+      - name: Purge stale github-pages artifacts of this run (rerun-safe deploy, D50)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          repo="${{ github.repository }}"
+          run_id="${{ github.run_id }}"
+          ids="$(gh api "repos/$repo/actions/artifacts?name=github-pages&per_page=100" \
+            --jq ".artifacts[] | select(.workflow_run.id == $run_id) | .id" || true)"
+          for id in $ids; do
+            gh api -X DELETE "repos/$repo/actions/artifacts/$id" >/dev/null 2>&1 \
+              && echo "purged stale github-pages artifact $id" || true
+          done
       - uses: actions/download-artifact@v4
         with:
           path: artifacts
