@@ -16,7 +16,9 @@ tags:
   - name: system
     description: Liveness and health probes.
   - name: auth
-    description: Registration, login (password/OTP), token lifecycle, profile.
+    description: Registration, login (password/OTP), token lifecycle, profile, own sessions.
+  - name: admin
+    description: RBAC-gated admin operations (P1-3); every mutation is audited in the hash-chained event store.
 paths:
   /health:
     get:
@@ -177,6 +179,224 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
         "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/me/sessions:
+    get:
+      operationId: listMySessions
+      description: Live sessions (refresh families) of the authenticated user; one entry per login (P1-3).
+      summary: List own sessions
+      tags: [auth]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Live sessions, oldest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SessionList"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/me/sessions/{familyId}:
+    delete:
+      operationId: revokeMySession
+      description: Revokes one of the caller's OWN sessions by family id; a foreign or unknown id is 404 (P1-3).
+      summary: Revoke one own session
+      tags: [auth]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: familyId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "204": { description: Session revoked }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/admin/users:
+    get:
+      operationId: adminListUsers
+      description: Search/list users (USERS_READ). Case-insensitive substring match over phone, email and displayName.
+      summary: List/search users
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: query
+          in: query
+          required: false
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Matching users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserList"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    post:
+      operationId: adminCreateUser
+      description: Creates a user with any role (USERS_WRITE). ADMIN_* roles additionally require ADMIN_SUPER (403 otherwise). Audited.
+      summary: Create a user
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminCreateUser"
+      responses:
+        "201":
+          description: Created user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+  /v1/admin/users/{id}:
+    get:
+      operationId: adminGetUser
+      description: Fetch one user by id (USERS_READ).
+      summary: Get a user
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: The user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      operationId: adminPatchUser
+      description: Edit displayName/locale/status/role (USERS_WRITE). ADMIN_* role assignment and self role/status changes are 403. Audited with before/after values.
+      summary: Edit a user
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminPatchUser"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+  /v1/admin/users/{id}/reset-password:
+    post:
+      operationId: adminResetPassword
+      description: Sets a new password (USERS_RESET_PASSWORD) and revokes ALL of the target's sessions. The audit event never contains the password. Audited.
+      summary: Reset a user's password
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminResetPassword"
+      responses:
+        "200":
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUser"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+  /v1/admin/users/{id}/force-logout:
+    post:
+      operationId: adminForceLogout
+      description: Revokes every live session of the target (SESSIONS_ADMIN); the response reports how many were revoked. Self force-logout is 400. Audited.
+      summary: Force logout a user
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Sessions revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ForceLogoutResult"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/admin/audit:
+    get:
+      description: Tail of the hash-chained audit/event log (AUDIT_READ); verifyOk reports whether the whole chain recomputes.
+      operationId: adminAuditTail
+      summary: Read the audit tail
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+      responses:
+        "200":
+          description: Audit tail + chain verification
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditTail"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 components:
   securitySchemes:
     bearerAuth:
@@ -365,7 +585,149 @@ components:
           type: string
         traceId:
           type: [string, "null"]
+    AdminUser:
+      type: object
+      required: [id, phone, email, displayName, role, status, locale, createdAtEpochSec]
+      properties:
+        id:
+          type: string
+        phone:
+          type: [string, "null"]
+          pattern: '^[0-9]{8,15}$'
+          description: Normalized digits-only phone (8-15 ASCII digits); null for email-only accounts.
+        email:
+          type: [string, "null"]
+        displayName:
+          type: string
+        role:
+          type: string
+          enum: [RIDER, DRIVER, ADMIN_SUPER, ADMIN_OPS, ADMIN_SUPPORT, ADMIN_FINANCE, ADMIN_VERIFIER, ADMIN_READONLY]
+        status:
+          type: string
+          enum: [ACTIVE, BANNED_TEMP, BANNED_PERM, DELETED]
+        locale:
+          type: string
+        createdAtEpochSec:
+          type: integer
+    AdminUserList:
+      type: object
+      required: [users, limit, offset]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+        limit:
+          type: integer
+        offset:
+          type: integer
+    AdminCreateUser:
+      type: object
+      required: [displayName, role]
+      properties:
+        displayName:
+          type: string
+          minLength: 2
+          maxLength: 64
+          pattern: '[^ \t\n\u000B\f\r ]'
+        role:
+          type: string
+          enum: [RIDER, DRIVER, ADMIN_SUPER, ADMIN_OPS, ADMIN_SUPPORT, ADMIN_FINANCE, ADMIN_VERIFIER, ADMIN_READONLY]
+        phone:
+          type: [string, "null"]
+        email:
+          type: [string, "null"]
+        password:
+          type: [string, "null"]
+          minLength: 10
+          maxLength: 128
+          description: Optional initial password (policy-checked); omit for OTP-only accounts.
+        locale:
+          type: [string, "null"]
+    AdminPatchUser:
+      type: object
+      properties:
+        displayName:
+          type: [string, "null"]
+          minLength: 2
+          maxLength: 64
+          pattern: '[^ \t\n\u000B\f\r ]'
+        locale:
+          type: [string, "null"]
+          description: Server-supported values en, fr, ar; other values are rejected with 400 invalid_locale.
+        status:
+          type: [string, "null"]
+          enum: [ACTIVE, BANNED_TEMP, BANNED_PERM, DELETED]
+        role:
+          type: [string, "null"]
+          enum: [RIDER, DRIVER, ADMIN_SUPER, ADMIN_OPS, ADMIN_SUPPORT, ADMIN_FINANCE, ADMIN_VERIFIER, ADMIN_READONLY]
+    AdminResetPassword:
+      type: object
+      required: [newPassword]
+      properties:
+        newPassword:
+          type: string
+          minLength: 10
+          maxLength: 128
+    ForceLogoutResult:
+      type: object
+      required: [revokedSessions]
+      properties:
+        revokedSessions:
+          type: integer
+    Session:
+      type: object
+      required: [familyId, deviceId, createdAtEpochSec, lastRotatedEpochSec]
+      properties:
+        familyId:
+          type: string
+        deviceId:
+          type: [string, "null"]
+        createdAtEpochSec:
+          type: integer
+        lastRotatedEpochSec:
+          type: integer
+    SessionList:
+      type: object
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Session"
+    AuditEvent:
+      type: object
+      required: [seq, type, occurredAt, payloadJson, hash]
+      properties:
+        seq:
+          type: integer
+        type:
+          type: string
+        occurredAt:
+          type: string
+        payloadJson:
+          type: string
+          description: Canonical JSON of the event payload (keys sorted); contains no secrets.
+        hash:
+          type: string
+    AuditTail:
+      type: object
+      required: [verifyOk, events]
+      properties:
+        verifyOk:
+          type: boolean
+          description: True when the whole chain recomputes (tamper check).
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditEvent"
   responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
     ValidationError:
       description: Invalid input
       content:
