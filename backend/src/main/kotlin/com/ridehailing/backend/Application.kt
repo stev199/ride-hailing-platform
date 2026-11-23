@@ -4,6 +4,7 @@ import com.ridehailing.backend.auth.AuthService
 import com.ridehailing.backend.auth.DevInboxOtpProvider
 import com.ridehailing.backend.auth.EmailOtpProvider
 import com.ridehailing.backend.auth.HttpRemoteTransport
+import com.ridehailing.backend.auth.InMemoryDeviceStore
 import com.ridehailing.backend.auth.InMemoryUserStore
 import com.ridehailing.backend.auth.JwtService
 import com.ridehailing.backend.auth.LoginMethodsConfig
@@ -12,10 +13,15 @@ import com.ridehailing.backend.auth.OtpService
 import com.ridehailing.backend.auth.PasswordService
 import com.ridehailing.backend.auth.SmsGatewayOtpProvider
 import com.ridehailing.backend.auth.TelegramBotOtpProvider
+import com.ridehailing.backend.auth.User
+import com.ridehailing.backend.auth.UserStatus
+import com.ridehailing.backend.auth.Role
 import com.ridehailing.backend.auth.authRoutes
 import com.ridehailing.backend.config.SignedConfigBundle
 import com.ridehailing.backend.events.EventChain
 import com.ridehailing.backend.health.healthRoutes
+import com.ridehailing.backend.rbac.AdminService
+import com.ridehailing.backend.rbac.adminRoutes
 import com.ridehailing.backend.testprofile.testRoutes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
@@ -46,6 +52,13 @@ private val ROUTE_METHODS: Map<String, String> = mapOf(
     "/v1/auth/refresh" to "POST",
     "/v1/auth/logout" to "POST",
     "/v1/me" to "GET",
+    "/v1/me/sessions" to "GET",
+    "/v1/me/sessions/{familyId}" to "DELETE",
+    "/v1/admin/users" to "GET, POST",
+    "/v1/admin/users/{id}" to "GET, PATCH",
+    "/v1/admin/users/{id}/reset-password" to "POST",
+    "/v1/admin/users/{id}/force-logout" to "POST",
+    "/v1/admin/audit" to "GET",
 )
 
 private fun allowFor(path: String): String = when {
@@ -53,20 +66,28 @@ private fun allowFor(path: String): String = when {
     path.startsWith("/test/barrier") -> "GET"
     path.startsWith("/test/seed") -> "POST"
     path.startsWith("/test/otp/") -> "GET"
+    path.startsWith("/v1/me/sessions/") -> "DELETE"
+    path.startsWith("/v1/admin/users/") && path.endsWith("/reset-password") -> "POST"
+    path.startsWith("/v1/admin/users/") && path.endsWith("/force-logout") -> "POST"
+    path.startsWith("/v1/admin/users/") -> "GET, PATCH"
+    path.startsWith("/v1/admin/audit") -> "GET"
     else -> "GET, POST"
 }
 
-/** Runtime dependency graph for the auth module (P1-2). */
+/** Runtime dependency graph for the auth module (P1-2) + admin/RBAC (P1-3). */
 class AuthGraph(
     val users: InMemoryUserStore = InMemoryUserStore(),
     val passwords: PasswordService = PasswordService(),
     val tokens: JwtService = JwtService(),
     val devInbox: DevInboxOtpProvider = DevInboxOtpProvider(),
     val loginMethods: LoginMethodsConfig = LoginMethodsConfig(),
+    val devices: InMemoryDeviceStore = InMemoryDeviceStore(),
 ) {
     val otp = OtpService(providers = buildProviders(devInbox), loginMethods = loginMethods)
 
     val eventChain = EventChain()
+
+    private val recorder = AuthService.EventChainRecorder { type, payload -> eventChain.append(type, payload) }
 
     val service = AuthService(
         users = users,
@@ -74,8 +95,39 @@ class AuthGraph(
         tokens = tokens,
         otp = otp,
         loginMethods = loginMethods,
-        eventRecorder = { type, payload -> eventChain.append(type, payload) },
+        eventRecorder = recorder,
+        devices = devices,
     )
+
+    val admin = AdminService(
+        users = users,
+        passwords = passwords,
+        tokens = tokens,
+        eventRecorder = recorder,
+    )
+
+    /**
+     * Bootstrap admin (P1-3): when AUTH_BOOTSTRAP_ADMIN_PHONE + AUTH_BOOTSTRAP_ADMIN_PASSWORD
+     * are set and NO admin exists, the first ADMIN_SUPER is created at startup (audited
+     * with actorId "system"). Subsequent admins are created BY admins (AdminService guards
+     * ADMIN_* role assignment to ADMIN_SUPER). No-op without the env pair.
+     */
+    fun bootstrapAdminFromEnv() {
+        val phone = System.getenv("AUTH_BOOTSTRAP_ADMIN_PHONE") ?: return
+        val password = System.getenv("AUTH_BOOTSTRAP_ADMIN_PASSWORD") ?: return
+        val anyAdmin = users.search(null, 100, 0).any { it.role.isAdmin }
+        if (anyAdmin) return
+        val system = User(
+            id = "system", phone = null, email = null, passwordHash = null,
+            displayName = "system", role = Role.ADMIN_SUPER, status = UserStatus.ACTIVE,
+            locale = "en", createdAtEpochSec = 0,
+        )
+        when (val r = admin.createUser(system, "Bootstrap Admin", phone, null, Role.ADMIN_SUPER, password, null)) {
+            is AdminService.CreateResult.Created ->
+                eventChain.append("system.admin_bootstrap", mapOf("userId" to r.user.id, "actorId" to "system"))
+            else -> throw IllegalStateException("admin bootstrap failed: $r")
+        }
+    }
 
     private fun buildProviders(devInbox: DevInboxOtpProvider): Map<OtpChannel, com.ridehailing.backend.auth.OtpProvider> =
         buildMap {
@@ -159,9 +211,11 @@ fun Application.module(
     }
     val eventChain = auth.eventChain
     val configBundle = SignedConfigBundle.inMemoryDevKeys()
+    auth.bootstrapAdminFromEnv()
     routing {
         healthRoutes(version = BACKEND_VERSION)
         authRoutes(auth.service)
+        adminRoutes(auth.service, auth.admin, auth.eventChain)
         if (testProfile) testRoutes(eventChain, configBundle, auth.devInbox)
     }
 }

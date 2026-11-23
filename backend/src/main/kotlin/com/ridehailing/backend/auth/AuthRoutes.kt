@@ -89,6 +89,9 @@ private fun mapFailureMessage(code: String): String = when (code) {
 
 private const val BEARER_PREFIX = "Bearer "
 
+/** Optional device label on auth endpoints: registers the device and links the new session (P1-3). */
+const val DEVICE_LABEL_HEADER = "X-Device-Label"
+
 /**
  * Bearer guard: verifies the access JWT and resolves the user, then hands the call
  * to [handler]. Invalid/missing/expired tokens and banned accounts get a uniform
@@ -113,7 +116,7 @@ fun Route.authRoutes(service: AuthService) {
     route("/v1/auth") {
         post("/register") {
             val req = call.receive<RegisterRequest>()
-            when (val r = service.register(req.displayName, req.password, req.phone, req.email, req.locale)) {
+            when (val r = service.register(req.displayName, req.password, req.phone, req.email, req.locale, call.request.headers[DEVICE_LABEL_HEADER])) {
                 is AuthService.RegisterResult.Success ->
                     call.respond(HttpStatusCode.Created, AuthSuccessDto(r.user.toDto(), r.pair.toDto()))
                 is AuthService.RegisterResult.Duplicate ->
@@ -124,7 +127,7 @@ fun Route.authRoutes(service: AuthService) {
         }
         post("/login/password") {
             val req = call.receive<PasswordLoginRequest>()
-            when (val r = service.loginWithPassword(req.identifier, req.password)) {
+            when (val r = service.loginWithPassword(req.identifier, req.password, call.request.headers[DEVICE_LABEL_HEADER])) {
                 is AuthService.PasswordLoginResult.Success ->
                     call.respond(HttpStatusCode.OK, AuthSuccessDto(r.user.toDto(), r.pair.toDto()))
                 AuthService.PasswordLoginResult.InvalidCredentials ->
@@ -159,7 +162,7 @@ fun Route.authRoutes(service: AuthService) {
         }
         post("/otp/verify") {
             val req = call.receive<OtpVerifyRequest>()
-            when (val r = service.verifyOtp(req.requestId, req.code, req.displayName, req.locale ?: "en")) {
+            when (val r = service.verifyOtp(req.requestId, req.code, req.displayName, req.locale ?: "en", call.request.headers[DEVICE_LABEL_HEADER])) {
                 is AuthService.OtpVerifyResult.Success ->
                     call.respond(HttpStatusCode.OK, AuthSuccessDto(r.user.toDto(), r.pair.toDto(), created = r.created))
                 is AuthService.OtpVerifyResult.Failed ->

@@ -22,6 +22,10 @@ import java.util.concurrent.ConcurrentHashMap
  * Rotation: every refresh returns a NEW refresh token (same family) and invalidates
  * the presented one. Reuse of an already-rotated token revokes the entire family
  * (stolen-token detection, B-04 "rotating refresh").
+ *
+ * P1-3 sessions/devices: every refresh family is a SESSION (one login). Families
+ * carry an optional deviceId link; admins (and users) can list and revoke them
+ * (force logout). Session metadata: createdAt, lastRotated, deviceId.
  */
 class JwtService(
     val secret: ByteArray = resolveSecret(),
@@ -30,6 +34,15 @@ class JwtService(
 ) {
 
     data class TokenPair(val accessToken: String, val refreshToken: String, val accessExpiresAtEpochSec: Long)
+
+    /** One live login session = one refresh family (P1-3). */
+    data class SessionInfo(
+        val familyId: String,
+        val userId: String,
+        val deviceId: String?,
+        val createdAtEpochSec: Long,
+        val lastRotatedEpochSec: Long,
+    )
 
     private val algorithm = Algorithm.HMAC256(secret)
     private val refreshStore = RefreshTokenStore(random)
@@ -53,10 +66,10 @@ class JwtService(
         .build()
 
     /** Issue a fresh access+refresh pair for a new session (new refresh family). */
-    fun issueSession(userId: String, role: String, now: Instant = Instant.now()): TokenPair =
+    fun issueSession(userId: String, role: String, now: Instant = Instant.now(), deviceId: String? = null): TokenPair =
         TokenPair(
             accessToken = issueAccess(userId, role, now),
-            refreshToken = refreshStore.createFamily(userId, role, now),
+            refreshToken = refreshStore.createFamily(userId, role, now, deviceId),
             accessExpiresAtEpochSec = now.epochSecond + accessTtlSec,
         )
 
@@ -94,6 +107,15 @@ class JwtService(
 
     fun revokeSession(refreshToken: String): Boolean = refreshStore.revoke(refreshToken)
 
+    /** Revoke one session (refresh family) by id - returns true when it existed and was live. */
+    fun revokeSessionFamily(familyId: String): Boolean = refreshStore.revokeFamily(familyId)
+
+    /** Force logout: revoke EVERY live session of [userId]; returns the number revoked. */
+    fun revokeAllSessionsOf(userId: String): Int = refreshStore.revokeAllForUser(userId)
+
+    /** Live sessions of [userId] (one per refresh family). */
+    fun sessionsOf(userId: String): List<SessionInfo> = refreshStore.sessionsOf(userId)
+
     /** Test/ops hook: number of live refresh tokens (families x generation). */
     fun liveRefreshTokenCount(): Int = refreshStore.liveCount()
 }
@@ -110,7 +132,10 @@ class RefreshTokenStore(private val random: SecureRandom) {
         val familyId: String,
         val userId: String,
         val role: String,
+        val createdAtSec: Long,
+        val deviceId: String?,
         val expiresAtSec: Long,
+        var lastRotatedSec: Long,
         var consumed: Boolean = false,
     )
 
@@ -127,11 +152,47 @@ class RefreshTokenStore(private val random: SecureRandom) {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }
 
-    fun createFamily(userId: String, role: String, now: Instant): String {
+    fun createFamily(userId: String, role: String, now: Instant, deviceId: String? = null): String {
         val familyId = newToken()
         val token = newToken()
-        tokens[hash(token)] = Entry(familyId, userId, role, now.epochSecond + 30L * 24 * 3600)
+        tokens[hash(token)] = Entry(
+            familyId, userId, role, now.epochSecond, deviceId,
+            expiresAtSec = now.epochSecond + 30L * 24 * 3600,
+            lastRotatedSec = now.epochSecond,
+        )
         return token
+    }
+
+    /** Live (unconsumed, unrevoked, unexpired) sessions of [userId]. */
+    fun sessionsOf(userId: String): List<JwtService.SessionInfo> {
+        val nowSec = Instant.now().epochSecond
+        return tokens.values
+            .filter { it.userId == userId && !it.consumed && it.expiresAtSec > nowSec && it.familyId !in revokedFamilies }
+            .groupBy { it.familyId }
+            .map { (_, entries) ->
+                val e = entries.first()
+                JwtService.SessionInfo(e.familyId, e.userId, e.deviceId, e.createdAtSec, e.lastRotatedSec)
+            }
+    }
+
+    /** Explicit revoke by family id (user deleting one of their own sessions). */
+    fun revokeFamily(familyId: String): Boolean {
+        val hasLive = tokens.values.any { it.familyId == familyId && !it.consumed }
+        if (!hasLive) return false
+        revokedFamilies.add(familyId)
+        tokens.entries.removeIf { it.value.familyId == familyId && !it.value.consumed }
+        return true
+    }
+
+    /** Force logout: revoke every live family of [userId]; returns the count. */
+    fun revokeAllForUser(userId: String): Int {
+        val families = tokens.values
+            .filter { it.userId == userId && !it.consumed && it.familyId !in revokedFamilies }
+            .map { it.familyId }
+            .toSet()
+        families.forEach { revokedFamilies.add(it) }
+        tokens.entries.removeIf { it.value.userId == userId && !it.value.consumed }
+        return families.size
     }
 
     sealed class RotateResult {
@@ -155,8 +216,13 @@ class RefreshTokenStore(private val random: SecureRandom) {
             return RotateResult.Reused
         }
         entry.consumed = true
+        entry.lastRotatedSec = now.epochSecond
         val newToken = newToken()
-        tokens[hash(newToken)] = Entry(entry.familyId, entry.userId, entry.role, now.epochSecond + ttlSec)
+        tokens[hash(newToken)] = Entry(
+            entry.familyId, entry.userId, entry.role, entry.createdAtSec, entry.deviceId,
+            expiresAtSec = now.epochSecond + ttlSec,
+            lastRotatedSec = now.epochSecond,
+        )
         // Tombstone cleanup: consumed entries are kept for reuse detection but pruned
         // when their family reaches >= 8 generations (bounded memory, D-safe default).
         tokens.entries.removeIf {

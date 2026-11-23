@@ -13,11 +13,31 @@ class AuthService(
     private val otp: OtpService,
     private val loginMethods: LoginMethodsConfig,
     private val eventRecorder: EventChainRecorder,
+    private val devices: DeviceStore? = null,
     private val clock: () -> java.time.Instant = java.time.Instant::now,
 ) {
     fun interface EventChainRecorder {
         fun append(type: String, payload: Map<String, String?>)
     }
+
+    /**
+     * P1-3 sessions/devices: when the client sends a device label, the device is
+     * upserted (one row per (user, label)) and the new session links to it.
+     */
+    private fun sessionFor(user: User, now: java.time.Instant, deviceLabel: String?): JwtService.TokenPair {
+        val deviceId = if (deviceLabel != null && devices != null) {
+            devices.upsert(user.id, deviceLabel.take(64), atSec = now.epochSecond).id
+        } else null
+        return tokens.issueSession(user.id, user.role.name, now, deviceId)
+    }
+
+    fun sessionsOf(userId: String): List<JwtService.SessionInfo> = tokens.sessionsOf(userId)
+
+    /** Revoke one of the user's OWN sessions by family id (ownership-checked). */
+    fun revokeOwnSession(userId: String, familyId: String): Boolean =
+        if (tokens.sessionsOf(userId).any { it.familyId == familyId }) {
+            tokens.revokeSessionFamily(familyId)
+        } else false
 
     sealed class RegisterResult {
         data class Success(val user: User, val pair: JwtService.TokenPair) : RegisterResult()
@@ -31,6 +51,7 @@ class AuthService(
         phoneRaw: String?,
         emailRaw: String?,
         localeRaw: String?,
+        deviceLabel: String? = null,
     ): RegisterResult {
         // D49 contract: documented as raw length 2..64 with at least one
         // non-(ASCII-whitespace) character (openapi RegisterRequest.displayName
@@ -68,7 +89,7 @@ class AuthService(
             "auth.register",
             mapOf("userId" to user.id, "identifier" to (phone ?: email), "channel" to (if (phone != null) "phone" else "email")),
         )
-        return RegisterResult.Success(user, tokens.issueSession(user.id, user.role.name, now))
+        return RegisterResult.Success(user, sessionFor(user, now, deviceLabel))
     }
 
     sealed class PasswordLoginResult {
@@ -83,7 +104,7 @@ class AuthService(
      * and wrong password (no user-enumeration oracle); a dummy argon2 verify runs for
      * unknown identifiers to equalize timing (B-04).
      */
-    fun loginWithPassword(identifier: String, password: String): PasswordLoginResult {
+    fun loginWithPassword(identifier: String, password: String, deviceLabel: String? = null): PasswordLoginResult {
         if (!loginMethods.passwordLoginEnabled) return PasswordLoginResult.Disabled
         val user = identifier.toUser()
         val hash = user?.passwordHash
@@ -100,7 +121,7 @@ class AuthService(
             UserStatus.ACTIVE -> Unit
         }
         eventRecorder.append("auth.login.password", mapOf("userId" to u.id))
-        return PasswordLoginResult.Success(u, tokens.issueSession(u.id, u.role.name, clock()))
+        return PasswordLoginResult.Success(u, sessionFor(u, clock(), deviceLabel))
     }
 
     sealed class OtpIssueResult {
@@ -124,7 +145,7 @@ class AuthService(
      * RIDER when [LoginMethodsConfig.otpAutoRegister] is enabled (standard ride-hailing
      * behaviour; admin-toggleable). The verified identifier becomes the account key.
      */
-    suspend fun verifyOtp(requestId: String, code: String, displayNameRaw: String?, locale: String): OtpVerifyResult {
+    suspend fun verifyOtp(requestId: String, code: String, displayNameRaw: String?, locale: String, deviceLabel: String? = null): OtpVerifyResult {
         val match = when (val v = otp.verify(requestId, code)) {
             is OtpService.VerifyOutcome.Match -> v
             is OtpService.VerifyOutcome.Expired -> return OtpVerifyResult.Failed("otp_expired")
@@ -138,7 +159,7 @@ class AuthService(
         val now = clock()
         if (existing != null) {
             eventRecorder.append("auth.login.otp", mapOf("userId" to existing.id, "channel" to match.channel.name))
-            return OtpVerifyResult.Success(existing, tokens.issueSession(existing.id, existing.role.name, now), created = false)
+            return OtpVerifyResult.Success(existing, sessionFor(existing, now, deviceLabel), created = false)
         }
         if (!loginMethods.otpAutoRegister) return OtpVerifyResult.Failed("registration_disabled")
         val displayName = displayNameRaw?.trim()?.takeIf { it.length in 2..64 } ?: "Rider"
@@ -155,7 +176,7 @@ class AuthService(
         )
         users.insert(user)
         eventRecorder.append("auth.register.otp", mapOf("userId" to user.id, "channel" to match.channel.name))
-        return OtpVerifyResult.Success(user, tokens.issueSession(user.id, user.role.name, now), created = true)
+        return OtpVerifyResult.Success(user, sessionFor(user, now, deviceLabel), created = true)
     }
 
     sealed class RefreshResult2 {

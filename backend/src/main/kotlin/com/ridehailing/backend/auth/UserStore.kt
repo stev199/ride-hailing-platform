@@ -48,6 +48,12 @@ interface UserStore {
     fun findByEmail(email: String): User?
     fun insert(user: User): User
     fun update(user: User): User
+
+    /**
+     * Admin search (P1-3): case-insensitive substring match over phone, email and
+     * displayName; null query = list all. Deterministic order (creation id asc).
+     */
+    fun search(query: String?, limit: Int, offset: Int): List<User>
 }
 
 class InMemoryUserStore : UserStore {
@@ -64,6 +70,20 @@ class InMemoryUserStore : UserStore {
     override fun update(user: User): User {
         byId[user.id] = user
         return user
+    }
+
+    override fun search(query: String?, limit: Int, offset: Int): List<User> {
+        val q = query?.trim()?.lowercase()
+        return byId.values
+            .sortedBy { it.createdAtEpochSec }
+            .filter { u ->
+                q == null ||
+                    u.phone?.contains(q) == true ||
+                    u.email?.contains(q) == true ||
+                    u.displayName.lowercase().contains(q)
+            }
+            .drop(offset)
+            .take(limit)
     }
 }
 
