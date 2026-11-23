@@ -12,15 +12,18 @@ import java.time.Instant
  * Genesis: prevHash of the first event is GENESIS. verify() recomputes every link;
  * any tampering, reordering, or sequence gap breaks verification. Canonicalization
  * sorts object keys recursively so the same logical payload always hashes identically.
+ *
+ * Open for the PG-backed store (P1-3e): PgEventStore overrides append() to persist
+ * every record into event_log while the in-memory link stays the runtime truth.
  */
-class EventChain(
+open class EventChain(
     private val clock: Clock = Clock.systemUTC(),
     startingEvents: List<EventRecord> = emptyList(),
 ) {
     private val events = startingEvents.toMutableList()
     val tailHash: String get() = events.lastOrNull()?.hash ?: GENESIS
 
-    fun append(type: String, payload: Map<String, Any?>, occurredAt: Instant = clock.instant()): EventRecord {
+    open fun append(type: String, payload: Map<String, Any?>, occurredAt: Instant = clock.instant()): EventRecord {
         val seq = (events.lastOrNull()?.seq ?: 0L) + 1L
         val canonical = canonicalJson(payload)
         val prevHash = tailHash

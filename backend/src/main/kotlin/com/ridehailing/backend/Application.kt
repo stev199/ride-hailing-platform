@@ -13,9 +13,11 @@ import com.ridehailing.backend.auth.OtpService
 import com.ridehailing.backend.auth.PasswordService
 import com.ridehailing.backend.auth.SmsGatewayOtpProvider
 import com.ridehailing.backend.auth.TelegramBotOtpProvider
+import com.ridehailing.backend.auth.UserStore
 import com.ridehailing.backend.auth.User
 import com.ridehailing.backend.auth.UserStatus
 import com.ridehailing.backend.auth.Role
+import com.ridehailing.backend.auth.DeviceStore
 import com.ridehailing.backend.auth.authRoutes
 import com.ridehailing.backend.config.SignedConfigBundle
 import com.ridehailing.backend.events.EventChain
@@ -76,16 +78,15 @@ private fun allowFor(path: String): String = when {
 
 /** Runtime dependency graph for the auth module (P1-2) + admin/RBAC (P1-3). */
 class AuthGraph(
-    val users: InMemoryUserStore = InMemoryUserStore(),
+    val users: UserStore = InMemoryUserStore(),
     val passwords: PasswordService = PasswordService(),
     val tokens: JwtService = JwtService(),
     val devInbox: DevInboxOtpProvider = DevInboxOtpProvider(),
     val loginMethods: LoginMethodsConfig = LoginMethodsConfig(),
-    val devices: InMemoryDeviceStore = InMemoryDeviceStore(),
+    val devices: DeviceStore = InMemoryDeviceStore(),
+    val eventChain: EventChain = EventChain(),
 ) {
     val otp = OtpService(providers = buildProviders(devInbox), loginMethods = loginMethods)
-
-    val eventChain = EventChain()
 
     private val recorder = AuthService.EventChainRecorder { type, payload -> eventChain.append(type, payload) }
 
@@ -154,13 +155,32 @@ class AuthGraph(
 }
 
 /**
+ * Default graph: in-memory unless POSTGRES_URL is set, in which case Flyway migrates
+ * (V1+V2) and the PG-backed stores take over (P1-3e). Same ports either way - the
+ * route layer and tests are storage-agnostic.
+ */
+fun defaultGraph(): AuthGraph {
+    val url = System.getenv("POSTGRES_URL") ?: return AuthGraph()
+    val user = System.getenv("POSTGRES_USER") ?: "ridehailing"
+    val password = System.getenv("POSTGRES_PASSWORD") ?: "test"
+    val connect = { java.sql.DriverManager.getConnection(url, user, password) }
+    // PgEventStore.open runs Flyway (V1+V2) and reloads the persisted chain.
+    val events = com.ridehailing.backend.db.PgEventStore.open(url, user, password)
+    return AuthGraph(
+        users = com.ridehailing.backend.db.PgUserStore(connect),
+        devices = com.ridehailing.backend.db.PgDeviceStore(connect),
+        eventChain = events,
+    )
+}
+
+/**
  * Application module. The test profile enables the /test/ routes (barrier + seed +
  * dev-inbox OTP retrieval) used by cross-actor E2E (D5). A test proves these routes
  * are absent when the profile is off (release builds).
  */
 fun Application.module(
     testProfile: Boolean = System.getenv("TEST_PROFILE") == "true",
-    auth: AuthGraph = AuthGraph(),
+    auth: AuthGraph = defaultGraph(),
 ) {
     install(ContentNegotiation) {
         // Forward-compatible parsing (D46): unknown keys are ignored (schema-valid requests
