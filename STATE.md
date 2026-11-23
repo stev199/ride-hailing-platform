@@ -2,8 +2,8 @@
 
 Last updated: 2026-11-24
 Current phase: 1 (backend core) + 1b (mesh core, parallel track) - P1-2 auth done; P1B Stage 2 routing implemented (GATE 2 close-out pending: beacons + GATEWAY_RELAY)
-Current task: D49 contract fix verified locally (schemathesis 386/386 pinned seed); force-full-run CI verification in flight, then P1B-4 simulator + 15 scenarios + baseline.json (Stage 3, GATE 3); parallel P1-3 users/roles/RBAC + P0-9 keystore backup re-creation
-Last completed task: D49 generator-precise contract (openapi patterns == enforced validation, ContractAlignmentTest, schemathesis pinned+seeded) - backend 63 tests + spectral + actionlint green locally
+Current task: P1B-4 simulator + 15 scenarios + baseline.json (Stage 3, GATE 3); parallel P1-3 users/roles/RBAC
+Last completed task: D49 contract fix verified on CI: force-full-run 45222823793 ALL GREEN incl. api-contract (compose + pinned schemathesis) and report-publish; D50 rerun-safe Pages deploy; P0-9 keystore rotated + fresh encrypted backup in download/keystore-backup
 
 ## Gate status table
 
@@ -31,17 +31,17 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 13 (P1-2 auth, P1B-3 routing, D49 contract alignment - see PROGRESS_LOG.md)
-- CI runs green: see PROGRESS_LOG (D49 verification run in flight)
-- Fix attempts used this turn: 3 distinct root causes on the contract job (ST202 phone schema gap, ST201 multi-@ + null acceptance, Java \v class semantics in the test harness) - within retry budget (D23), no blockers
+- Tasks completed this phase: 15 (P1-2 auth, P1B-3 routing, D49 contract alignment, D50 pages rerun-safety, P0-9 keystore backup - see PROGRESS_LOG.md)
+- CI runs green: push run 45222423620 + force-full-run 45222823793 (ALL GREEN incl. api-contract + report-publish + ci-summary)
+- Fix attempts used this turn: 4 distinct root causes (D49 ST202 phone schema gap, D49 ST201 multi-@ + null acceptance, Java \v class semantics in the test harness, D50 duplicate github-pages artifacts on rerun) - within retry budget (D23), no blockers
 
 ## Next 5 tasks
 
-1. Watch force-full-run CI green (api-contract with pinned schemathesis + seed) and record run URL
-2. P0-9 keystore rotation + overwrite 4 secrets + fresh encrypted backup in download/keystore-backup
-3. P1B-4 simulator + 15 scenarios + baseline.json (Stage 3, GATE 3) - routing primitives ready
-4. P1B-2b beacons (DRIVER_BEACON/PRESENCE) + GATEWAY_RELAY internet shortcut (closes GATE 2)
-5. P1-3 users/roles/RBAC + Postgres-backed stores + P1-4 admin shell + login (admin-web)
+1. P1B-4 simulator + 15 scenarios + baseline.json (Stage 3, GATE 3) - routing primitives ready
+2. P1B-2b beacons (DRIVER_BEACON/PRESENCE) + GATEWAY_RELAY internet shortcut (closes GATE 2)
+3. P1-3 users/roles/RBAC + Postgres-backed stores + P1-4 admin shell + login (admin-web)
+4. P1-5 config service: signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig
+5. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell)
 
 ## Phase 0 setup record (from repository bootstrap)
 
