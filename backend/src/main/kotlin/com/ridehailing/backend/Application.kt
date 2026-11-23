@@ -114,10 +114,12 @@ fun Application.module(
         // Forward-compatible parsing (D46): unknown keys are ignored (schema-valid requests
         // must not 400 on additionalProperties), defaults are ALWAYS encoded so required
         // fields like AuthSuccess.created never vanish from responses.
-        json {
-            ignoreUnknownKeys = true
-            encodeDefaults = true
-        }
+        json(
+            kotlinx.serialization.json.Json {
+                ignoreUnknownKeys = true
+                encodeDefaults = true
+            },
+        )
     }
     install(StatusPages) {
         status(HttpStatusCode.NotFound) { call, _ ->

@@ -75,8 +75,8 @@ paths:
         "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
-  /v1/auth/otp/request:
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+  /v1/auth/otp/request:
     post:
       operationId: requestOtp
       description: Generates and dispatches a 6-digit OTP (hashed at rest, 5-minute expiry, attempt- and rate-limited).
@@ -121,8 +121,8 @@ paths:
                 $ref: "#/components/schemas/AuthSuccess"
         "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
-  /v1/auth/refresh:
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+  /v1/auth/refresh:
     post:
       operationId: refreshTokens
       description: Rotates the refresh token for the session family. Presenting a consumed token revokes the whole family.
@@ -143,8 +143,8 @@ paths:
                 $ref: "#/components/schemas/Refreshed"
         "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
-  /v1/auth/logout:
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+  /v1/auth/logout:
     post:
       operationId: logout
       description: Revokes the refresh-token family so no further refreshes are possible.
