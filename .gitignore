@@ -42,3 +42,6 @@ infra/secrets/*
 # --- OS / editor ---
 .DS_Store
 Thumbs.db
+
+# schemathesis local cache (st runs)
+backend/.schemathesis/
