@@ -1,17 +1,17 @@
 # STATE - ride-hailing-platform
 
 Last updated: 2026-11-24
-Current phase: 1 (backend core) + 1b (mesh core, parallel track) - P1-2 auth done; P1B Stage 3 (GATE 3) DONE: 15-scenario suite + baseline gate green locally, CI wiring pushed
-Current task: P1B-2b beacons (DRIVER_BEACON/PRESENCE) + GATEWAY_RELAY (closes GATE 2); parallel P1-3 users/roles/RBAC
-Last completed task: P1B-4 GATE 3 CLOSED - 15/15 scenarios green on CI (run 45245604015 + baseline gate + mesh-sim-evidence artifact); live-view hardened to guard-job pattern and verified (45243841560); suite caught+fixed 6 real defects (D51-D58)
+Current phase: 1 (backend core) + 1b (mesh core, parallel track) - P1B-2b GATE 2 CLOSE-OUT DONE (beacons + PRESENCE + GATEWAY_RELAY, scenarios 16-19, local green; CI verification dispatched); parallel P1-3 users/roles/RBAC
+Current task: watch CI for the GATE 2 close-out push (mesh job = 19-scenario suite + baseline gate); then P1-3 users/roles/RBAC + P1-4 admin shell
+Last completed task: P1B-2b beacons/PRESENCE/GATEWAY_RELAY - app primitives (22 tests) + sim scenarios 16-19 (all PASS) + baseline additive-only; scenario 19 caught a REAL replay hole (gateway early-return skipped seen-cache storage - D60), fixed and pinned by the suite
 
 ## Gate status table
 
 | Gate | Status |
 |---|---|
 | Phase 0 (Part B delivery plan) | PENDING - one item open: D11.9 first-green pipeline with trivial tests on two emulators (needs Phase 1/2 module skeletons; see BACKLOG P0-C) |
-| Mesh GATE 1-2 (Part C) | GATE 1 done (Stage 1); GATE 2 close-out pending: beacons + GATEWAY_RELAY |
-| Mesh GATE 3 (Stage 3) | DONE 2026-11-24: 15/15 scenarios + baseline gate green on CI (run 45245604015, mesh-sim-evidence artifact uploaded) + locally |
+| Mesh GATE 1-2 (Part C) | GATE 2 CLOSED 2026-11-24: beacons (certified profiles, short MAC, adaptive pacing) + PRESENCE (backend-only seal) + GATEWAY_RELAY (opaque forward, internet shortcut) - scenarios 16-19 green locally, CI verification in flight |
+| Mesh GATE 3 (Stage 3) | DONE 2026-11-24: 15/15 scenarios + baseline gate green on CI (run 45245604015, mesh-sim-evidence artifact uploaded) + locally; suite now 19 scenarios (16-19 = GATE 2 close-out) |
 | Mesh GATE 4-7 (Part C) | pending (Stage 4 starts with Phase 2 android) |
 | Phases 1-11 (Part B) | in progress (P1-1, P1-2, P1-6 done; P1-3/P1-4/P1-5 next) |
 
@@ -39,7 +39,7 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Next 5 tasks
 
-1. P1B-2b beacons (DRIVER_BEACON/PRESENCE) + GATEWAY_RELAY internet shortcut (closes GATE 2)
+1. Verify GATE 2 close-out on CI (mesh job: 19 scenarios + baseline gate) - in flight
 2. P1-3 users/roles/RBAC + Postgres-backed stores + P1-4 admin shell + login (admin-web)
 3. P1-5 config service: signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig
 4. P1B-5 Stage 4 prep: sim-bridge topology engine wiring
