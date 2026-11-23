@@ -1,0 +1,59 @@
+name: Nightly
+
+on:
+  schedule:
+    - cron: '30 2 * * *' # 02:30 UTC daily - full matrix stays out of PR runs (cost control)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-full:
+    name: android-full
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Android full run (emulator matrix lands here)
+        run: |
+          if [ -d android ] || compgen -G "settings.gradle*" >/dev/null; then
+            echo "::notice::Android project detected - wire the emulator matrix and connected tests here in the Android phase."
+          else
+            echo "::notice::No Android project yet - nothing to run."
+          fi
+
+  backend-full:
+    name: backend-full
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Backend full run (integration tests land here)
+        run: |
+          if [ -f backend/package.json ]; then
+            echo "::notice::Backend detected - wire integration and database tests here."
+          else
+            echo "::notice::No backend yet - nothing to run."
+          fi
+
+  nightly-summary:
+    name: nightly-summary
+    needs: [android-full, backend-full]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate
+        env:
+          A: ${{ needs.android-full.result }}
+          B: ${{ needs.backend-full.result }}
+        run: |
+          echo "android-full=${A} backend-full=${B}"
+          for r in "$A" "$B"; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
+              echo "::error::Nightly job finished with ${r}."
+              exit 1
+            fi
+          done
+          echo "Nightly OK."

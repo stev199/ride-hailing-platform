@@ -1,0 +1,129 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  android:
+    name: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect Gradle/Android project
+        id: detect
+        run: |
+          if [ -d android ] || compgen -G "settings.gradle*" >/dev/null || compgen -G "android/settings.gradle*" >/dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Android/Gradle project yet - skipping android job."
+          fi
+
+      - uses: actions/setup-java@v4
+        if: steps.detect.outputs.present == 'true'
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.detect.outputs.present == 'true'
+
+      - name: Build and unit-test
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          if [ -d android ]; then cd android; fi
+          gradle --no-daemon assembleDebug testDebugUnitTest
+
+  backend:
+    name: backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect Node backend
+        id: detect
+        run: |
+          if [ -f backend/package.json ] || [ -f package.json ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Node backend yet - skipping backend job."
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.detect.outputs.present == 'true'
+        with:
+          node-version: '20'
+
+      - name: Install, lint, test
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          if [ -f backend/package.json ]; then cd backend; fi
+          npm ci
+          npm run lint --if-present
+          npm test --if-present
+
+  docker:
+    name: docker
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect Dockerfile
+        id: detect
+        run: |
+          if [ -f Dockerfile ] || compgen -G "*/Dockerfile" >/dev/null; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Dockerfile yet - skipping docker job."
+          fi
+
+      - name: Build image (no push)
+        if: steps.detect.outputs.present == 'true'
+        run: |
+          if [ -f Dockerfile ]; then
+            docker build -t ride-hailing-platform:ci .
+          else
+            dir="$(ls */Dockerfile | head -n1 | xargs dirname)"
+            docker build -t ride-hailing-platform:ci "$dir"
+          fi
+
+  ci-summary:
+    name: ci-summary
+    needs: [android, backend, docker]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate job results
+        env:
+          ANDROID: ${{ needs.android.result }}
+          BACKEND: ${{ needs.backend.result }}
+          DOCKER: ${{ needs.docker.result }}
+        run: |
+          echo "android=${ANDROID} backend=${BACKEND} docker=${DOCKER}"
+          for r in "$ANDROID" "$BACKEND" "$DOCKER"; do
+            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
+              echo "::error::CI job finished with ${r}."
+              exit 1
+            fi
+          done
+          echo "All CI jobs passed or were intentionally skipped."
+
+# Fork-PR safety (Phase 0 rule): when a job starts using repository secrets
+# (signing, deployments, live-view), guard it so it never runs for fork PRs, e.g.:
+#   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
