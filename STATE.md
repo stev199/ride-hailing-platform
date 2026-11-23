@@ -1,7 +1,7 @@
 # STATE - ride-hailing-platform
 
 Last updated: 2026-11-24
-Current phase: 1 (backend core) - P1-3 users/roles/RBAC DONE (RBAC matrix, sessions/devices, audited admin service, PG-backed stores; local 82 green, CI verification dispatched); next: P1-4 admin shell
+Current phase: 1 (backend core) - P1-3 users/roles/RBAC DONE AND CI-VERIFIED (run 45286635288 ALL GREEN incl. backend-test with PG stores + api-contract); next: P1-4 admin shell
 Current task: P1-4 admin shell (React+TS+Vite): login, RBAC routing, layout, config center v0 (needs P1-5 config service endpoints)
 Last completed task: P1-3 users/roles/RBAC - 12-perm RBAC matrix (RIDER/DRIVER empty set = driver blindness precursor), session/device registry (force logout, X-Device-Label), admin user management with hash-chained audit (no secrets in payloads), PG-backed stores + V2 event_log reload migration; admin endpoints documented in openapi (spectral 0 errors)
 
@@ -34,12 +34,12 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 ## Counters
 
 - Tasks completed this phase: 18 (P1B-2b GATE 2 close-out + P1-3 users/roles/RBAC - see PROGRESS_LOG.md)
-- CI runs green: 45245604015 (GATE 3 full run), 45249527259 (GATE 2 part 1), 45256630914 (GATE 2 close-out forced full run: 19-scenario suite + baseline gate + all component jobs, ALL GREEN incl. ci-summary; report-publish needed one --failed rerun after a transient artifact-upload hang); Pages gallery /runs/45256630914/ HTTP 200
+- CI runs green: 45256630914 (GATE 2 close-out full run), 45286635288 (P1-3 forced full run: backend-test incl. PG stores vs the postgres service container, api-contract incl. schemathesis on the new admin endpoints, mesh 19 scenarios, report-publish after the D66 recursion fix, ALL GREEN incl. ci-summary); Pages gallery /runs/45286635288/ HTTP 200
 - Fix attempts used this turn: 6 distinct root causes (D51 hop-budget off-by-one, D52 dedup-before-discovery, D53 inline clock stall, relay TTL slack, stress rate-limit config, live-view guard) - within retry budget (D23), no blockers
 
 ## Next 5 tasks
 
-1. P1-4 admin shell (React+TS+Vite): login, RBAC routing, layout, config center v0
+1. P1-4 admin shell (React+TS+Vite): login, RBAC routing, layout (against the P1-3 admin API)
 2. P1-5 config service: signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig
 3. P1B-5 Stage 4 prep: sim-bridge topology engine wiring
 4. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell)
