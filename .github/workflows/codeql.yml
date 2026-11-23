@@ -36,8 +36,11 @@ jobs:
         if: ${{ (matrix.language == 'kotlin' && steps.guard.outputs.kotlin == 'true') || (matrix.language == 'javascript-typescript' && steps.guard.outputs.js == 'true') }}
         with:
           languages: ${{ matrix.language }}
-      - uses: github/codeql-action/autobuild@v3
+      - name: Build Kotlin sources for CodeQL (autobuild cannot detect nested gradle projects)
         if: ${{ matrix.language == 'kotlin' && steps.guard.outputs.kotlin == 'true' }}
+        run: |
+          (cd backend && ./gradlew --no-daemon classes)
+          (cd mesh-core && ./gradlew --no-daemon classes)
       - uses: github/codeql-action/analyze@v3
         if: ${{ (matrix.language == 'kotlin' && steps.guard.outputs.kotlin == 'true') || (matrix.language == 'javascript-typescript' && steps.guard.outputs.js == 'true') }}
         with:

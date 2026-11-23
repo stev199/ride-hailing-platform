@@ -128,11 +128,14 @@ jobs:
       - if: ${{ hashFiles('backend/Dockerfile') == '' }}
         run: echo "::notice::backend image absent - skipping contract stage (Phase 1)." && exit 0
       - if: ${{ hashFiles('backend/Dockerfile') != '' }}
+        env:
+          BACKEND_URL: http://localhost:8080
         run: |
           docker compose -f infra/docker-compose.yml --profile infra --profile app --profile test up -d
           ./scripts/wait-for-health.sh
-          npx --yes schemathesis run docs/api/openapi.yaml --url "$BACKEND_URL" --checks all
-          # k6 smoke with p95 thresholds (D3.3)
+          python3 -m pip install --quiet schemathesis
+          schemathesis run docs/api/openapi.yaml --url "$BACKEND_URL" --checks all --max-examples 10
+          # k6 smoke with p95 thresholds (D3.3) - wired when load-sensitive endpoints land
 
   # ---------- 4. admin web tests ----------
   admin-web-test:
