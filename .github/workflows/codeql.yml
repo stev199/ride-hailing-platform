@@ -1,0 +1,44 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze-${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      security-events: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [kotlin, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect analyzable source (hashFiles is step-only; guard pattern used)
+        id: guard
+        run: |
+          if [ -d backend ] || [ -d android ] || [ -d mesh-core ]; then echo "kotlin=true" >> "$GITHUB_OUTPUT"; else echo "::notice::no Kotlin source yet"; fi
+          if [ -d admin-web ]; then echo "js=true" >> "$GITHUB_OUTPUT"; else echo "::notice::no admin-web source yet"; fi
+      - uses: actions/setup-java@v4
+        if: ${{ matrix.language == 'kotlin' && steps.guard.outputs.kotlin == 'true' }}
+        with: { distribution: temurin, java-version: '17' }
+      - uses: github/codeql-action/init@v3
+        if: ${{ (matrix.language == 'kotlin' && steps.guard.outputs.kotlin == 'true') || (matrix.language == 'javascript-typescript' && steps.guard.outputs.js == 'true') }}
+        with:
+          languages: ${{ matrix.language }}
+      - uses: github/codeql-action/autobuild@v3
+        if: ${{ matrix.language == 'kotlin' && steps.guard.outputs.kotlin == 'true' }}
+      - uses: github/codeql-action/analyze@v3
+        if: ${{ (matrix.language == 'kotlin' && steps.guard.outputs.kotlin == 'true') || (matrix.language == 'javascript-typescript' && steps.guard.outputs.js == 'true') }}
+        with:
+          category: ${{ matrix.language }}

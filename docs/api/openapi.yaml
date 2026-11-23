@@ -1,0 +1,134 @@
+openapi: "3.1.0"
+info:
+  title: ride-hailing-platform API
+  version: "0.1.0"
+  description: >
+    Phase 0 skeleton. Expanded each phase as endpoints land (B-01..). All writes are
+    validated server-side; all admin endpoints are RBAC-gated; every state change is
+    recorded in the append-only event store.
+servers:
+  - url: http://localhost:8080
+    description: local compose stack
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness/health probe
+      description: Used by compose healthchecks and CI wait scripts.
+      tags: [system]
+      responses:
+        "200":
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+  /v1/auth/otp/request:
+    post:
+      operationId: requestOtp
+      summary: Request an OTP via an admin-enabled channel
+      description: >
+        Dispatches a 6-digit hashed OTP through an admin-enabled provider.
+        Response is uniform to avoid account enumeration.
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpRequest"
+      responses:
+        "204":
+          description: OTP dispatched (never reveals whether the account exists)
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /v1/auth/otp/verify:
+    post:
+      operationId: verifyOtp
+      summary: Verify OTP and obtain token pair
+      description: >
+        Verifies a 6-digit OTP (hashed at rest, 5-minute expiry, attempt-limited)
+        and returns an access/refresh token pair with rotating refresh.
+      tags: [auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OtpVerify"
+      responses:
+        "200":
+          description: Token pair issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "401":
+          description: Invalid/expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Health:
+      type: object
+      required: [status, version]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        version:
+          type: string
+    OtpRequest:
+      type: object
+      required: [channel, target]
+      properties:
+        channel:
+          type: string
+          enum: [sms, telegram, email, whatsapp]
+        target:
+          type: string
+        locale:
+          type: string
+          enum: [en, fr, ar]
+    OtpVerify:
+      type: object
+      required: [channel, target, code]
+      properties:
+        channel:
+          type: string
+          enum: [sms, telegram, email, whatsapp]
+        target:
+          type: string
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+    TokenPair:
+      type: object
+      required: [accessToken, refreshToken]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        traceId:
+          type: string

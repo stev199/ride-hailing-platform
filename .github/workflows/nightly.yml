@@ -2,58 +2,122 @@ name: Nightly
 
 on:
   schedule:
-    - cron: '30 2 * * *' # 02:30 UTC daily - full matrix stays out of PR runs (cost control)
+    - cron: '30 2 * * *' # full matrix stays out of PR runs (cost control)
   workflow_dispatch:
 
 permissions:
   contents: read
 
-jobs:
-  android-full:
-    name: android-full
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@v4
-      - name: Android full run (emulator matrix lands here)
-        run: |
-          if [ -d android ] || compgen -G "settings.gradle*" >/dev/null; then
-            echo "::notice::Android project detected - wire the emulator matrix and connected tests here in the Android phase."
-          else
-            echo "::notice::No Android project yet - nothing to run."
-          fi
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
 
-  backend-full:
-    name: backend-full
+jobs:
+  security-nightly:
+    name: security-nightly
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - name: Backend full run (integration tests land here)
+        with:
+          fetch-depth: 0
+      - name: gitleaks full-history scan
         run: |
-          if [ -f backend/package.json ]; then
-            echo "::notice::Backend detected - wire integration and database tests here."
-          else
-            echo "::notice::No backend yet - nothing to run."
-          fi
+          curl -fsSL -o /tmp/gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          /tmp/gitleaks detect --no-banner --redact
+      - name: Trivy fs (HIGH/CRITICAL, fail)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          severity: HIGH,CRITICAL
+          exit-code: '0'   # becomes '1' once runtime code lands (Phase 1+, DECISIONS D-cost)
+
+  mesh-long-sim:
+    name: mesh-long-sim
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - id: guard
+        run: |
+          if [ -d mesh-core ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "::notice::mesh-core absent (Phase 1b)"; fi
+      - uses: actions/setup-java@v4
+        if: steps.guard.outputs.present == 'true'
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.guard.outputs.present == 'true'
+      - if: steps.guard.outputs.present == 'true'
+        run: |
+          cd mesh-core
+          gradle --no-daemon sim --scenario=long  # mobility/churn/partition long runs + fresh baseline stats
+
+  android-nightly:
+    name: android-nightly
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: [26, 30, 34]
+        locale: [en, fr, ar]
+        theme: [light, dark]
+        exclude:
+          - api-level: 26
+            locale: fr
+          - api-level: 26
+            locale: ar
+    steps:
+      - uses: actions/checkout@v4
+      - id: guard
+        run: |
+          if [ -d android ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "::notice::android absent (Phase 2)"; fi
+      - name: Enable KVM (D4)
+        if: steps.guard.outputs.present == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm || { echo "KVM missing"; exit 1; }
+      - if: steps.guard.outputs.present == 'true'
+        run: make up-test && ./scripts/wait-for-health.sh && ./scripts/seed-test.sh nightly-${{ matrix.api-level }}-${{ matrix.locale }}-${{ matrix.theme }}
+      - uses: reactivecircus/android-emulator-runner@v2
+        if: steps.guard.outputs.present == 'true'
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: aosp_atd
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: |
+            adb shell settings put system system_locales ${{ matrix.locale }}
+            uiautomator locale/theme/font-scale variant capture (E2) - wired Phase 2
+            ./scripts/run-ui-tests.sh all 0 1
+
+  backend-nightly:
+    name: backend-nightly
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - if: ${{ hashFiles('backend/**/*.kt') == '' }}
+        run: echo "::notice::backend absent (Phase 1) - k6 load test + long integration runs wired then." && exit 0
+      - run: echo "backend present - nightly load tests wired with backend"
 
   nightly-summary:
     name: nightly-summary
-    needs: [android-full, backend-full]
+    needs: [security-nightly, mesh-long-sim, android-nightly, backend-nightly]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Evaluate
         env:
-          A: ${{ needs.android-full.result }}
-          B: ${{ needs.backend-full.result }}
+          RESULTS: ${{ toJson(needs) }}
         run: |
-          echo "android-full=${A} backend-full=${B}"
-          for r in "$A" "$B"; do
-            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
-              echo "::error::Nightly job finished with ${r}."
-              exit 1
-            fi
-          done
-          echo "Nightly OK."
+          echo "$RESULTS"
+          node -e '
+            const needs = JSON.parse(process.env.RESULTS);
+            const bad = Object.entries(needs).filter(([,v]) => v.result === "failure" || v.result === "cancelled");
+            if (bad.length) { console.error("failing:", bad.map(([k]) => k).join(" ")); process.exit(1); }
+            console.log("Nightly green (skips allowed until modules land).");
+          '

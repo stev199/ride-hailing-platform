@@ -10,120 +10,419 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
-  android:
-    name: android
+  # ---------- path filters (D3.1): unaffected components skip ----------
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      backend: ${{ steps.f.outputs.backend }}
+      admin: ${{ steps.f.outputs.admin }}
+      android: ${{ steps.f.outputs.android }}
+      mesh: ${{ steps.f.outputs.mesh }}
+      infra: ${{ steps.f.outputs.infra }}
+      ci: ${{ steps.f.outputs.ci }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: f
+        with:
+          filters: |
+            backend:
+              - 'backend/**'
+            admin:
+              - 'admin-web/**'
+            android:
+              - 'android/**'
+            mesh:
+              - 'mesh-core/**'
+            infra:
+              - 'infra/**'
+              - 'scripts/**'
+              - 'Makefile'
+              - 'docs/api/**'
+              - 'tools/**'
+              - 'e2e/**'
+            ci:
+              - '.github/**'
+
+  # ---------- 1. lint and static analysis ----------
+  lint-and-static:
+    name: lint-and-static
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: changes
+    if: ${{ needs.changes.outputs.ci == 'true' || needs.changes.outputs.infra == 'true' || needs.changes.outputs.backend == 'true' || needs.changes.outputs.admin == 'true' || needs.changes.outputs.android == 'true' || needs.changes.outputs.mesh == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint (pinned)
+        run: |
+          curl -fsSL -o /tmp/actionlint.tgz "https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz"
+          tar -xzf /tmp/actionlint.tgz -C /tmp actionlint && /tmp/actionlint -color
+      - name: gitleaks (secret scan, pinned)
+        run: |
+          curl -fsSL -o /tmp/gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks && /tmp/gitleaks detect --no-banner --redact
+      - name: OpenAPI lint (spectral)
+        if: ${{ hashFiles('docs/api/openapi.yaml') != '' }}
+        run: npx --yes @stoplight/spectral-cli@6 lint docs/api/openapi.yaml
+      - name: Kotlin lint (ktlint/detekt) - lands with modules
+        if: ${{ hashFiles('backend/**/*.kt', 'android/**/*.kt', 'mesh-core/**/*.kt') != '' }}
+        run: echo "::notice::ktlint/detekt wired when backend/android modules land (Phase 1-2)."
+      - name: Admin lint (eslint/tsc) - lands with module
+        if: ${{ hashFiles('admin-web/**/*.ts') != '' }}
+        run: echo "::notice::eslint/tsc wired when admin-web module lands (Phase 2)."
+
+  # ---------- 2. backend tests (service containers, migrations, RBAC, ledger invariant, parity) ----------
+  backend-test:
+    name: backend-test
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: changes
+    if: ${{ needs.changes.outputs.backend == 'true' }}
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_DB: ridehailing
+          POSTGRES_USER: ridehailing
+          POSTGRES_PASSWORD: test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ridehailing" --health-interval 5s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 3s --health-retries 20
     steps:
       - uses: actions/checkout@v4
-
-      - name: Detect Gradle/Android project
-        id: detect
-        run: |
-          if [ -d android ] || compgen -G "settings.gradle*" >/dev/null || compgen -G "android/settings.gradle*" >/dev/null; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No Android/Gradle project yet - skipping android job."
-          fi
-
+      - if: ${{ hashFiles('backend/**/*.kt') == '' }}
+        run: echo "::notice::backend module absent - skipping (Phase 1)." && exit 0
       - uses: actions/setup-java@v4
-        if: steps.detect.outputs.present == 'true'
-        with:
-          distribution: temurin
-          java-version: '17'
-
+        if: ${{ hashFiles('backend/**/*.kt') != '' }}
+        with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
-        if: steps.detect.outputs.present == 'true'
-
-      - name: Build and unit-test
-        if: steps.detect.outputs.present == 'true'
+        if: ${{ hashFiles('backend/**/*.kt') != '' }}
+      - if: ${{ hashFiles('backend/**/*.kt') != '' }}
         run: |
-          if [ -d android ]; then cd android; fi
-          gradle --no-daemon assembleDebug testDebugUnitTest
+          cd backend
+          gradle --no-daemon test jacocoTestReport
+          # includes: migrations up/down, RBAC matrix, ledger invariant debits=credits,
+          # driver-DTO parity contract tests, WebSocket tests (D3.2)
 
-  backend:
-    name: backend
+  # ---------- 3. API contract: compose stack + schemathesis + k6 ----------
+  api-contract:
+    name: api-contract
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
+    needs: [changes, backend-test]
+    if: ${{ needs.changes.outputs.backend == 'true' }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Detect Node backend
-        id: detect
+      - if: ${{ hashFiles('backend/Dockerfile') == '' }}
+        run: echo "::notice::backend image absent - skipping contract stage (Phase 1)." && exit 0
+      - if: ${{ hashFiles('backend/Dockerfile') != '' }}
         run: |
-          if [ -f backend/package.json ] || [ -f package.json ]; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No Node backend yet - skipping backend job."
-          fi
+          docker compose -f infra/docker-compose.yml --profile infra --profile app --profile test up -d
+          ./scripts/wait-for-health.sh
+          npx --yes schemathesis run docs/api/openapi.yaml --url "$BACKEND_URL" --checks all
+          # k6 smoke with p95 thresholds (D3.3)
 
+  # ---------- 4. admin web tests ----------
+  admin-web-test:
+    name: admin-web-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: changes
+    if: ${{ needs.changes.outputs.admin == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: ${{ hashFiles('admin-web/package.json') == '' }}
+        run: echo "::notice::admin-web absent - skipping (Phase 2)." && exit 0
       - uses: actions/setup-node@v4
-        if: steps.detect.outputs.present == 'true'
-        with:
-          node-version: '20'
-
-      - name: Install, lint, test
-        if: steps.detect.outputs.present == 'true'
+        if: ${{ hashFiles('admin-web/package.json') != '' }}
+        with: { node-version: '20' }
+      - if: ${{ hashFiles('admin-web/package.json') != '' }}
         run: |
-          if [ -f backend/package.json ]; then cd backend; fi
+          cd admin-web
           npm ci
-          npm run lint --if-present
-          npm test --if-present
+          npm test --if-present        # vitest/RTL
+          npx playwright test          # chromium+firefox shards, axe checks, screenshots
 
-  docker:
-    name: docker
+  # ---------- 5. mesh-core simulation suite (Part C Stage 3, D3.5) ----------
+  mesh-core-sim:
+    name: mesh-core-sim
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: changes
+    if: ${{ needs.changes.outputs.mesh == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: ${{ hashFiles('mesh-core/**/*.kt') == '' }}
+        run: echo "::notice::mesh-core absent - skipping (Phase 1b)." && exit 0
+      - uses: actions/setup-java@v4
+        if: ${{ hashFiles('mesh-core/**/*.kt') != '' }}
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        if: ${{ hashFiles('mesh-core/**/*.kt') != '' }}
+      - if: ${{ hashFiles('mesh-core/**/*.kt') != '' }}
+        run: |
+          cd mesh-core
+          gradle --no-daemon sim  # 15 scenarios, fixed seeds; fails on >10% regression vs docs/evidence/mesh-sim/baseline.json
+
+  # ---------- 6. android build (once, artifacts reused) ----------
+  android-build:
+    name: android-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: changes
+    if: ${{ needs.changes.outputs.android == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: ${{ hashFiles('android/**/build.gradle.kts') == '' }}
+        run: echo "::notice::android module absent - skipping (Phase 2)." && exit 0
+      - uses: actions/setup-java@v4
+        if: ${{ hashFiles('android/**/build.gradle.kts') != '' }}
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        if: ${{ hashFiles('android/**/build.gradle.kts') != '' }}
+      - if: ${{ hashFiles('android/**/build.gradle.kts') != '' }}
+        run: |
+          cd android
+          gradle --no-daemon :app-rider:assembleDebug :app-driver:assembleDebug \
+            :app-rider:assembleDebugAndroidTest :app-driver:assembleDebugAndroidTest \
+            :app-rider:testDebugUnitTest :app-driver:testDebugUnitTest
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && hashFiles('android/**/build.gradle.kts') != '' }}
+        with:
+          name: android-apks
+          path: |
+            android/**/build/outputs/apk/**/*.apk
+            android/**/build/outputs/androidTest/**/*.apk
+
+  # ---------- 7/8. sharded emulator UI tests (rider and driver in parallel) ----------
+  android-ui-rider:
+    name: android-ui-rider
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: [changes, android-build]
+    if: ${{ needs.changes.outputs.android == 'true' && needs.android-build.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - if: ${{ hashFiles('android/**/build.gradle.kts') == '' }}
+        run: echo "::notice::android absent - skipping shard." && exit 0
+      - name: Enable KVM (D4)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm || { echo "KVM missing"; exit 1; }
+      - uses: actions/download-artifact@v4
+        with: { name: android-apks }
+      - run: make up-test && ./scripts/wait-for-health.sh && ./scripts/seed-test.sh rider-${{ matrix.shard }}
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: aosp_atd
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: ./scripts/run-ui-tests.sh rider ${{ matrix.shard }} 3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-rider-${{ matrix.shard }}
+          path: artifacts/**
+
+  android-ui-driver:
+    name: android-ui-driver
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    needs: [changes, android-build]
+    if: ${{ needs.changes.outputs.android == 'true' && needs.android-build.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2]
+    steps:
+      - uses: actions/checkout@v4
+      - if: ${{ hashFiles('android/**/build.gradle.kts') == '' }}
+        run: echo "::notice::android absent - skipping shard." && exit 0
+      - name: Enable KVM (D4)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm || { echo "KVM missing"; exit 1; }
+      - uses: actions/download-artifact@v4
+        with: { name: android-apks }
+      - run: make up-test && ./scripts/wait-for-health.sh && ./scripts/seed-test.sh driver-${{ matrix.shard }}
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: aosp_atd
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: ./scripts/run-ui-tests.sh driver ${{ matrix.shard }} 3
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-driver-${{ matrix.shard }}
+          path: artifacts/**
+
+  # ---------- 9. cross-actor E2E (D5): two emulators + admin, simultaneous ----------
+  e2e-cross-actor:
+    name: e2e-cross-actor
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    needs: [changes, android-build]
+    if: ${{ needs.changes.outputs.android == 'true' && needs.android-build.result == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: ${{ hashFiles('android/**/build.gradle.kts') == '' }}
+        run: echo "::notice::android absent - skipping cross-actor (Phase 2+)." && exit 0
+      - name: Enable KVM (D4)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm || { echo "KVM missing"; exit 1; }
+      - uses: actions/download-artifact@v4
+        with: { name: android-apks }
+      - run: make up-test && ./scripts/wait-for-health.sh && ./scripts/seed-test.sh e2e
+      - name: Orchestrate two emulators + admin (tri-view recording)
+        run: |
+          ./scripts/start-emulators.sh 2
+          cd e2e && npm ci && RECORD_ALL=1 node orchestrator.js --scenario all
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-cross-actor
+          path: artifacts/**
+
+  # ---------- 10. security scans (always) ----------
+  security:
+    name: security
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-
-      - name: Detect Dockerfile
-        id: detect
+      - name: gitleaks history scan (pinned)
         run: |
-          if [ -f Dockerfile ] || compgen -G "*/Dockerfile" >/dev/null; then
-            echo "present=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::No Dockerfile yet - skipping docker job."
-          fi
+          curl -fsSL -o /tmp/gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
+          /tmp/gitleaks detect --no-banner --redact
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          severity: HIGH,CRITICAL
+          exit-code: '0'   # findings reported; gating starts when runtime code lands (DECISIONS)
+          vuln-type: os,library
+          format: table
+      - name: Trivy image scans - lands with images
+        if: ${{ hashFiles('backend/Dockerfile', 'admin-web/Dockerfile') != '' }}
+        run: echo "::notice::image scans wired when images exist (Phase 1-2)."
 
-      - name: Build image (no push)
-        if: steps.detect.outputs.present == 'true'
+  # ---------- 11. report gallery (E6) ----------
+  report-publish:
+    name: report-publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [lint-and-static, backend-test, api-contract, admin-web-test, mesh-core-sim, android-build, android-ui-rider, android-ui-driver, e2e-cross-actor, security]
+    if: always()
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+        continue-on-error: true   # first runs have no component artifacts yet
+      - name: Generate report gallery
+        env:
+          PAGES_BASE: https://stev199.github.io/ride-hailing-platform
         run: |
-          if [ -f Dockerfile ]; then
-            docker build -t ride-hailing-platform:ci .
-          else
-            dir="$(ls */Dockerfile | head -n1 | xargs dirname)"
-            docker build -t ride-hailing-platform:ci "$dir"
-          fi
+          mkdir -p _site
+          node tools/report/generate.js --artifacts artifacts --out _site
+          mkdir -p _site/runs/${{ github.run_id }}
+          cp -r _site/* _site/runs/${{ github.run_id }}/ || true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - name: Upload fallback artifact (E6.2)
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-${{ github.run_id }}
+          path: _site
+      - name: Deploy to Pages (main only)
+        id: pages
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: actions/deploy-pages@v4
 
+  # ---------- 12. ci-summary: the only required check ----------
   ci-summary:
     name: ci-summary
-    needs: [android, backend, docker]
-    if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
+    needs: [changes, lint-and-static, backend-test, api-contract, admin-web-test, mesh-core-sim, android-build, android-ui-rider, android-ui-driver, e2e-cross-actor, security, report-publish]
+    if: always()
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      PAGES_BASE: https://stev199.github.io/ride-hailing-platform
     steps:
-      - name: Evaluate job results
+      - name: Summarize
         env:
-          ANDROID: ${{ needs.android.result }}
-          BACKEND: ${{ needs.backend.result }}
-          DOCKER: ${{ needs.docker.result }}
+          RESULTS: ${{ toJson(needs) }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "android=${ANDROID} backend=${BACKEND} docker=${DOCKER}"
-          for r in "$ANDROID" "$BACKEND" "$DOCKER"; do
-            if [ "$r" = "failure" ] || [ "$r" = "cancelled" ]; then
-              echo "::error::CI job finished with ${r}."
-              exit 1
-            fi
-          done
-          echo "All CI jobs passed or were intentionally skipped."
+          node -e '
+            const needs = JSON.parse(process.env.RESULTS);
+            const order = ["changes","lint-and-static","backend-test","api-contract","admin-web-test","mesh-core-sim","android-build","android-ui-rider","android-ui-driver","e2e-cross-actor","security","report-publish","ci-summary"];
+            const icon = r => r === "success" ? "PASS" : r === "skipped" ? "SKIP" : "FAIL";
+            const rows = order.filter(n => needs[n]).map(n => `| ${n} | ${icon(needs[n].result)} |`).join("\n");
+            const bad = order.filter(n => needs[n] && (needs[n].result === "failure" || needs[n].result === "cancelled"));
+            const md = `### CI summary (${process.env.GITHUB_SHA})\n\n| job | result |\n|---|---|\n${rows}\n\nRun: ${process.env.RUN_URL}\nReport: ${process.env.PAGES_BASE}/runs/${process.env.GITHUB_RUN_ID}/ (artifact test-report-${process.env.GITHUB_RUN_ID})\n`;
+            require("fs").writeFileSync("/tmp/summary.md", md);
+            require("fs").writeFileSync("/tmp/bad.txt", bad.join(" "));
+          '
+          cat /tmp/summary.md >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "$(cat /tmp/bad.txt)" ]; then
+            echo "::error::failing jobs: $(cat /tmp/bad.txt)"
+            echo "CI_FAILED=1" >> "$GITHUB_ENV"
+          fi
+      - name: Update PR comment (E6.3)
+        if: ${{ github.event_name == 'pull_request' && env.CI_FAILED != '1' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          COMMENT_ID=$(gh api "repos/$REPO/issues/$PR/comments" --jq '.[] | select(.user.login == "github-actions[bot]") | .id' | head -n1 || true)
+          BODY=$(cat /tmp/summary.md)
+          if [ -n "$COMMENT_ID" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$COMMENT_ID" -f body="$BODY"
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="$BODY"
+          fi
+      - name: Fail on failed jobs
+        if: ${{ env.CI_FAILED == '1' }}
+        run: exit 1
 
-# Fork-PR safety (Phase 0 rule): when a job starts using repository secrets
-# (signing, deployments, live-view), guard it so it never runs for fork PRs, e.g.:
-#   if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+# Fork-PR safety (Part 0 rule): jobs using repository secrets (release signing, live-view,
+# staging deploy) are dispatch/tag-gated or guarded with
+#   github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository

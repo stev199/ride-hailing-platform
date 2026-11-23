@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directory: /infra
+    schedule:
+      interval: weekly
+  # gradle (/android) and npm (/admin-web) entries are added when those modules land
+  # (Phase 1/2) - Dependabot errors on missing directories (see DECISIONS.md).

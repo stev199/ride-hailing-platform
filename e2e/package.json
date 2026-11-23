@@ -1,0 +1,8 @@
+{
+  "name": "e2e-orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cross-actor orchestrator (D5): drives rider emulator, driver emulator and admin browser concurrently through /test/barrier (test profile only).",
+  "main": "orchestrator.js",
+  "scripts": { "start": "node orchestrator.js --scenario all" }
+}

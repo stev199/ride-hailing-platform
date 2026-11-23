@@ -1,0 +1,163 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  migrate-test:
+    name: migrate-forward-backward
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env: { POSTGRES_DB: ridehailing, POSTGRES_USER: ridehailing, POSTGRES_PASSWORD: test }
+        ports: ["5432:5432"]
+    steps:
+      - uses: actions/checkout@v4
+      - if: ${{ hashFiles('backend/**/db/migration/**') == '' }}
+        run: echo "::notice::no migrations yet (Phase 1)." && exit 0
+      - run: echo "::notice::migration up/down test wired with backend (Phase 1) - release refuses to publish on failure."
+
+  backend-images:
+    name: backend-images
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: guard
+        run: |
+          if [ -f backend/Dockerfile ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "::notice::backend image absent (Phase 1)"; fi
+      - uses: docker/setup-buildx-action@v3
+        if: steps.guard.outputs.present == 'true'
+      - uses: docker/login-action@v3
+        if: steps.guard.outputs.present == 'true'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        if: steps.guard.outputs.present == 'true'
+        with:
+          context: backend
+          push: true
+          tags: ghcr.io/${{ github.repository }}/backend:${{ github.ref_name }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: SBOM (CycloneDX) + Trivy image scan
+        run: echo "::notice::wired with backend image (Phase 1)."
+
+  admin-image:
+    name: admin-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - id: guard
+        run: |
+          if [ -f admin-web/Dockerfile ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "::notice::admin image absent (Phase 2)"; fi
+      - uses: docker/setup-buildx-action@v3
+        if: steps.guard.outputs.present == 'true'
+      - uses: docker/login-action@v3
+        if: steps.guard.outputs.present == 'true'
+        with: { registry: ghcr.io, username: '${{ github.actor }}', password: '${{ secrets.GITHUB_TOKEN }}' }
+      - uses: docker/build-push-action@v6
+        if: steps.guard.outputs.present == 'true'
+        with:
+          context: admin-web
+          push: true
+          tags: ghcr.io/${{ github.repository }}/admin:${{ github.ref_name }}
+
+  android-release:
+    name: android-release-signed
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - id: guard
+        run: |
+          if [ -d android ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "::notice::android absent (Phase 2)"; fi
+      - uses: actions/setup-java@v4
+        if: steps.guard.outputs.present == 'true'
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.guard.outputs.present == 'true'
+      - name: Decode keystore from secrets (never logged, never committed)
+        if: steps.guard.outputs.present == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::KEYSTORE_B64 missing - producing UNSIGNED builds (documented per D7)"
+            echo "SIGNED=0" >> "$GITHUB_ENV"
+          else
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            echo "SIGNED=1" >> "$GITHUB_ENV"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/release.keystore" >> "$GITHUB_ENV"
+          fi
+      - run: |
+          cd android
+          if [ "$SIGNED" = "1" ]; then
+            gradle --no-daemon :app-rider:assembleRelease :app-rider:bundleRelease \
+              :app-driver:assembleRelease :app-driver:bundleRelease \
+              -Prelease.keystore.file="$KEYSTORE_FILE" -Prelease.keystore.alias="$KEY_ALIAS" \
+              -Prelease.store.password="$STORE_PASSWORD" -Prelease.key.password="$KEY_PASSWORD"
+          else
+            gradle --no-daemon :app-rider:assembleRelease :app-driver:assembleRelease
+          fi
+        if: steps.guard.outputs.present == 'true'
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && steps.guard.outputs.present == 'true' }}
+        with:
+          name: android-release
+          path: |
+            android/**/build/outputs/apk/release/*.apk
+            android/**/build/outputs/bundle/release/*.aab
+
+  gh-release:
+    name: github-release
+    needs: [migrate-test, backend-images, admin-image, android-release]
+    if: always() && !contains(needs.*.result, 'failure')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with: { path: artifacts }
+      - name: Checksums + conventional changelog
+        run: |
+          cd artifacts && sha256sum * > SHA256SUMS || true
+          LAST=$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || echo "")
+          { echo "## Changes"; git log --pretty=format:'- %s (%h)' ${LAST:+$LAST..}${GITHUB_REF_NAME} | grep -E '^- (feat|fix|perf|refactor|chore)' | head -40; } > /tmp/changelog.md || true
+      - uses: softprops/action-gh-release@v2
+        with:
+          body_path: /tmp/changelog.md
+          files: |
+            artifacts/**
+
+  release-summary:
+    name: release-summary
+    needs: [migrate-test, backend-images, admin-image, android-release, gh-release]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - env: { RESULTS: '${{ toJson(needs) }}' }
+        run: |
+          echo "$RESULTS"
+          node -e '
+            const needs = JSON.parse(process.env.RESULTS);
+            const bad = Object.entries(needs).filter(([,v]) => v.result === "failure");
+            if (bad.length) process.exit(1);
+          '

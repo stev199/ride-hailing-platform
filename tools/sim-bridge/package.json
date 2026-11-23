@@ -1,0 +1,8 @@
+{
+  "name": "sim-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Host-side bridge (D6): connects SimulatedMeshTransport instances running in emulators to a scenario topology (loss/latency/mobility) applied on the host. Emulators reach it at 10.0.2.2.",
+  "main": "server.js",
+  "scripts": { "start": "node server.js --topology line-3" }
+}

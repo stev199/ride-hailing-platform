@@ -1,0 +1,12 @@
+{
+  "name": "test-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Live and replay Test Viewer (Part E4): MJPEG device screens, step events, logcat tails, storyboard replay.",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": {
+    "express": "^4.19.2",
+    "ws": "^8.17.0"
+  }
+}

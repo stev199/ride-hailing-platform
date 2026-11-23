@@ -1,0 +1,114 @@
+name: Live View
+
+# Opt-in (E5): dispatch-only - never runs on fork PRs. Exposes the Test Viewer through a
+# Cloudflare quick tunnel with a per-run random token; auto-teardown at timeout. Tunnels are
+# third-party and optional; if unavailable, rely on E6 reports and E3 videos.
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: 'Scenario (e.g. rider-booking, cross-actor-all)'
+        default: 'cross-actor-all'
+      slow_motion_ms:
+        description: 'Delay injected between storyboard steps'
+        default: '800'
+      step_mode:
+        description: 'Tests wait for Next in the viewer'
+        default: 'false'
+      keep_alive_minutes:
+        description: 'Inspect window after tests (max 30)'
+        default: '10'
+
+permissions:
+  contents: read
+
+jobs:
+  live-view:
+    name: live-view
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guard - android module must exist
+        run: |
+          if [ ! -d android ]; then
+            echo "::notice::android module not present yet - nothing to show live. Use the report gallery."
+            exit 0
+          fi
+      - name: Enable KVM (D4)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm || { echo "KVM missing"; exit 1; }
+      - uses: actions/setup-java@v4
+        if: hashFiles('android/**/build.gradle.kts') != ''
+        with: { distribution: temurin, java-version: '17' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Start stack (test profile, per-run namespace)
+        run: |
+          make up-test
+          ./scripts/wait-for-health.sh
+          ./scripts/seed-test.sh live-view-${{ github.run_id }}
+      - name: Start Test Viewer (token protected)
+        env:
+          KEEP: ${{ inputs.keep_alive_minutes }}
+        run: |
+          TOKEN=$(openssl rand -hex 16)
+          echo "::add-mask::$TOKEN"
+          echo "VIEWER_TOKEN_VALUE=$TOKEN" >> "$GITHUB_ENV"
+          cd tools/test-viewer && npm ci --no-audit --no-fund
+          VIEWER_TOKEN="$TOKEN" node server.js > /tmp/viewer.log 2>&1 &
+          sleep 2
+          curl -fsS "http://localhost:7070/api/state?token=$TOKEN" >/dev/null
+      - name: Boot emulators + install apps (placeholder until Phase 2)
+        if: hashFiles('android/**/build.gradle.kts') != ''
+        run: ./scripts/start-emulators.sh 2
+      - name: Tunnel (cloudflared quick tunnel, pinned)
+        run: |
+          curl -fsSL -o /tmp/cloudflared.tgz "https://github.com/cloudflare/cloudflared/releases/download/2024.12.2/cloudflared-linux-amd64.tgz"
+          tar -xzf /tmp/cloudflared.tgz -C /tmp cloudflared && chmod +x /tmp/cloudflared
+          nohup /tmp/cloudflared tunnel --no-autoupdate --url http://localhost:7070 > /tmp/cloudflared.log 2>&1 &
+          URL=""
+          for i in $(seq 1 30); do
+            URL=$(rg -o 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n1 || true)
+            [ -n "$URL" ] && break
+            sleep 2
+          done
+          if [ -z "$URL" ]; then
+            echo "::warning::tunnel unavailable - rely on report gallery + videos (E5 fallback)"
+            echo "TUNNEL_URL=" >> "$GITHUB_ENV"
+          else
+            echo "TUNNEL_URL=$URL" >> "$GITHUB_ENV"
+            echo "::notice title=Live View ready::$URL?token=$VIEWER_TOKEN_VALUE"
+          fi
+      - name: Run scenario (slow motion / step mode)
+        env:
+          VIEWER_TOKEN: ${{ env.VIEWER_TOKEN_VALUE }}
+          STEP_DELAY_MS: ${{ inputs.slow_motion_ms }}
+          STEP_MODE: ${{ inputs.step_mode }}
+        run: |
+          if [ -d e2e ] && [ -f e2e/package.json ]; then
+            (cd e2e && npm ci && node orchestrator.js --scenario "${{ inputs.scenario }}")
+          else
+            echo "::notice::orchestrator actors wire up in Phase 2 - viewer is live but idle."
+            sleep 30
+          fi
+      - name: Keep alive for inspection
+        env:
+          KEEP: ${{ inputs.keep_alive_minutes }}
+        run: |
+          MIN=$(( KEEP > 30 ? 30 : KEEP ))
+          echo "keeping viewer alive ${MIN}min"; sleep "${MIN}m"
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Live View"
+            if [ -n "$TUNNEL_URL" ]; then
+              echo "Tunnel: ${TUNNEL_URL}?token=<see annotation>  (token masked in logs; written as annotation above)"
+            else
+              echo "No tunnel this run - see report gallery and videos instead."
+            fi
+            echo "Scenario: ${{ inputs.scenario }}"
+          } >> "$GITHUB_STEP_SUMMARY"

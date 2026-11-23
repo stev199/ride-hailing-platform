@@ -1,0 +1,48 @@
+name: AVD cache warm
+
+# D11.3: cache-warming for emulator jobs. Boots an ATD AVD once and caches the AVD dir
+# (emulator snapshot included) so PR UI shards skip the cold-boot cost.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/avd-cache.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  warm:
+    name: warm-avd-api34
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm || { echo "KVM missing"; exit 1; }
+      - uses: actions/cache@v4
+        id: avd-cache
+        with:
+          path: |
+            ~/.android/avd/*
+            ~/.android/adb*
+          key: avd-aosp_atd-api34-x86_64-v1
+      - name: Create AVD + snapshot
+        if: steps.avd-cache.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: aosp_atd
+          arch: x86_64
+          profile: pixel_5
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot-save -camera-back none -camera-front none
+          disable-animations: false
+          script: adb shell getprop sys.boot_completed
+      - name: Summary
+        run: echo "AVD cache key avd-aosp_atd-api34-x86_64-v1 ${{ steps.avd-cache.outputs.cache-hit == 'true' && 'already warm' || 'written' }}" >> "$GITHUB_STEP_SUMMARY"

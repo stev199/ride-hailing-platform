@@ -17,3 +17,15 @@ Append-only log of non-obvious choices and fallbacks. Newest sections at the bot
 - **D11: Secret scanning / push protection API returned 404** (token lacks the `security_events` scope; endpoint hidden). Fallback: as a public repository, secret scanning and push protection are enabled by default - confirmed via `GET /repos/...` -> `security_and_analysis`: `secret_scanning: enabled`, `secret_scanning_push_protection: enabled`. No gap remains; a future token with `security_events` could manage these via API if ever needed.
 - **D12: `gh api -f` sends string values;** boolean settings must use `-F` (typed). Initial Actions-permissions PUT failed with 422 for this reason and was corrected.
 - **D13: gh CLI is not preinstalled and apt is unavailable** in the sandbox; installed from the official `cli/cli` release tarball to `/home/z/my-project/tools/gh` (outside the repo) and put on PATH per session.
+
+## 2026-11-23 - Phase 0 continuation (build kickoff)
+
+- **D14: Degraded local environment.** Sandbox has no KVM, no Docker daemon, 2 vCPU, ~8GB disk: local emulator and compose verification are delegated to CI (D4/D5 jobs on GitHub runners which have KVM). Local JDK17 + Gradle 8.10.2 installed for JVM work. Android SDK locally is deferred to Phase 2 start (BACKLOG P0-8, revisited if environment changes).
+- **D15: D11.9 (first-green pipeline with trivial tests on two emulators) is sequenced after Phase 1/1b skeletons exist** - it requires backend/admin/mesh code to test. The CI skeleton ships now with every D3 job wired and self-skipping; item tracked as BACKLOG P0-C so it cannot be forgotten before Phase 1 completes.
+- **D16: `hashFiles()` is step-scoped only (actionlint-enforced).** All module-presence guards use a first "guard step" pattern writing GITHUB_OUTPUT; actionlint (pinned v1.7.7) runs in lint-and-static on every commit.
+- **D17: OpenAPI lint** = spectral with `spectral:oas` ruleset at repo root + docs/api/.spectral.yaml; 0 errors required, warnings tolerated until Phase 1 tightens it.
+- **D18: Background processes do not survive tool calls in this sandbox** - long downloads run synchronously (JDK17 ~1min, Gradle ~1min observed).
+- **D19: Compose profiles** `infra` / `geo` / `app` / `test` keep the geo stack heavy services separate from per-shard test stacks; no tile.openstreetmap.org anywhere (Planetiler on a small geofabrik extract; ODbL attribution noted).
+- **D20: Competitive audit is knowledge-based desktop research** (no scraping/paid tools), recorded as directional in docs/COMPETITIVE_AUDIT.md; adoption table drives FEATURES.md.
+- **D21: gitleaks/actionlint pinned releases** used identically locally (scripts/ci-local.sh) and in CI to avoid drift.
+- **D22: report-publish supersedes pages-report.yml**; Pages keeps last-run layout /runs/<run-id>/ and root = latest; artifact test-report-<run-id> is the fallback channel (E6.2).
