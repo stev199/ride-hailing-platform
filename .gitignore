@@ -45,3 +45,4 @@ Thumbs.db
 
 # schemathesis local cache (st runs)
 backend/.schemathesis/
+artifacts/
