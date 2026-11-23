@@ -112,9 +112,9 @@ jobs:
       - if: ${{ hashFiles('backend/**/*.kt') != '' }}
         run: |
           cd backend
-          gradle --no-daemon test jacocoTestReport
-          # includes: migrations up/down, RBAC matrix, ledger invariant debits=credits,
-          # driver-DTO parity contract tests, WebSocket tests (D3.2)
+          ./gradlew --no-daemon test jacocoTestReport
+          # includes: migrations up (CI postgres service), RBAC matrix, ledger invariant
+          # debits=credits, driver-DTO parity contract tests, WebSocket tests (D3.2)
 
   # ---------- 3. API contract: compose stack + schemathesis + k6 ----------
   api-contract:
@@ -174,7 +174,7 @@ jobs:
       - if: ${{ hashFiles('mesh-core/**/*.kt') != '' }}
         run: |
           cd mesh-core
-          gradle --no-daemon sim  # 15 scenarios, fixed seeds; fails on >10% regression vs docs/evidence/mesh-sim/baseline.json
+          ./gradlew --no-daemon test  # Stage 1 GATE suite; `sim` task with 15 scenarios + baseline.json lands with Stage 3 (P1B-4)
 
   # ---------- 6. android build (once, artifacts reused) ----------
   android-build:

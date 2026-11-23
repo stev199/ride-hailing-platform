@@ -3,7 +3,7 @@ info:
   title: ride-hailing-platform API
   version: "0.1.0"
   description: >
-    Phase 0 skeleton. Expanded each phase as endpoints land (B-01..). All writes are
+    Tracks the IMPLEMENTED API surface only; endpoints are added as they land (B-01..). Auth endpoints return with P1-2. All writes are
     validated server-side; all admin endpoints are RBAC-gated; every state change is
     recorded in the append-only event store.
 servers:
@@ -23,56 +23,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Health"
-  /v1/auth/otp/request:
-    post:
-      operationId: requestOtp
-      summary: Request an OTP via an admin-enabled channel
-      description: >
-        Dispatches a 6-digit hashed OTP through an admin-enabled provider.
-        Response is uniform to avoid account enumeration.
-      tags: [auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/OtpRequest"
-      responses:
-        "204":
-          description: OTP dispatched (never reveals whether the account exists)
-        "429":
-          description: Rate limited
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  /v1/auth/otp/verify:
-    post:
-      operationId: verifyOtp
-      summary: Verify OTP and obtain token pair
-      description: >
-        Verifies a 6-digit OTP (hashed at rest, 5-minute expiry, attempt-limited)
-        and returns an access/refresh token pair with rotating refresh.
-      tags: [auth]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/OtpVerify"
-      responses:
-        "200":
-          description: Token pair issued
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/TokenPair"
-        "401":
-          description: Invalid/expired OTP
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
 components:
   securitySchemes:
     bearerAuth:

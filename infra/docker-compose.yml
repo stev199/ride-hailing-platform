@@ -1,0 +1,101 @@
+# Self-hosted platform stack (Part B hard constraints; Part D D5 per-shard test stacks).
+# FLOSS images only. ODbL attribution applies to OSM-derived data (see README).
+#
+# Profiles:
+#   infra  - core stateful services (always needed)
+#   geo    - self-hosted geo stack (tile server, OSRM, Nominatim, Photon)
+#   app    - platform services (backend) - Phase 1+
+#   test   - per-shard test stack additions
+#
+# Local run: docker compose --profile infra --profile geo up
+# NOTE: the build sandbox has no Docker daemon - execution happens on dev machines and in CI.
+
+name: ride-hailing-platform
+
+volumes:
+  pg-data:
+  nominatim-data:
+  tiles-data:
+  osrm-data:
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    profiles: [infra, test]
+    environment:
+      POSTGRES_DB: ridehailing
+      POSTGRES_USER: ridehailing
+      POSTGRES_PASSWORD: test  # dev/test compose only; production uses secrets
+    ports: ["5432:5432"]
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ridehailing"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    profiles: [infra, test]
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  tileserver:
+    # Self-hosted vector tiles from a small city extract built with Planetiler
+    # (infra/fetch-map-data.sh). No tile.openstreetmap.org usage anywhere.
+    image: maplibre/tileserver-gl:v4.6.2
+    profiles: [geo]
+    command: ["--mbtiles", "/data/city.mbtiles", "-p", "8081"]
+    ports: ["8081:8081"]
+    volumes:
+      - tiles-data:/data
+
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    profiles: [geo]
+    # Pre-process once with infra/fetch-map-data.sh (osrm-extract/partition/customize), then serve.
+    command: ["osrm-routed", "--algorithm", "mld", "/data/city.osrm"]
+    ports: ["5000:5000"]
+    volumes:
+      - osrm-data:/data
+
+  nominatim:
+    image: mediagis/nominatim:4.5
+    profiles: [geo]
+    environment:
+      PBF_PATH: /data/city.osm.pbf
+      IMPORT_STYLE: extradata
+    ports: ["8082:8082"]
+    volumes:
+      - nominatim-data:/var/lib/postgresql
+      - tiles-data:/data:ro
+
+  photon:
+    # Fast geocoder on top of the Nominatim index; used by the rider search bar.
+    image: ghcr.io/komoot/photon:latest
+    profiles: [geo]
+    command: ["-listen-port", "8083"]
+    ports: ["8083:8083"]
+    depends_on: [nominatim]
+
+  backend:
+    # Ktor API + ws-gateway + mesh-gateway (single image) - Phase 1+
+    build: { context: ../backend, dockerfile: Dockerfile }
+    profiles: [app, test]
+    environment:
+      PG_HOST: postgres
+      REDIS_HOST: redis
+      TEST_PROFILE: "true"    # compose stacks are dev/test-only: enables /test/ routes (D5)
+    ports: ["8080:8080"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  # admin-web: lands with Phase 2 (uncomment when ../admin-web/Dockerfile exists)
+  # mock-otp-inbox: lands with auth providers (P1-2, Dockerfile.mock-otp)
