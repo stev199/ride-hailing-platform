@@ -319,7 +319,7 @@ jobs:
           tar -xzf /tmp/gitleaks.tgz -C /tmp gitleaks
           /tmp/gitleaks detect --no-banner --redact
       - name: Trivy filesystem scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           severity: HIGH,CRITICAL
