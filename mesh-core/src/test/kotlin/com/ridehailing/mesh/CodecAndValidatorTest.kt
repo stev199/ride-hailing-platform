@@ -111,9 +111,10 @@ class CodecAndValidatorTest {
         assertIs<Validator.RelayResult.Forwarded>(forwarded)
         assertEquals(1, forwarded.envelope.hopSection.hopCount)
         assertNotEquals(env.hopSection.hopMac, forwarded.envelope.hopSection.hopMac)
-        // exhaust budget: maxHops=3 -> relaying 3 times then drops
+        // exhaust budget: maxHops=3 allows 2 relays (the 3rd link goes to the
+        // destination); the 3rd relay is refused (GATE 3 scenario 2 off-by-one fix).
         var cur = env
-        repeat(3) { cur = assertIs<Validator.RelayResult.Forwarded>(Validator.relay(cur, 3, env.createdAtSec + 1, ByteArray(4) { 7 }, 200, 1, ByteArray(32) { 5 }, null)).envelope }
+        repeat(2) { cur = assertIs<Validator.RelayResult.Forwarded>(Validator.relay(cur, 3, env.createdAtSec + 1, ByteArray(4) { 7 }, 200, 1, ByteArray(32) { 5 }, null)).envelope }
         assertIs<Validator.RelayResult.Dropped>(
             Validator.relay(cur, 3, env.createdAtSec + 1, ByteArray(4) { 7 }, 200, 1, ByteArray(32) { 5 }, null),
         )

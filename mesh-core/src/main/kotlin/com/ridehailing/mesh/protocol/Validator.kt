@@ -62,7 +62,13 @@ object Validator {
             is Verdict.Invalid -> return RelayResult.Dropped(check.reason)
             else -> {}
         }
-        if (envelope.hopSection.hopCount >= minOf(envelope.maxHops, ourConfiguredMaxHops)) {
+        // hopCount counts COMPLETED links (origin sends 0; each relay adds one).
+        // The budget counts LINK HOPS, so at most maxHops-1 relays may forward: the
+        // final relay's transmission is the link INTO the destination. Refusing here
+        // means an over-budget envelope never reaches the destination (GATE 3
+        // scenario 2: "no relay beyond limit"). GATE 3 caught the previous off-by-one
+        // (which allowed maxHops+1 links).
+        if (envelope.hopSection.hopCount >= minOf(envelope.maxHops, ourConfiguredMaxHops) - 1) {
             return RelayResult.Dropped("hop budget exhausted")
         }
         val newCrumbs = envelope.hopSection.breadcrumbs + Breadcrumb(hopIdHash, linkQuality, loadClass)
