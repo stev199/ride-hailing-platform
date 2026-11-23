@@ -20,11 +20,12 @@ class PasswordService(private val random: SecureRandom = SecureRandom()) {
 
     companion object {
         const val MIN_PASSWORD_LENGTH = 10
+        const val MAX_PASSWORD_LENGTH = 128
         val DEFAULT_PARAMS = Params(memoryKib = 65_536, iterations = 3, parallelism = 1)
 
-        // Policy note (D44): the server enforces ONLY the documented length rule so the
-        // OpenAPI contract stays exactly honest (schemathesis ST202). Common-password
-        // rejection is enforced at the API-consumer layer (apps/admin) and can be
+        // Policy note (D44/D49): the server enforces ONLY the documented length rule so the
+        // OpenAPI contract stays exactly honest (schemathesis positive/negative checks).
+        // Common-password rejection is enforced at the API-consumer layer (apps/admin) and can be
         // extended server-side in lockstep with the schema when P1-3 lands.
     }
 
@@ -68,9 +69,11 @@ class PasswordService(private val random: SecureRandom = SecureRandom()) {
         return MessageDigest.isEqual(actual, expected)
     }
 
-    /** Validate password policy; returns a machine-readable rejection or null when acceptable. */
+    /** Validate password policy; returns a machine-readable rejection or null when acceptable.
+     *  Bounds match openapi RegisterRequest.password (minLength 10, maxLength 128, D49). */
     fun policyViolation(password: String): String? = when {
         password.length < MIN_PASSWORD_LENGTH -> "password_too_short"
+        password.length > MAX_PASSWORD_LENGTH -> "password_too_long"
         else -> null
     }
 

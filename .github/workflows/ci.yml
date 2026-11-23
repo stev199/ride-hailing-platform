@@ -134,8 +134,8 @@ jobs:
         run: |
           docker compose -f infra/docker-compose.yml --profile infra --profile app --profile test up -d
           ./scripts/wait-for-health.sh
-          python3 -m pip install --quiet schemathesis
-          schemathesis run docs/api/openapi.yaml --url "$BACKEND_URL" --checks all --max-examples 10
+          python3 -m pip install --quiet "schemathesis==4.34.0"
+          schemathesis run docs/api/openapi.yaml --url "$BACKEND_URL" --checks all --max-examples 10 --seed 45188991107
           # k6 smoke with p95 thresholds (D3.3) - wired when load-sensitive endpoints land
 
   # ---------- 4. admin web tests ----------

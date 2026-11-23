@@ -203,8 +203,10 @@ components:
         target:
           type: string
         locale:
-          type: string
-          enum: [en, fr, ar]
+          type: [string, "null"]
+          description: >-
+            Preferred UI language. Server-supported values: en, fr, ar; other
+            values are accepted and stored with the server default locale.
     OtpVerify:
       type: object
       required: [requestId, code]
@@ -215,38 +217,66 @@ components:
           type: string
           minLength: 6
           maxLength: 6
+          pattern: '^[0-9]{6}$'
+          description: 6-digit numeric OTP; wrong or unknown codes return 401.
         displayName:
-          type: string
-          minLength: 2
-          maxLength: 64
+          type: [string, "null"]
+          description: >-
+            Optional profile name for auto-registration. Any value is accepted;
+            invalid or missing values fall back to a server default ("Rider").
         locale:
-          type: string
-          enum: [en, fr, ar]
+          type: [string, "null"]
+          description: >-
+            Preferred UI language. Server-supported values: en, fr, ar; other
+            values are accepted and stored with the server default locale.
     RegisterRequest:
       type: object
       required: [displayName, password]
       anyOf:
+        # At least one NON-NULL identifier (mirrors backend identifier_required,
+        # D49: required alone would let explicit nulls satisfy the branch).
         - required: [phone]
+          properties:
+            phone:
+              type: string
         - required: [email]
+          properties:
+            email:
+              type: string
       properties:
         displayName:
           type: string
           minLength: 2
           maxLength: 64
+          pattern: '[^ \t\n\u000B\f\r ]'
+          description: >-
+            2-64 characters with at least one non-whitespace; stored trimmed.
+            All-whitespace values are rejected with 400 invalid_display_name.
         password:
           type: string
           minLength: 10
           maxLength: 128
         phone:
-          type: string
-          minLength: 8
-          maxLength: 20
+          type: [string, "null"]
+          pattern: '^(?:[^0-9]*[0-9]){8,15}[^0-9]*$'
+          description: >-
+            8-15 ASCII digits; every other character (spaces, dashes,
+            parentheses, a leading +) is ignored during normalization. Values
+            with fewer than 8 or more than 15 digits are rejected with 400
+            invalid_phone.
         email:
-          type: string
-          format: email
+          type: [string, "null"]
+          pattern: '^[^@]+@[^@]*[^@.]$'
+          description: >-
+            One '@' with a non-empty local part and a domain not ending in
+            '.'. Stored trimmed and lowercased. Values without '@', with '@'
+            at either end, or ending in '.' are rejected with 400
+            invalid_email.
         locale:
-          type: string
-          enum: [en, fr, ar]
+          type: [string, "null"]
+          description: >-
+            Preferred UI language. Server-supported values: en, fr, ar; other
+            values are accepted and stored with the server default locale.
     PasswordLoginRequest:
       type: object
       required: [identifier, password]
@@ -295,6 +325,8 @@ components:
           type: string
         phone:
           type: [string, "null"]
+          pattern: '^[0-9]{8,15}$'
+          description: Normalized digits-only phone (8-15 ASCII digits).
         email:
           type: [string, "null"]
         displayName:

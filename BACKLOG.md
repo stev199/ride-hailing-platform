@@ -15,20 +15,22 @@ Ordered granular tasks. Each is finishable and verifiable in one work session. D
 | P0-7 | Makefile + scripts (ci-local, seed-test, start-emulators, wait-for-boot, wait-for-health, collect-artifacts, run-ui-tests) + infra compose (infra/geo/app/test profiles) + fetch-map-data.sh | P0-5 | done | Makefile, scripts/, infra/ |
 | P0-8 | Android SDK + cmdline-tools install locally + 2 AVDs + headless boot verification (A3) | P0-3 | deferred | reason: no KVM/limited disk in sandbox; emulator verification delegated to CI (D4). Revisit if environment changes; AVD creation included in CI avd-cache.yml |
 | P0-C | D11.9 first-green pipeline: trivial backend/admin/mesh-sim tests + report gallery with storyboard screenshots and video | P1-1, P1B-1, P1-4 | todo | |
+| P0-9 | Re-create release keystore + Actions secrets + encrypted off-repo backup (sandbox recycle destroyed the local backup; secrets unreadable by design) | P0-1 | todo | |
 
 ## Phase 1 (backend core + admin shell)
 
 | ID | Task | Depends | Status |
 |---|---|---|---|
 | P1-1 | Backend module skeleton: Ktor + /health + Dockerfile + Flyway (up) + hash-chained event store schema + config service skeleton (signed bundles) | P0-C later ok | done | run 45171484716; Flyway down = forward-fix policy (D33) |
-| P1-2 | Auth: OTP providers (dev inbox adapter, SMTP, Telegram bot, self-hosted SMS doc), phone/email+password, JWT + rotating refresh, argon2id, rate limits | P1-1 | todo |
+| P1-2 | Auth: OTP providers (dev inbox adapter, SMTP, Telegram bot, self-hosted SMS doc), phone/email+password, JWT + rotating refresh, argon2id, rate limits | P1-1 | done | backend 53 tests; run 45174319535; D34-D37 |
 | P1-3 | Users/roles/RBAC + sessions/devices + admin actions in audit store | P1-2 | todo |
 | P1-4 | Admin shell (React+TS+Vite): login, RBAC routing, layout, config center v0 | P1-2 | todo |
 | P1-5 | Ledger/wallet schema + double-entry invariant tests (schema now, services Phase 7) | P1-1 | todo |
-| P1-6 | /test/barrier + /test/seed endpoints (test profile only) + test proving absence in release | P1-1 | todo |
+| P1-6 | /test/barrier + /test/seed endpoints (test profile only) + test proving absence in release | P1-1 | done | /test/* routes + absence test (P1-1 commit) |
+| P1-CONTRACT | Wire authenticated schemathesis coverage (register/login hooks) so /v1/me, login/password, otp/verify, refresh get positive authenticated cases (currently 401-only warnings); consider --max-examples bump in nightly; PR runs keep pinned seed (D49) | P1-2 | todo | |
 | P1B-1 | mesh-core module: Gradle setup, binary envelope codec + fragmentation + fuzz/KAT/bit-flip tests (Stage 1) | P0-3 | done | 20 tests green run 45172363159 |
 | P1B-2 | mesh-core crypto: Ed25519/X25519 + ChaCha20-Poly1305 via JDK built-ins (T-2 resolved, D32), rotating originId, hop MAC; RFC KATs pinned | P1B-1 | done | CryptoTest RFC 8032 + 8439 vectors green |
-| P1B-3 | mesh-core routing: seen-cache, flooding, breadcrumbs, route discovery, cost function + Dijkstra oracle (Stage 2) | P1B-2 | todo |
+| P1B-3 | mesh-core routing: seen-cache, flooding, breadcrumbs, route discovery, cost function + Dijkstra oracle (Stage 2) | P1B-2 | done | 61 tests incl. 200-graph oracle parity |
 | P1B-4 | mesh-core simulator: topology/mobility/loss models + 15 mandatory scenarios + metrics + baseline.json (Stage 3, GATE 3) | P1B-3 | todo |
 | P1B-5 | mesh-core Stage 4 Android integration prep: sim-bridge topology engine wiring | P1B-4 | todo |
 

@@ -32,8 +32,16 @@ class AuthService(
         emailRaw: String?,
         localeRaw: String?,
     ): RegisterResult {
-        val displayName = displayNameRaw.trim()
-        if (displayName.length !in 2..64) return RegisterResult.Invalid("displayName", "invalid_display_name")
+        // D49 contract: documented as raw length 2..64 with at least one
+        // non-(ASCII-whitespace) character (openapi RegisterRequest.displayName
+        // pattern '[^ \t\n\u000B\f\r ]', unanchored search); stored ASCII-trimmed.
+        // ASCII-only whitespace + explicit \u000B keeps Kotlin/ECMA/python regex
+        // semantics identical (Java interprets \v as the vertical-whitespace CLASS),
+        // which ContractAlignmentTest asserts so schema and code cannot drift.
+        val displayName = displayNameRaw.trim(' ', '\t', '\n', '\u000B', '\u000C', '\r')
+        if (displayNameRaw.length !in 2..64 || displayName.isEmpty()) {
+            return RegisterResult.Invalid("displayName", "invalid_display_name")
+        }
         val policy = passwords.policyViolation(passwordRaw)
         if (policy != null) return RegisterResult.Invalid("password", policy)
         val phone = phoneRaw?.let { Identifiers.normalizePhone(it) }

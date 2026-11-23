@@ -83,17 +83,33 @@ fun User.profile(): UserProfile = UserProfile(
     role = role, status = status, locale = locale,
 )
 
-/** Identifier normalization: phones -> digits only, emails -> lowercased trimmed. */
+/**
+ * Identifier normalization (D49). These functions are the single source of truth
+ * for what the API accepts as phone/email: docs/api/openapi.yaml carries regex
+ * patterns that mirror them exactly, and backend ContractAlignmentTest asserts
+ * the equivalence so the documented contract and the code cannot drift.
+ *
+ * Phone: 8-15 ASCII digits; every other character (spaces, dashes, parentheses,
+ * a leading +) is ignored, so "+33 1 23-45-67-89" normalizes to 33123456789.
+ * Unicode digits are not phone digits (delivery addressing stays ASCII).
+ * Email: validated on the RAW string (exactly one '@' with a non-empty local
+ * part and a domain not ending in '.'), stored trimmed + lowercased. The stored
+ * form is what uniqueness is keyed on.
+ */
 object Identifiers {
+    private val ASCII_DIGITS = '0'..'9'
+
     fun normalizePhone(raw: String): String? {
-        val digits = raw.trim().filter { it.isDigit() }
+        val digits = raw.filter { it in ASCII_DIGITS }
         return if (digits.length in 8..15) digits else null
     }
 
     fun normalizeEmail(raw: String): String? {
-        val e = raw.trim().lowercase()
-        val at = e.indexOf('@')
-        return if (at > 0 && at < e.length - 1 && !e.contains("..") && e.lastOrNull() != '.') e else null
+        val at = raw.indexOf('@')
+        // Exactly one '@', non-empty local part, domain not ending in '.' -
+        // mirrors the openapi pattern '^[^@]+@[^@]*[^@.]$' in both directions (D49).
+        val ok = at > 0 && at < raw.length - 1 && raw.last() != '.' && raw.indexOf('@', at + 1) == -1
+        return if (ok) raw.trim().lowercase() else null
     }
 }
 

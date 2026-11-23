@@ -37,6 +37,9 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql:42.7.4")
     testImplementation(kotlin("test"))
     testImplementation("io.ktor:ktor-server-test-host-jvm:$ktorVersion")
+    // ContractAlignmentTest (D49) reads docs/api/openapi.yaml to assert that the
+    // documented constraints exactly mirror the enforced validation rules.
+    testImplementation("org.yaml:snakeyaml:2.2")
 }
 
 application {
