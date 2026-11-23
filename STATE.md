@@ -3,7 +3,7 @@
 Last updated: 2026-11-23
 Current phase: 1 (backend core) + 1b (mesh core, parallel track) - Stage 1 GATE scope green
 Current task: P1-2 auth (OTP providers + JWT + argon2id); next P1B-3 routing + Dijkstra oracle
-Last completed task: P1-1 backend skeleton + P1B-1/2 mesh Stage 1 (20 mesh tests + 16 backend tests green; compose stack builds + healthy in CI; run 45171484716, run 45172363159)
+Last completed task: P1-1 + P1B Stage 1 verified end-to-end: forced full CI run green incl. api-contract (schemathesis; RFC 9110 Allow fix) - run 45174319535
 
 ## Gate status table
 
