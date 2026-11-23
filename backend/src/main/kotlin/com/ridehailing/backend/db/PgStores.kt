@@ -131,11 +131,16 @@ class PgDeviceStore(private val connect: () -> Connection) : DeviceStore {
 
     private fun <T> withConn(block: (Connection) -> T): T = connect().use { block(it) }
 
+    // mesh_public_key is BYTEA on the wire; the port carries a hex string.
+    private fun hexToBytes(hex: String?): ByteArray? = hex?.chunked(2)?.map { it.toInt(16).toByte() }?.toByteArray()
+
+    private fun bytesToHex(bytes: ByteArray?): String? = bytes?.joinToString("") { "%02x".format(it) }
+
     private fun ResultSet.toDevice(): Device = Device(
         id = getString("id"),
         userId = getString("user_id"),
         deviceName = getString("device_name"),
-        meshPublicKeyHex = getString("mesh_public_key"),
+        meshPublicKeyHex = bytesToHex(getBytes("mesh_public_key")),
         lastSeenEpochSec = getTimestamp("last_seen")?.toInstant()?.epochSecond,
         createdAtEpochSec = getTimestamp("created_at").toInstant().epochSecond,
     )
@@ -159,7 +164,7 @@ class PgDeviceStore(private val connect: () -> Connection) : DeviceStore {
                         lastSeenEpochSec = atSec,
                     )
                     c.prepareStatement("UPDATE device SET mesh_public_key = ?, last_seen = ? WHERE id = ?::uuid").use { up ->
-                        up.setString(1, updated.meshPublicKeyHex)
+                        up.setBytes(1, hexToBytes(updated.meshPublicKeyHex))
                         up.setTimestamp(2, Timestamp.from(Instant.ofEpochSecond(atSec)))
                         up.setString(3, updated.id)
                         up.executeUpdate()
@@ -175,7 +180,7 @@ class PgDeviceStore(private val connect: () -> Connection) : DeviceStore {
                     ps.setString(1, id)
                     ps.setString(2, userId)
                     ps.setString(3, label)
-                    ps.setString(4, meshPublicKeyHex)
+                    ps.setBytes(4, hexToBytes(meshPublicKeyHex))
                     ps.setTimestamp(5, Timestamp.from(Instant.ofEpochSecond(atSec)))
                     ps.setTimestamp(6, Timestamp.from(Instant.ofEpochSecond(atSec)))
                     ps.executeUpdate()
