@@ -60,6 +60,14 @@ class HealthAndRoutesTest {
     }
 
     @Test
+    fun `405 responses carry RFC 9110 Allow header`() = withApp(testProfile = false) {
+        val res = client.post("/health")
+        assertEquals(HttpStatusCode.MethodNotAllowed, res.status)
+        val allow = res.headers["Allow"]
+        assertEquals("GET", allow)
+    }
+
+    @Test
     fun `unknown route returns documented 404 error shape`() = withApp(testProfile = false) {
         val res = client.get("/v1/does-not-exist")
         assertEquals(HttpStatusCode.NotFound, res.status)
