@@ -104,7 +104,6 @@ class SimWorld private constructor(
     var relayedSampleCollector: ((Envelope) -> Unit)? = null
     val quoteListeners = mutableListOf<(tag: String, arrivedAtMs: Long) -> Unit>()
     private val floodSeen = HashMap<String, MutableSet<String>>() // msgId hex -> node names
-    internal val selectScheduled = HashSet<String>()
 
     var trackFlood = true
 
@@ -255,25 +254,27 @@ class SimWorld private constructor(
     }
 
     /**
-     * One source-routed hop for the return leg (inline). [from] is the CURRENT packet
-     * holder (the hop link tracks the cursor). Returns true when the hop was delivered
-     * AND acked. Failed attempts consume their retry backoff in virtual time
-     * (100/200/400 ms), mirroring the SourceRouter policy.
+     * One source-routed hop for the return leg (atomic-snapshot model). [from] is the
+     * CURRENT packet holder (the hop link tracks the cursor). Returns true when the
+     * hop was delivered AND acked. Failed attempts consume their retry backoff in
+     * [elapsedMs] (virtual time local to this return leg) - the global clock is NOT
+     * advanced here; the quote arrival is posted as an event at now+elapsed, so long
+     * retry sequences under load never stall the rest of the simulation.
      */
-    fun sendHopInline(from: SimNode, to: NodeAddress, envelope: Envelope, failCount: MutableMap<String, Int>): Boolean {
+    fun sendHopInline(from: SimNode, to: NodeAddress, envelope: Envelope, failCount: MutableMap<String, Int>, elapsedMs: MutableList<Long>): Boolean {
         metrics.transmissions++
         from.drainBattery(batteryDrainPerTx)
         val link = linkBetween(from.id, to)
         val toNode = nodesByAddr[to]
         val latency = (link?.latencyMs(from.id, rng) ?: 10.0) + (link?.frameMs(60 + envelope.payload.size) ?: 0.0)
-        engine.runInline { engine.advance(latency.toLong().coerceAtLeast(1)) }
+        elapsedMs.add(latency.toLong().coerceAtLeast(1))
         val ok = link != null && from.up && toNode?.up == true && rng.nextDouble() >= link.lossFrom(from.id)
         if (!ok) {
             val key = "${from.id.value}>${to.value}"
             val n = failCount[key] ?: 0
             failCount[key] = n + 1
             val backoff = listOf(100L, 200L, 400L)[n.coerceIn(0, 2)]
-            engine.runInline { engine.advance(backoff) }
+            elapsedMs.add(backoff)
         }
         return ok
     }
@@ -294,6 +295,9 @@ class SimWorld private constructor(
         noRouteAfterMs: Long = 5_000,
         onNoRoute: ((Envelope) -> Unit)? = null,
         countAsRequest: Boolean = true,
+        noRouteCheck: Boolean = true,
+        appRetryMs: Long? = null,
+        appRetries: Int = 0,
     ) {
         val origin = node(fromName)
         val env = Validator.buildEnvelope(
@@ -309,17 +313,34 @@ class SimWorld private constructor(
             createdAtSec = origin.localNowSec(),
         )
         if (countAsRequest) metrics.requestsSent++
-        sentAtByTag[tag] = engine.clock.nowMs()
+        sentAtByTag.putIfAbsent(tag, engine.clock.nowMs())
         sentEnvelopes[tag] = env
         msgIdByTag[tag] = hex(env.msgId)
         tagByMsgId[hex(env.msgId)] = tag
         if (trackFlood) floodSeen.getOrPut(hex(env.msgId)) { mutableSetOf() }.add(origin.name)
         origin.startFlood(Flight(env, emptyList(), origin.id))
-        engine.postIn(noRouteAfterMs) {
-            if (tag !in answeredTags) {
-                metrics.noRoute++
-                origin.appStatus.add("no route for $tag")
-                onNoRoute?.invoke(env)
+        if (noRouteCheck) {
+            engine.postIn(noRouteAfterMs) {
+                if (tag !in answeredTags) {
+                    metrics.noRoute++
+                    origin.appStatus.add("no route for $tag")
+                    onNoRoute?.invoke(env)
+                }
+            }
+        }
+        // Offline UX (Part B): the rider keeps searching - one app-level retry with a
+        // fresh flood against the CURRENT topology. Same tag: success accounting and
+        // latency stay linked to the original request, at most one quote is counted.
+        if (appRetryMs != null && appRetries > 0) {
+            engine.postIn(appRetryMs) {
+                if (tag !in answeredTags) {
+                    sendRequest(
+                        fromName, tag, ttlSec, destination, maxHops, payload,
+                        noRouteAfterMs = 0, onNoRoute = null,
+                        countAsRequest = false, noRouteCheck = false,
+                        appRetryMs = appRetryMs, appRetries = appRetries - 1,
+                    )
+                }
             }
         }
     }
@@ -471,6 +492,7 @@ class SimNode(
     private val lastSender = HashMap<SeenCache.Key, NodeAddress>()
     private val pendingRebroadcast = HashMap<SeenCache.Key, com.ridehailing.mesh.routing.CancelHandle>()
     private val relaysDone = HashSet<SeenCache.Key>()
+    private val selectScheduledHere = HashSet<String>() // per-node: each observer selects independently
 
     fun costFunction(): CostFunction = CostFunction(meshConfig.weights, meshConfig.maxHops)
 
@@ -526,12 +548,21 @@ class SimNode(
         val key = SeenCache.Key(env.originId, env.msgId)
         val alreadySeen = seenCache.seen(key, localClock.nowMs())
 
-        if (matchesDestination(env.destination) && env.type == MessageType.RIDE_REQUEST) {
-            if (!appSeen.add(world.hex(env.msgId))) {
-                world.metrics.appDuplicates++ // replay/duplicate request at the app layer
+        if (matchesDestination(env.destination) &&
+            (env.type == MessageType.RIDE_REQUEST || env.type == MessageType.QUOTE)
+        ) {
+            if (env.type == MessageType.QUOTE) {
+                // QUOTE delivered by the scoped-flood fallback: the rider app records it
+                // (onQuoteArrived dedups by quote msgId and by answered request tag).
+                world.onQuoteArrived(this, env)
                 return
             }
-            onAppRequest(env, flight)
+            val isNew = appSeen.add(world.hex(env.msgId))
+            // EVERY copy feeds route discovery (multi-path candidate diversity - the
+            // backup path only exists if the second branch is observed); app-level
+            // bookkeeping happens once.
+            onAppRequest(env, flight, isNew)
+            if (!isNew) world.metrics.appDuplicates++
             return
         }
 
@@ -560,16 +591,17 @@ class SimNode(
         }
     }
 
-    /** Driver/gateway app: observe reverse candidate and schedule route selection + quote. */
-    private fun onAppRequest(env: Envelope, flight: SimWorld.Flight) {
-        world.metrics.requestsDeliveredAtDriver++
-        world.metrics.forwardPathHops.add((flight.pathSoFar.size + 1).toLong())
+    /** Driver/gateway app: observe reverse candidate (every copy) + schedule one selection. */
+    private fun onAppRequest(env: Envelope, flight: SimWorld.Flight, isNew: Boolean) {
         val key = SeenCache.Key(env.originId, env.msgId)
         val riderNode = world.nodeByOriginId(world.hex(env.originId))
             ?: error("request origin unknown: ${world.hex(env.originId)}")
         val candidate = world.reverseCandidate(flight, riderNode.id, localClock.nowMs())
         routeDiscovery.observe(key, candidate)
-        if (world.selectScheduled.add(world.hex(env.msgId))) {
+        if (!isNew) return
+        world.metrics.requestsDeliveredAtDriver++
+        world.metrics.forwardPathHops.add((flight.pathSoFar.size + 1).toLong())
+        if (selectScheduledHere.add(world.hex(env.msgId))) {
             world.engine.postIn(800) { selectAndQuote(key, env, riderNode) }
         }
     }
@@ -600,20 +632,35 @@ class SimNode(
             createdAtSec = localNowSec(),
         )
         val failCounts = HashMap<String, Int>()
+        val elapsed = mutableListOf<Long>()
         // The source-routed packet MOVES: hop k+1 is sent by the holder after hop k.
         var cursor: SimNode = this
         val hopLink = SourceRouter.HopLink { to, _ ->
             val from = cursor
-            val ok = world.sendHopInline(from, to, quote, failCounts)
+            val ok = world.sendHopInline(from, to, quote, failCounts, elapsed)
             if (ok) cursor = world.nodesByAddr.getValue(to)
             ok
         }
-        val res = sourceRouter.send(quote, sel.best, sel.backup, hopLink, storeAndForward = null)
+        val res = sourceRouter.send(
+            quote, sel.best, sel.backup, hopLink, storeAndForward = null,
+            onScopedFlood = {
+                // Spec (Stage 2): "then scoped flood bounded by remaining hop budget" -
+                // the mobility-safe fallback after best + backup both fail. Delivery
+                // completes asynchronously via receive() at the rider.
+                this.startFlood(SimWorld.Flight(quote, emptyList(), id))
+                true
+            },
+        )
         // SourceRouter semantics: Delivered = best path ok; Failed(usedBackup=true) =
         // delivered over the backup path. Both mean the rider app received the quote.
         val delivered = res == SourceRouter.SendResult.Delivered ||
             (res is SourceRouter.SendResult.Failed && res.usedBackup)
-        if (delivered) world.onQuoteArrived(riderNode, quote)
+        if (delivered) {
+            // Atomic-snapshot return leg: the packet arrives as an event after the
+            // accumulated per-hop latency/backoff (clock was not advanced inline).
+            val totalMs = elapsed.sum()
+            world.engine.postIn(totalMs) { world.onQuoteArrived(riderNode, quote) }
+        }
     }
 
     private fun scheduleRebroadcast(env: Envelope, flight: SimWorld.Flight, delayMs: Long) {
@@ -637,7 +684,7 @@ class SimNode(
             if (n == flight.from) continue
             val link = world.linkBetween(id, n) ?: continue
             val relayed = Validator.relay(
-                env, meshConfig.maxHops, localNowSec(),
+                env, meshConfig.maxHops, localNowSec() - world.skewToleranceSec,
                 id.hopIdHash(), linkQuality = 200, loadClass = 0,
                 nextLinkKey = link.linkKey, originPublicKey = originPub,
             )

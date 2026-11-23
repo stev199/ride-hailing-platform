@@ -1,0 +1,310 @@
+{
+  "scenarios": [
+    {
+      "name": "1-line-lossless",
+      "metrics": {
+        "deliveryRatio": 1.0,
+        "requestDeliveryRatio": 1.0,
+        "hopCountCorrect": 1.0,
+        "appDuplicates": 0.0
+      }
+    },
+    {
+      "name": "2-line-beyond-maxhops",
+      "metrics": {
+        "deliveryRatio": 0.0,
+        "requestDeliveryRatio": 0.0,
+        "latencyP50Ms": 0.0,
+        "latencyP95Ms": 0.0,
+        "transmissionsPerDelivered": 0.0,
+        "transmissions": 3.0,
+        "lostTransmissions": 0.0,
+        "appDuplicates": 0.0,
+        "noRoute": 1.0,
+        "relayBudgetViolations": 0.0,
+        "rateLimitedDrops": 0.0,
+        "revokedDrops": 0.0,
+        "replayDrops": 0.0,
+        "queuedDelivered": 0.0,
+        "queuedExpired": 0.0,
+        "invalidDropsTotal": 1.0,
+        "budgetEnforced": 1.0,
+        "maxRelaysPerNode": 1.0,
+        "circulationViolations": 0.0,
+        "avgForwardPathHops": 0.0,
+        "floodCompletionRatio": 0.0,
+        "avgPathStretchHops": 0.0,
+        "avgPathCostStretch": 0.0,
+        "maxFailoverMs": 0.0
+      }
+    },
+    {
+      "name": "3-star-grid-flood",
+      "metrics": {
+        "floodCompletionRatio": 1.0,
+        "txPerNode": 2.49,
+        "appDuplicates": 2.0
+      }
+    },
+    {
+      "name": "4-ring-no-circulation",
+      "metrics": {
+        "deliveryRatio": 1.0,
+        "requestDeliveryRatio": 1.0,
+        "latencyP50Ms": 1606.0,
+        "latencyP95Ms": 1606.0,
+        "transmissionsPerDelivered": 9.0,
+        "transmissions": 9.0,
+        "lostTransmissions": 0.0,
+        "appDuplicates": 0.0,
+        "noRoute": 0.0,
+        "relayBudgetViolations": 0.0,
+        "rateLimitedDrops": 0.0,
+        "revokedDrops": 0.0,
+        "replayDrops": 0.0,
+        "queuedDelivered": 0.0,
+        "queuedExpired": 0.0,
+        "invalidDropsTotal": 1.0,
+        "budgetEnforced": 1.0,
+        "maxRelaysPerNode": 1.0,
+        "circulationViolations": 0.0,
+        "avgForwardPathHops": 3.0,
+        "floodCompletionRatio": 0.0,
+        "avgPathStretchHops": 1.0,
+        "avgPathCostStretch": 1.0,
+        "maxFailoverMs": 0.0
+      }
+    },
+    {
+      "name": "5-broadcast-storm",
+      "metrics": {
+        "deliveryRatio": 1.0,
+        "requestDeliveryRatio": 1.0,
+        "latencyP50Ms": 1230.0,
+        "latencyP95Ms": 1233.0,
+        "transmissionsPerDelivered": 24.75,
+        "transmissions": 495.0,
+        "lostTransmissions": 0.0,
+        "appDuplicates": 38.0,
+        "noRoute": 0.0,
+        "relayBudgetViolations": 0.0,
+        "rateLimitedDrops": 0.0,
+        "revokedDrops": 0.0,
+        "replayDrops": 0.0,
+        "queuedDelivered": 0.0,
+        "queuedExpired": 0.0,
+        "invalidDropsTotal": 439.0,
+        "budgetEnforced": 439.0,
+        "maxRelaysPerNode": 6.0,
+        "circulationViolations": 85.0,
+        "avgForwardPathHops": 1.0,
+        "floodCompletionRatio": 0.0,
+        "avgPathStretchHops": 1.0,
+        "avgPathCostStretch": 1.0,
+        "maxFailoverMs": 0.0,
+        "stormTxRatio": 2.475
+      }
+    },
+    {
+      "name": "6-lossy-links",
+      "metrics": {
+        "requestDeliveryRatio10": 1.0,
+        "requestDeliveryRatio30": 0.9833333333333333,
+        "requestDeliveryRatio50": 0.8333333333333334,
+        "e2eDeliveryRatio50": 0.71,
+        "latencyP95Ms30": 2443.0,
+        "latencyP95Ms50": 3296.0
+      }
+    },
+    {
+      "name": "7-static-multipath-oracle",
+      "metrics": {
+        "parityRatio": 1.0,
+        "backupDisjointCorrect": 1.0,
+        "topologiesWithPaths": 743.0
+      }
+    },
+    {
+      "name": "8-relay-failure-mid-reply",
+      "metrics": {
+        "deliveryRatio": 1.0,
+        "requestDeliveryRatio": 1.0,
+        "latencyP50Ms": 2480.0,
+        "latencyP95Ms": 2480.0,
+        "transmissionsPerDelivered": 10.0,
+        "transmissions": 10.0,
+        "lostTransmissions": 0.0,
+        "appDuplicates": 1.0,
+        "noRoute": 0.0,
+        "relayBudgetViolations": 0.0,
+        "rateLimitedDrops": 0.0,
+        "revokedDrops": 0.0,
+        "replayDrops": 0.0,
+        "queuedDelivered": 0.0,
+        "queuedExpired": 0.0,
+        "invalidDropsTotal": 0.0,
+        "budgetEnforced": 0.0,
+        "maxRelaysPerNode": 1.0,
+        "circulationViolations": 0.0,
+        "avgForwardPathHops": 2.0,
+        "floodCompletionRatio": 0.0,
+        "avgPathStretchHops": 1.0,
+        "avgPathCostStretch": 1.0,
+        "maxFailoverMs": 1480.0,
+        "bestPathViaA": 1.0
+      }
+    },
+    {
+      "name": "9-mobility",
+      "metrics": {
+        "deliveryRatioDrivingDense": 0.95,
+        "deliveryRatioWalkingDense": 1.0,
+        "deliveryRatioDrivingSparse": 0.82,
+        "latencyP95Ms": 9356.0,
+        "noRouteDrivingDense": 12.0
+      }
+    },
+    {
+      "name": "10-partition-heal",
+      "metrics": {
+        "deliveryRatio": 0.75,
+        "requestDeliveryRatio": 0.75,
+        "latencyP50Ms": 1548.0,
+        "latencyP95Ms": 1765.0,
+        "transmissionsPerDelivered": 9.0,
+        "transmissions": 27.0,
+        "lostTransmissions": 0.0,
+        "appDuplicates": 0.0,
+        "noRoute": 3.0,
+        "relayBudgetViolations": 0.0,
+        "rateLimitedDrops": 0.0,
+        "revokedDrops": 0.0,
+        "replayDrops": 0.0,
+        "queuedDelivered": 2.0,
+        "queuedExpired": 1.0,
+        "invalidDropsTotal": 0.0,
+        "budgetEnforced": 0.0,
+        "maxRelaysPerNode": 6.0,
+        "circulationViolations": 3.0,
+        "avgForwardPathHops": 4.0,
+        "floodCompletionRatio": 0.0,
+        "avgPathStretchHops": 1.0,
+        "avgPathCostStretch": 0.9999999999999999,
+        "maxFailoverMs": 0.0,
+        "sanityDelivered": 1.0
+      }
+    },
+    {
+      "name": "11-gateway-churn",
+      "metrics": {
+        "deliveryRatio": 1.0,
+        "requestDeliveryRatio": 1.5,
+        "latencyP50Ms": 1227.0,
+        "latencyP95Ms": 1361.0,
+        "transmissionsPerDelivered": 5.0,
+        "transmissions": 10.0,
+        "lostTransmissions": 0.0,
+        "appDuplicates": 1.0,
+        "noRoute": 0.0,
+        "relayBudgetViolations": 0.0,
+        "rateLimitedDrops": 0.0,
+        "revokedDrops": 0.0,
+        "replayDrops": 0.0,
+        "queuedDelivered": 0.0,
+        "queuedExpired": 0.0,
+        "invalidDropsTotal": 0.0,
+        "budgetEnforced": 0.0,
+        "maxRelaysPerNode": 2.0,
+        "circulationViolations": 1.0,
+        "avgForwardPathHops": 1.6666666666666667,
+        "floodCompletionRatio": 0.0,
+        "avgPathStretchHops": 1.0,
+        "avgPathCostStretch": 1.0,
+        "maxFailoverMs": 0.0,
+        "gatewaySwitch": 1.0
+      }
+    },
+    {
+      "name": "12-malicious-nodes",
+      "metrics": {
+        "deliveryRatio": 0.9166666666666666,
+        "requestDeliveryRatio": 2.25,
+        "latencyP50Ms": 1309.0,
+        "latencyP95Ms": 1420.0,
+        "transmissionsPerDelivered": 12.090909090909092,
+        "transmissions": 133.0,
+        "lostTransmissions": 0.0,
+        "appDuplicates": 13.0,
+        "noRoute": 1.0,
+        "relayBudgetViolations": 0.0,
+        "rateLimitedDrops": 5.0,
+        "revokedDrops": 1.0,
+        "replayDrops": 0.0,
+        "queuedDelivered": 0.0,
+        "queuedExpired": 0.0,
+        "invalidDropsTotal": 14.0,
+        "budgetEnforced": 10.0,
+        "maxRelaysPerNode": 21.0,
+        "circulationViolations": 3.0,
+        "avgForwardPathHops": 1.4444444444444444,
+        "floodCompletionRatio": 0.0,
+        "avgPathStretchHops": 1.0,
+        "avgPathCostStretch": 1.0,
+        "maxFailoverMs": 0.0,
+        "honestDeliveryRatio": 1.0,
+        "forgedSigDropped": 2.0,
+        "tamperedDropped": 2.0
+      }
+    },
+    {
+      "name": "13-config-change",
+      "metrics": {
+        "deliveredBefore": 1.0,
+        "deliveredAfter": 0.0,
+        "liveMaxHops": 2.0,
+        "staleRejected": 1.0,
+        "expiredRejected": 1.0,
+        "noRoute": 1.0
+      }
+    },
+    {
+      "name": "14-clock-skew",
+      "metrics": {
+        "deliveryRatio": 1.0,
+        "requestDeliveryRatio": 1.0,
+        "latencyP50Ms": 1344.0,
+        "latencyP95Ms": 1367.0,
+        "transmissionsPerDelivered": 5.0,
+        "transmissions": 10.0,
+        "lostTransmissions": 0.0,
+        "appDuplicates": 0.0,
+        "noRoute": 0.0,
+        "relayBudgetViolations": 0.0,
+        "rateLimitedDrops": 0.0,
+        "revokedDrops": 0.0,
+        "replayDrops": 0.0,
+        "queuedDelivered": 0.0,
+        "queuedExpired": 0.0,
+        "invalidDropsTotal": 0.0,
+        "budgetEnforced": 0.0,
+        "maxRelaysPerNode": 3.0,
+        "circulationViolations": 1.0,
+        "avgForwardPathHops": 2.0,
+        "floodCompletionRatio": 0.0,
+        "avgPathStretchHops": 1.0,
+        "avgPathCostStretch": 1.0,
+        "maxFailoverMs": 0.0,
+        "skewCorrected": 1.0
+      }
+    },
+    {
+      "name": "15-fragmentation",
+      "metrics": {
+        "fragSuccess": 1.0,
+        "fragTimeoutClean": 1.0,
+        "fragCapEnforced": 1.0,
+        "fragTimeoutEvicted": 1.0
+      }
+    }
+  ]
+}
