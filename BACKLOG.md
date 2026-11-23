@@ -23,7 +23,7 @@ Ordered granular tasks. Each is finishable and verifiable in one work session. D
 |---|---|---|---|
 | P1-1 | Backend module skeleton: Ktor + /health + Dockerfile + Flyway (up) + hash-chained event store schema + config service skeleton (signed bundles) | P0-C later ok | done | run 45171484716; Flyway down = forward-fix policy (D33) |
 | P1-2 | Auth: OTP providers (dev inbox adapter, SMTP, Telegram bot, self-hosted SMS doc), phone/email+password, JWT + rotating refresh, argon2id, rate limits | P1-1 | done | backend 53 tests; run 45174319535; D34-D37 |
-| P1-3 | Users/roles/RBAC + sessions/devices + admin actions in audit store | P1-2 | todo |
+| P1-3 | Users/roles/RBAC + sessions/devices + admin actions in audit store | P1-2 | done | Rbac.kt 12-perm matrix; sessions w/ device link + force logout; AdminService audited mutations; PG stores (V2 reload migration); openapi documented; 82 tests local, CI verify dispatched |
 | P1-4 | Admin shell (React+TS+Vite): login, RBAC routing, layout, config center v0 | P1-2 | todo |
 | P1-5 | Ledger/wallet schema + double-entry invariant tests (schema now, services Phase 7) | P1-1 | todo |
 | P1-6 | /test/barrier + /test/seed endpoints (test profile only) + test proving absence in release | P1-1 | done | /test/* routes + absence test (P1-1 commit) |
