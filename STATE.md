@@ -2,8 +2,8 @@
 
 Last updated: 2026-11-24
 Current phase: 1 (backend core) + 1b (mesh core, parallel track) - P1-2 auth done; P1B Stage 3 (GATE 3) DONE: 15-scenario suite + baseline gate green locally, CI wiring pushed
-Current task: P1B Stage 4 prep (P1B-5 sim-bridge wiring) + P1B Stage 2 close-out (beacons + GATEWAY_RELAY, closes GATE 2); parallel P1-3 users/roles/RBAC
-Last completed task: P1B-4 GATE 3 - 15 mandatory scenarios ALL PASS (fixed seeds, virtual time), baseline.json + >10% regression gate, evidence in docs/evidence/mesh-sim; suite caught+fixed 6 real defects (D51-D58): Validator.relay hop-budget off-by-one, app-dedup starving backup candidates, inline return-leg clock stall, relay TTL slack, stress rate-limit config, live-view guard job
+Current task: P1B-2b beacons (DRIVER_BEACON/PRESENCE) + GATEWAY_RELAY (closes GATE 2); parallel P1-3 users/roles/RBAC
+Last completed task: P1B-4 GATE 3 CLOSED - 15/15 scenarios green on CI (run 45245604015 + baseline gate + mesh-sim-evidence artifact); live-view hardened to guard-job pattern and verified (45243841560); suite caught+fixed 6 real defects (D51-D58)
 
 ## Gate status table
 
@@ -11,7 +11,7 @@ Last completed task: P1B-4 GATE 3 - 15 mandatory scenarios ALL PASS (fixed seeds
 |---|---|
 | Phase 0 (Part B delivery plan) | PENDING - one item open: D11.9 first-green pipeline with trivial tests on two emulators (needs Phase 1/2 module skeletons; see BACKLOG P0-C) |
 | Mesh GATE 1-2 (Part C) | GATE 1 done (Stage 1); GATE 2 close-out pending: beacons + GATEWAY_RELAY |
-| Mesh GATE 3 (Stage 3) | DONE locally 2026-11-24 (15/15 scenarios + regression gate; CI wiring pushed, first CI verification pending) |
+| Mesh GATE 3 (Stage 3) | DONE 2026-11-24: 15/15 scenarios + baseline gate green on CI (run 45245604015, mesh-sim-evidence artifact uploaded) + locally |
 | Mesh GATE 4-7 (Part C) | pending (Stage 4 starts with Phase 2 android) |
 | Phases 1-11 (Part B) | in progress (P1-1, P1-2, P1-6 done; P1-3/P1-4/P1-5 next) |
 
@@ -34,7 +34,7 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 ## Counters
 
 - Tasks completed this phase: 16 (P1-2 auth, P1B-3 routing, D49 contract alignment, D50 pages rerun-safety, P0-9 keystore backup, P1B-4 GATE 3 - see PROGRESS_LOG.md)
-- CI runs green: push run 45222423620 + force-full-run 45222823793 (ALL GREEN incl. api-contract + report-publish + ci-summary); GATE 3 CI verification pending
+- CI runs green: 45222823793 (D49/D50), 45243331948 (GATE 3 suite on push), 45245604015 (forced full run: test+simReport, mesh-sim-evidence artifact, ALL GREEN incl. ci-summary); live-view 45243841560 guard+skip verified
 - Fix attempts used this turn: 6 distinct root causes (D51 hop-budget off-by-one, D52 dedup-before-discovery, D53 inline clock stall, relay TTL slack, stress rate-limit config, live-view guard) - within retry budget (D23), no blockers
 
 ## Next 5 tasks
