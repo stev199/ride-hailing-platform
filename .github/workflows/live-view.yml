@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@v4
       - id: check
         run: |
-          if [ -n "$(git ls-files 'android/*/build.gradle.kts' 'android/*/.*build.gradle.kts')" ] || [ -n "$(git ls-files | grep -E '^android/.*/build\.gradle\.kts$')" ]; then
+          if git ls-files | grep -qE '^android/.*/build\.gradle\.kts$'; then
             echo "android=true" >> "$GITHUB_OUTPUT"
           else
             echo "android=false" >> "$GITHUB_OUTPUT"
