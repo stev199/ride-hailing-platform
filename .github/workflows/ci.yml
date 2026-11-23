@@ -401,10 +401,16 @@ jobs:
           done
       - name: Snapshot current run + /latest alias
         run: |
+          # Snapshot ONLY the freshly generated gallery (everything at _site depth-1
+          # EXCEPT the restored runs/ history): each historical artifact contains its
+          # own history snapshot, so copying _site/* recursively here grows the site
+          # multiplicatively and blew the 15-min job timeout (upload hang -> cancel).
           mkdir -p _site/runs/${{ github.run_id }}
-          cp -r _site/* _site/runs/${{ github.run_id }}/ || true
+          find _site -maxdepth 1 -mindepth 1 ! -name runs ! -name latest \
+            -exec cp -r {} _site/runs/${{ github.run_id }}/ \;
           rm -rf _site/latest && mkdir -p _site/latest
-          cp -r _site/runs/${{ github.run_id }}/. _site/latest/ || true
+          find _site -maxdepth 1 -mindepth 1 ! -name runs ! -name latest \
+            -exec cp -r {} _site/latest/ \;
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
