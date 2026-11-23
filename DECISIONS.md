@@ -35,3 +35,14 @@ Append-only log of non-obvious choices and fallbacks. Newest sections at the bot
 - **D23: CI fix trail (retry policy applied, all fixed within budget).** (1) `hashFiles()` is step-scoped only -> guard-step pattern; actionlint now also runs locally in scripts/ci-local.sh. (2) trivy-action tags are v-prefixed now -> `@v0.36.0` (validated against the live tag list). (3) dependency-review SPDX id `GPL-2.0-only-with-classpath-exception` rejected -> dropped. (4) CI runs shellcheck (sandbox does not) -> shellcheck 0.10.0 installed locally; workflows SC2016/SC2034/SC2035/SC2086 fixed. (5) gitleaks `generic-api-key` false positive on actions/cache `key:` -> `.gitleaksignore` fingerprint; **gitleaks fingerprints reference the introducing commit, so checkouts scanning history must use `fetch-depth: 0`** (this was the last red).
 - **D24: Required check is `ci-summary` and it behaved correctly** during the failures (failed the run, listed failing jobs) - branch protection + admin bypass verified end-to-end.
 - **D25: Report gallery publication verified live** (E6.1 mode): `/latest` + `/runs/<run-id>/` on Pages with artifact fallback uploaded.
+
+## 2026-11-23 - Phase 1 skeleton + mesh Stage 1
+
+- **D26: OpenAPI tracks the implemented surface only** (contract truth). Auth paths return with P1-2; documented 404 Error shape covers all unknown routes via StatusPages.
+- **D27: Maven Central 429-rate-limits the sandbox IP** -> local-only Gradle init script (tools/gradle-home/init.d) swaps in Google's central mirror via GRADLE_USER_HOME; CI resolution unchanged.
+- **D28: Reassembler/seen-cache keys must be content-hex strings** - ByteArray equals/hashCode are identity-based in JVM (caused silent reassembly failure; fixed and unit-tested).
+- **D29: ci.yml gains workflow_dispatch as a forced full run** - component jobs run regardless of path filters; used to verify compose+contract stage without synthetic commits.
+- **D30 (T-2 resolved): mesh-core uses JDK 17 built-ins** (Ed25519, X25519, ChaCha20-Poly1305, HKDF via HmacSHA256) - no Tink/libsodium dependency; revisit only if Android API level demands it.
+- **D31: session cwd resets between tool calls; a bare git commit ran twice in the sandbox session repo (/home/z/my-project)** - both reset (mixed, nothing lost, never pushed); all repo operations now use explicit git -C and absolute paths.
+- **D32: mesh envelope signature covers immutable header + payload (NOT the signature field)**; immutableRegion() excludes 64B sig + hop section - pinned by exhaustive bit-flip test over every header bit.
+- **D33: Flyway community = up-migrations only**; schema changes use a forward-fix policy; "migrations up tested in CI" is satisfied, down-migrations are documented as out of scope for the community edition (deviation from D3.2, accepted).

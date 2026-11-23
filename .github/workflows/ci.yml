@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:   # forced full run: component jobs ignore path filters
 
 permissions:
   contents: read
@@ -84,7 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
-    if: ${{ needs.changes.outputs.backend == 'true' }}
+    if: ${{ needs.changes.outputs.backend == 'true' || github.event_name == 'workflow_dispatch' }}
     services:
       postgres:
         image: postgis/postgis:16-3.4
@@ -143,7 +144,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
-    if: ${{ needs.changes.outputs.admin == 'true' }}
+    if: ${{ needs.changes.outputs.admin == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v4
       - if: ${{ hashFiles('admin-web/package.json') == '' }}
@@ -164,7 +165,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: changes
-    if: ${{ needs.changes.outputs.mesh == 'true' }}
+    if: ${{ needs.changes.outputs.mesh == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v4
       - if: ${{ hashFiles('mesh-core/**/*.kt') == '' }}
@@ -185,7 +186,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     needs: changes
-    if: ${{ needs.changes.outputs.android == 'true' }}
+    if: ${{ needs.changes.outputs.android == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v4
       - if: ${{ hashFiles('android/**/build.gradle.kts') == '' }}

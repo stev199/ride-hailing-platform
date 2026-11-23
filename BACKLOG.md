@@ -20,14 +20,14 @@ Ordered granular tasks. Each is finishable and verifiable in one work session. D
 
 | ID | Task | Depends | Status |
 |---|---|---|---|
-| P1-1 | Backend module skeleton: Ktor + /health + Dockerfile + Flyway (up/down) + hash-chained event store schema + config service skeleton (signed bundles) | P0-C later ok | todo |
+| P1-1 | Backend module skeleton: Ktor + /health + Dockerfile + Flyway (up) + hash-chained event store schema + config service skeleton (signed bundles) | P0-C later ok | done | run 45171484716; Flyway down = forward-fix policy (D33) |
 | P1-2 | Auth: OTP providers (dev inbox adapter, SMTP, Telegram bot, self-hosted SMS doc), phone/email+password, JWT + rotating refresh, argon2id, rate limits | P1-1 | todo |
 | P1-3 | Users/roles/RBAC + sessions/devices + admin actions in audit store | P1-2 | todo |
 | P1-4 | Admin shell (React+TS+Vite): login, RBAC routing, layout, config center v0 | P1-2 | todo |
 | P1-5 | Ledger/wallet schema + double-entry invariant tests (schema now, services Phase 7) | P1-1 | todo |
 | P1-6 | /test/barrier + /test/seed endpoints (test profile only) + test proving absence in release | P1-1 | todo |
-| P1B-1 | mesh-core module: Gradle setup, CBOR envelope codec + fragmentation + fuzz/KAT/bit-flip tests (Stage 1) | P0-3 | todo |
-| P1B-2 | mesh-core crypto: Ed25519/X25519 + ChaCha20-Poly1305 (Tink vs libsodium decision T-2), rotating originId, signed config bundle + anti-rollback | P1B-1 | todo |
+| P1B-1 | mesh-core module: Gradle setup, binary envelope codec + fragmentation + fuzz/KAT/bit-flip tests (Stage 1) | P0-3 | done | 20 tests green run 45172363159 |
+| P1B-2 | mesh-core crypto: Ed25519/X25519 + ChaCha20-Poly1305 via JDK built-ins (T-2 resolved, D32), rotating originId, hop MAC; RFC KATs pinned | P1B-1 | done | CryptoTest RFC 8032 + 8439 vectors green |
 | P1B-3 | mesh-core routing: seen-cache, flooding, breadcrumbs, route discovery, cost function + Dijkstra oracle (Stage 2) | P1B-2 | todo |
 | P1B-4 | mesh-core simulator: topology/mobility/loss models + 15 mandatory scenarios + metrics + baseline.json (Stage 3, GATE 3) | P1B-3 | todo |
 | P1B-5 | mesh-core Stage 4 Android integration prep: sim-bridge topology engine wiring | P1B-4 | todo |

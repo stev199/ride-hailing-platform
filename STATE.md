@@ -1,9 +1,9 @@
 # STATE - ride-hailing-platform
 
 Last updated: 2026-11-23
-Current phase: 0 (near-complete; see gate table) - Phase 0 Part B items done, CI skeleton live, toolchain partially local
-Current task: Phase 1 - backend skeleton (P1-1) then mesh-core Stage 1 (P1B-1)
-Last completed task: Phase 0 - CI pipeline GREEN end-to-end (run 45166045752), Pages gallery publishing verified (E6), all specs/docs/tooling landed, Dependabot alerts clear
+Current phase: 1 (backend core) + 1b (mesh core, parallel track) - Stage 1 GATE scope green
+Current task: P1-2 auth (OTP providers + JWT + argon2id); next P1B-3 routing + Dijkstra oracle
+Last completed task: P1-1 backend skeleton + P1B-1/2 mesh Stage 1 (20 mesh tests + 16 backend tests green; compose stack builds + healthy in CI; run 45171484716, run 45172363159)
 
 ## Gate status table
 
@@ -34,11 +34,11 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Next 5 tasks
 
-1. Phase 1: backend skeleton (Ktor, /health, compose wiring, Flyway, hash-chained event store schema, config service skeleton) - BACKLOG P1-1
-2. Phase 1: auth (OTP providers incl. dev inbox, JWT + rotating refresh, argon2id) - P1-2
-3. Phase 1b: mesh-core Stage 1 protocol + crypto (GATE 1) - P1B-1..3
-4. Phase 1: admin shell + login + RBAC (admin-web) - P1-4
-5. P0-C: first-green pipeline (trivial backend/admin/mesh tests + report gallery) once 1/1b skeletons land
+1. P1-2 auth: OTP providers (dev inbox adapter first), phone/email+password, JWT + rotating refresh, argon2id, rate limits
+2. P1B-3 routing: seen-cache, flooding, breadcrumbs, route discovery, cost fn + Dijkstra oracle (Stage 2)
+3. P1B-4 simulator + 15 scenarios + baseline.json (Stage 3, GATE 3)
+4. P1-3 users/roles/RBAC + P1-4 admin shell + login (admin-web)
+5. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell)
 
 ## Phase 0 setup record (from repository bootstrap)
 

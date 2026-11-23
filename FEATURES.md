@@ -84,11 +84,11 @@ Phase mapping follows the Part B delivery plan (0-11).
 
 | ID | Pri | Feature | Tests | Phase | Status | Evidence |
 |----|-----|---------|-------|-------|--------|----------|
-| B-01 | P0 | Ktor backend skeleton, health, config service (signed bundles, versioned, rollback) | U,I,C | 1 | todo | |
+| B-01 | P0 | Ktor backend skeleton, health, config service (signed bundles, versioned, rollback) | U,I,C | 1 | done | run 45171484716; commit cee6c2f |
 | B-02 | P0 | Auth: OTP providers (Telegram bot, SMTP, self-hosted SMS gateway; optional WhatsApp doc'd), phone/email+password, JWT + rotating refresh, argon2 | U,I,C | 1 | todo | |
 | B-03 | P0 | Users, roles, RBAC enforcement, sessions/devices | U,I,C | 1 | todo | |
-| B-04 | P0 | Append-only hash-chained event store (trips, pings, mesh metadata, quotes, wallet, config, admin actions, docs, logins, bans) + retention + search/export + GDPR anonymization w/ legal hold | U,I | 1/9 | todo | |
-| B-05 | P0 | PostgreSQL + PostGIS schema + Redis; migrations up/down tested | I | 1 | todo | |
+| B-04 | P0 | Append-only hash-chained event store (trips, pings, mesh metadata, quotes, wallet, config, admin actions, docs, logins, bans) + retention + search/export + GDPR anonymization w/ legal hold | U,I | 1/9 | doing | core chain done (run 45171484716); persistence+GDPR pending |
+| B-05 | P0 | PostgreSQL + PostGIS schema + Redis; migrations up tested (Flyway community = up-only, see DECISIONS D33) | I | 1 | doing | V1 schema + CI postgres run 45171484716 |
 | B-06 | P0 | Dispatch engine: auto-dispatch strategy/timeout/radius expansion, manual assignment, concurrent-trip limit | U,I,E2E | 4 | todo | |
 | B-07 | P0 | Fare engine: server-side final signed quotes w/ validity window + policy (upfront or metered-with-cap); parity with on-device estimator within stated tolerance | U,C | 4 | todo | |
 | B-08 | P0 | Double-entry wallet/points ledger; invariant debits=credits tested; holds at quote confirmation | U,I | 7 | todo | |
@@ -125,7 +125,7 @@ Phase mapping follows the Part B delivery plan (0-11).
 
 | ID | Pri | Feature | Tests | Phase | Status | Evidence |
 |----|-----|---------|-------|-------|--------|----------|
-| X-01 | P0 | Stage 1 protocol: CBOR envelope, immutable header + origin sig (Ed25519), mutable hop section + per-hop MAC, fragmentation, 18 message types, rotating originId, E2E X25519+ChaCha20-Poly1305, signed config bundle + anti-rollback, revocation sync, replay window; GATE 1 fuzz/KAT/bit-flip | U | 1b | todo | |
+| X-01 | P0 | Stage 1 protocol: binary envelope, immutable header + origin sig (Ed25519), mutable hop section + per-hop MAC, fragmentation, 18 message types, rotating originId, E2E X25519+ChaCha20-Poly1305 sealed box, signed config bundle + anti-rollback (backend side); GATE 1 fuzz/KAT/bit-flip all green | U | 1b | done | mesh run 45172363159; replay seen-cache + revocation sync land with Stage 2 (X-02) |
 | X-02 | P0 | Stage 2 routing: controlled flooding (jitter, suppression, rate limits), breadcrumbs, AODV-style discovery, cost function (hop/ETX/battery/load/stability/latency/gateway staleness) + Dijkstra oracle, source-routed return with HOP_ACK + ROUTE_ERROR + backup path + store-and-forward, internet shortcut (GATEWAY_RELAY), beacons (DRIVER_BEACON, PRESENCE); GATE 2 | U | 1b | todo | |
 | X-03 | P0 | Stage 3 simulator + 15 mandatory scenarios w/ thresholds, deterministic seeds, metrics, Dijkstra oracle, baseline.json regression gate; GATE 3 | U | 1b | todo | |
 | X-04 | P0 | Stage 4 Android: BleMeshTransport (+ optional Nearby), foreground service, permissions 8-15, Keystore persistence, consent/settings, diagnostics, offline rider UX; sim bridge on emulators; GATE 4 | UI,emu | 10 | todo | |
