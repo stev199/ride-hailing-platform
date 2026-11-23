@@ -124,6 +124,14 @@ fun Application.module(
             call.response.headers.append(HttpHeaders.Allow, allow)
             call.respond(HttpStatusCode.MethodNotAllowed, ErrorDto(code = "method_not_allowed", message = "Allowed: $allow"))
         }
+        // Malformed/unreadable request bodies are client errors (schemathesis ST101/ST103):
+        // Ktor wraps body-conversion failures in BadRequestException; answer 400, not 500.
+        exception<io.ktor.server.plugins.BadRequestException> { call, _ ->
+            call.respond(
+                HttpStatusCode.BadRequest,
+                ErrorDto(code = "invalid_body", message = "Malformed or unreadable request body"),
+            )
+        }
         exception<Throwable> { call, _ ->
             call.respond(
                 HttpStatusCode.InternalServerError,

@@ -188,6 +188,18 @@ class AuthRoutesTest {
     }
 
     @Test
+    fun `malformed request bodies return documented 400 (ST101 and ST103 fix)`() = withApp { client, _ ->
+        for (path in listOf("/v1/auth/register", "/v1/auth/login/password", "/v1/auth/otp/request", "/v1/auth/otp/verify", "/v1/auth/refresh", "/v1/auth/logout")) {
+            val res = client.post(path) {
+                contentType(ContentType.Application.Json)
+                setBody("\u0000")
+            }
+            assertEquals(HttpStatusCode.BadRequest, res.status, "path $path")
+            assertEquals("invalid_body", res.errCode())
+        }
+    }
+
+    @Test
     fun `test routes are still absent when test profile is off`() = withApp(testProfile = false) { client, _ ->
         val res = client.get("/test/otp/latest?target=33600000005")
         assertEquals(HttpStatusCode.NotFound, res.status)

@@ -22,12 +22,10 @@ class PasswordService(private val random: SecureRandom = SecureRandom()) {
         const val MIN_PASSWORD_LENGTH = 10
         val DEFAULT_PARAMS = Params(memoryKib = 65_536, iterations = 3, parallelism = 1)
 
-        /** Trivially guessable secrets rejected outright (B-04 server-side validation). */
-        private val TRIVIAL = setOf(
-            "password", "password1", "password123", "12345678", "123456789", "1234567890",
-            "qwertyuiop", "qwerty123", "1111111111", "0000000000", "abc1234567",
-            "iloveyou123", "letmein123", "admin12345", "welcome123", "ridehailing",
-        )
+        // Policy note (D44): the server enforces ONLY the documented length rule so the
+        // OpenAPI contract stays exactly honest (schemathesis ST202). Common-password
+        // rejection is enforced at the API-consumer layer (apps/admin) and can be
+        // extended server-side in lockstep with the schema when P1-3 lands.
     }
 
     fun hash(password: String, params: Params = DEFAULT_PARAMS): String {
@@ -73,8 +71,6 @@ class PasswordService(private val random: SecureRandom = SecureRandom()) {
     /** Validate password policy; returns a machine-readable rejection or null when acceptable. */
     fun policyViolation(password: String): String? = when {
         password.length < MIN_PASSWORD_LENGTH -> "password_too_short"
-        TRIVIAL.any { it.equals(password, ignoreCase = true) } -> "password_too_common"
-        password.all { it.isDigit() } -> "password_all_digits"
         else -> null
     }
 

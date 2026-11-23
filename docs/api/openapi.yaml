@@ -71,6 +71,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthSuccess"
+        "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
   /v1/auth/otp/request:
@@ -115,6 +116,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuthSuccess"
+        "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
   /v1/auth/refresh:
     post:
@@ -135,6 +137,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Refreshed"
+        "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
   /v1/auth/logout:
     post:
@@ -151,6 +154,7 @@ paths:
       responses:
         "204":
           description: Logged out
+        "400": { $ref: "#/components/responses/ValidationError" }
   /v1/me:
     get:
       operationId: getMe

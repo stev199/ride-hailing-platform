@@ -32,10 +32,10 @@ class PasswordServiceTest {
     }
 
     @Test
-    fun `policy rejects short common and all-digit passwords`() {
+    fun `policy enforces only the documented length rule (D44, contract-honest)`() {
         assertEquals("password_too_short", service.policyViolation("short"))
-        assertEquals("password_too_common", service.policyViolation("Password123"))
-        assertEquals("password_all_digits", service.policyViolation("12345678901"))
+        assertNull(service.policyViolation("Password123"))
+        assertNull(service.policyViolation("12345678901"), "10+ digits are schema-valid; consumer-layer policy only")
         assertNull(service.policyViolation("aReasonable-pass-2026"))
     }
 
