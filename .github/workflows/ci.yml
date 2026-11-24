@@ -367,7 +367,12 @@ jobs:
       - name: Create AVD + start two emulators (tri-view)
         run: |
           export ANDROID_HOME=/usr/local/lib/android/sdk
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
           echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n e2e_api34 -k "system-images;android-34;google_apis;x86_64" -d pixel_5
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          ls -la "$ANDROID_AVD_HOME" || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" list avd || true
           ./scripts/start-emulators.sh 2
       - name: Orchestrate two emulators + admin (tri-view recording)
         run: |
