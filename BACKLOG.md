@@ -15,7 +15,7 @@ Ordered granular tasks. Each is finishable and verifiable in one work session. D
 | P0-7 | Makefile + scripts (ci-local, seed-test, start-emulators, wait-for-boot, wait-for-health, collect-artifacts, run-ui-tests) + infra compose (infra/geo/app/test profiles) + fetch-map-data.sh | P0-5 | done | Makefile, scripts/, infra/ |
 | P0-8 | Android SDK + cmdline-tools install locally + 2 AVDs + headless boot verification (A3) | P0-3 | deferred | reason: no KVM/limited disk in sandbox; emulator verification delegated to CI (D4). Revisit if environment changes; AVD creation included in CI avd-cache.yml |
 | P0-C | D11.9 first-green pipeline: trivial backend/admin/mesh-sim tests + report gallery with storyboard screenshots and video | P1-1, P1B-1, P1-4 | todo | |
-| P0-9 | Re-create release keystore + Actions secrets + encrypted off-repo backup (sandbox recycle destroyed the local backup; secrets unreadable by design) | P0-1 | done | rotation + 4 secrets + download/keystore-backup round-trip verified; scripts/p0_keystore_backup.sh |
+| P0-9 | Re-create release keystore + Actions secrets + encrypted off-repo backup (sandbox recycle destroyed the local backup; secrets unreadable by design) | P0-1 | done | 4 secrets created 2026-11-23T17:05 (no rotation ever happened - record corrected); download/keystore-backup matches, round-trip re-verified 2026-11-24 (decrypt -> keytool alias ride-hailing-release); scripts/p0_keystore_backup.sh was never committed - backup files ARE the recovery artifact |
 
 ## Phase 1 (backend core + admin shell)
 

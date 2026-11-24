@@ -29,7 +29,7 @@ Last completed task: P1-4 admin shell (React+TS+Vite) - admin-web module: passwo
 
 Degraded-verification statement (A3/A6): local emulator-based verification and compose runs are NOT possible in this sandbox; the equivalent evidence is produced by the GitHub Actions emulator/compose jobs. This is recorded wherever evidence is cited.
 
-2026-11-24 recycle note: the sandbox wipe also destroyed download/keystore-backup (Actions secrets are write-only). Keystore rotation + fresh secrets + new encrypted backup re-planned as P0-9; safe pre-release because nothing is published yet (no tags by plan).
+2026-11-24 keystore audit (P0-9 record correction): gh secret list timestamps prove the 4 signing secrets were created 2026-11-23T17:05 and NEVER overwritten - no rotation happened. The on-disk backup at download/keystore-backup (generated 2026-11-23T17:05:37Z, AES-256-CBC PBKDF2-SHA256 x200000) therefore MATCHES the current secrets and was round-trip re-verified this session: decrypt (passphrase = sibling BACKUP-PASSPHRASE.txt) -> ride-hailing-release.p12 -> keytool lists alias ride-hailing-release with the embedded store password (RESTORE-NOTE.txt inside the archive). Earlier 'backup destroyed' note was stale; plaintext intermediates shredded after verification.
 
 ## Counters
 
