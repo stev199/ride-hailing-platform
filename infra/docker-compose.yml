@@ -92,6 +92,10 @@ services:
       PG_HOST: postgres
       REDIS_HOST: redis
       TEST_PROFILE: "true"    # compose stacks are dev/test-only: enables /test/ routes (D5)
+      # P1-CONTRACT: first ADMIN_SUPER at startup (no-op when an admin exists) so the
+      # schemathesis auth hooks (tests/contract/auth_hooks.py) get positive /v1/admin/* coverage.
+      AUTH_BOOTSTRAP_ADMIN_PHONE: "15550088888"
+      AUTH_BOOTSTRAP_ADMIN_PASSWORD: "contract-admin-pass-42"
     ports: ["8080:8080"]
     depends_on:
       postgres: { condition: service_healthy }

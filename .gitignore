@@ -45,6 +45,7 @@ Thumbs.db
 
 # schemathesis local cache (st runs)
 backend/.schemathesis/
+.schemathesis/
 artifacts/
 
 # --- admin-web build/test outputs ---
