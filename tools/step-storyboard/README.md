@@ -4,14 +4,17 @@
 
 Layout contract: `<run>/<app>/<shard>/<test>/<NN>-<slug>.png`.
 
-## Android (androidTest source; wired into the app modules in Phase 2)
+## Android (WIRED 2026-11-24, P2-3: `android/storyboard` module is the live copy)
 
-`StepStoryboard.kt` — drop-in Kotlin object used from instrumentation tests:
+`android/storyboard/src/main/kotlin/com/ridehailing/test/storyboard/StepStoryboard.kt` (this
+file is the Phase 0 reference; the module copy is authoritative for apps):
 
-- `StepStoryboard.begin(testId, test, app, shard)` registers the test with the viewer.
-- `step(name, before = false) { assertions/actions }` wraps the lambda, captures via UiAutomator, POSTs to the viewer at `http://10.0.2.2:7070/api/step`.
-- On failure: `uiautomator dump` + `logcat -d -t 200` captured into the artifact dir; rethrows.
-- A lint/test rule (added with the app modules) fails any androidTest class under the UI-test source set with zero `step()` calls.
+- `StoryboardRule(app)` — JUnit rule wrapping the whole test: begin/finish events, per-step
+  capture, FAIL evidence (screenshot + hierarchy + logcat), and a zero-step AssertionError.
+  Declare it AFTER the compose rule (higher `@get:Rule order`) so it wraps it.
+- `step(name, before = false) { assertions/actions }` wraps the lambda, captures via UiAutomator
+  (2.3.0 File-based overloads), POSTs to the viewer at `http://10.0.2.2:7070/api/step`.
+- A passing test with zero `step()` calls FAILS (E2: the storyboard must read like a story).
 
 ## Playwright (admin-web, Phase 2)
 

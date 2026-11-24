@@ -2,15 +2,15 @@
 
 Last updated: 2026-11-24
 Working mode: **SPEED MODE v2 (D69)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing.
-Current phase: 2 (android shell) - P2-1a scaffold + P2-1b navigation/theming/i18n done and CI-verified; Phase 1 batch closed earlier (P1-CONTRACT CI-verified run 45407895919 rounds 1-5; nightly 45405712150 ALL GREEN)
-Current task: P2-1b DONE + CI-VERIFIED (run 45462273542 ALL GREEN - first full-pipeline green incl. 6/6 android emulator shards with launch+navigation tests); next: P2-1c (Hilt/Room+FTS/DataStore/outbox v1) or P1-4c admin i18n or P2-3 storyboard helper (closes P0-C gallery piece)
-Last completed task: P2-1b shared two-tab navigation + mode-aware theme + i18n completion (commit f3f0daa; 2 CI root causes fixed on the way: emulator jobs ran on runner-default JDK 25.0.5 -> setup-java temurin 17 added, and '::app-rider' empty-segment module ids)
+Current phase: 2 (android shell) - P2-1a scaffold, P2-1b navigation/theming/i18n, P2-3 storyboard+video evidence wiring done; Phase 1 batch closed earlier (P1-CONTRACT CI-verified run 45407895919 rounds 1-5; nightly 45405712150 ALL GREEN)
+Current task: P2-3 DONE local (task tier: 6/6 SlugTest, both test APKs assemble, shellcheck+actionlint clean, gallery generator smoke discovers storyboard PNGs+video at the new depths); emulator evidence lands with the next android CI run -> formal P0-C close on that green run. Next: P2-1c (Hilt/Room+FTS/DataStore/outbox v1) or P1-4c admin i18n or P2-2 MapLibre main screen (needs P2-1c)
+Last completed task: P2-3 :storyboard module (StepStoryboard + StoryboardRule with zero-step E2 enforcement) + runner-arg wiring fix - run-ui-tests.sh -P numShards/shardIndex had NO gradle consumer, sharding was a silent no-op; now wired (+runId); ci matrix collapsed to 1 shard (empty shards fail connectedAndroidTest); screenrecord video loop + storyboard pull into the gallery
 
 ## Gate status table
 
 | Gate | Status |
 |---|---|
-| Phase 0 (Part B delivery plan) | PENDING - one item open: D11.9 first-green pipeline with trivial tests on two emulators (needs Phase 1/2 module skeletons; see BACKLOG P0-C) |
+| Phase 0 (Part B delivery plan) | PENDING - one item open: D11.9 first-green pipeline with trivial tests on two emulators (needs Phase 1/2 module skeletons; see BACKLOG P0-C). Storyboard+video wiring LANDED (P2-3); formal close = first green android-ui run with gallery evidence |
 | Mesh GATE 1-2 (Part C) | GATE 2 CLOSED AND CI-VERIFIED 2026-11-24 (run 45256630914, mesh-core-sim success): beacons (certified profiles, short MAC, adaptive pacing) + PRESENCE (backend-only seal) + GATEWAY_RELAY (opaque forward, internet shortcut) - scenarios 16-19 PASS on CI + locally |
 | Mesh GATE 3 (Stage 3) | DONE 2026-11-24: 15/15 scenarios + baseline gate green on CI (run 45245604015, mesh-sim-evidence artifact uploaded) + locally; suite now 19 scenarios (16-19 = GATE 2 close-out) |
 | Mesh GATE 4-7 (Part C) | pending (Stage 4 starts with Phase 2 android) |
@@ -34,16 +34,16 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 31 (P2-1a scaffold + P2-1b navigation/theming/i18n + android emulator CI bring-up: 2 root causes fixed - see PROGRESS_LOG.md)
+- Tasks completed this phase: 33 (P2-1a scaffold, P2-1b navigation/theming/i18n, android emulator CI bring-up: 2 root causes fixed, P2-3a :storyboard module + P2-3b gallery evidence wiring)
 - CI runs green: ...45407895919 (P1-CONTRACT CI-VERIFIED), 45405712150 (nightly ALL GREEN), 45460990602 (scripts push, android correctly skipped), 45462273542 (FORCED FULL RUN ALL GREEN: first full-pipeline green incl. android-build + 6/6 android-ui emulator shards + backend/admin/mesh-sim/api-contract/e2e - D11.9 emulator substance); Pages gallery /latest HTTP 200
 - Fix attempts used this turn: recycle recovery + gradle cache corruption purge + 2 android CI root causes (JDK 25 default on emulator jobs; double-colon module id) - all within D23 budget, no blockers
 
 ## Next 5 tasks
 
-1. P2-3 storyboard helper wired into app modules + test-rule (closes the P0-C gallery piece: storyboard screenshots + video)
-2. P2-1c Hilt DI, Room+FTS, DataStore, outbox v1
+1. P2-1c Hilt DI, Room+FTS, DataStore, outbox v1
+2. P2-2 MapLibre main screen vs self-hosted tiles (needs P2-1c)
 3. P1-4c admin i18n EN/FR/AR-RTL + screenshot baselines (gate-tier visual work)
-4. P2-2 MapLibre main screen vs self-hosted tiles (needs P2-1c)
+4. P2-3 follow-up: re-expand the android-ui shard matrix when a suite exceeds 1-2 tests/shard
 5. Extras: mesh long-mode scenario runner (nightly --scenario=long selection; BACKLOG)
 
 ## Phase 0 setup record (from repository bootstrap)
