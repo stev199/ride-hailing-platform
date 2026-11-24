@@ -18,6 +18,17 @@ export const USERS: MockUser[] = [
   { id: 'u3', phone: '15550002222', email: 'driver@example.com', displayName: 'Dan Driver', role: 'DRIVER', status: 'ACTIVE', locale: 'en', createdAtEpochSec: 1737400000 },
 ];
 
+/** Fresh copy per test - the mock mutates USERS, so tests reset it in beforeEach. */
+export function resetUsers(): void {
+  USERS.splice(0, USERS.length, {
+    id: 'u1', phone: '15550001111', email: null, displayName: 'Ops Admin', role: 'ADMIN_OPS', status: 'ACTIVE', locale: 'en', createdAtEpochSec: 1737600000,
+  }, {
+    id: 'u2', phone: null, email: 'rider@example.com', displayName: 'Ria Rider', role: 'RIDER', status: 'BANNED_TEMP', locale: 'fr', createdAtEpochSec: 1737500000,
+  }, {
+    id: 'u3', phone: '15550002222', email: 'driver@example.com', displayName: 'Dan Driver', role: 'DRIVER', status: 'ACTIVE', locale: 'en', createdAtEpochSec: 1737400000,
+  });
+}
+
 const AUDIT_EVENTS = [
   { seq: 3, type: 'admin.user.updated', occurredAt: '2026-11-24T05:00:00Z', payloadJson: '{"actorId":"u1","after":{"role":"RIDER"},"before":{"role":"DRIVER"}}', hash: 'abcd1234abcd1234abcd' },
   { seq: 2, type: 'admin.password_reset', occurredAt: '2026-11-24T04:30:00Z', payloadJson: '{"actorId":"u1","sessionsRevoked":"all","targetId":"u2"}', hash: 'beef5678beef5678beef' },
@@ -65,6 +76,55 @@ export async function mockApi(page: Page, role: string): Promise<void> {
     json(route, 200, { verifyOk: true, events: AUDIT_EVENTS }));
   await page.route('**/v1/admin/config/login-methods', (route) =>
     json(route, 200, ADMIN_CONFIG));
+
+  // P1-4b mutations. The created user joins the list (id u4); PATCH rewrites the row;
+  // reset-password/force-logout answer the documented shapes.
+  await page.route('**/v1/admin/users', (route) => {
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    if (USERS.some((u) => u.phone === body.phone || (body.email && u.email === body.email))) {
+      return json(route, 409, { code: 'identifier_taken', message: 'Phone or email already registered', traceId: null });
+    }
+    const created: MockUser = {
+      id: 'u4',
+      phone: (body.phone as string) ?? null,
+      email: (body.email as string) ?? null,
+      displayName: body.displayName as string,
+      role: body.role as string,
+      status: 'ACTIVE',
+      locale: (body.locale as string) ?? 'en',
+      createdAtEpochSec: 1737700000,
+    };
+    USERS.push(created);
+    return json(route, 201, created);
+  });
+  await page.route('**/v1/admin/users/*/reset-password', (route) => {
+    const id = route.request().url().match(/\/v1\/admin\/users\/([^/]+)\/reset-password/)?.[1];
+    const u = USERS.find((x) => x.id === id);
+    if (!u) return json(route, 404, { code: 'not_found', message: 'User not found', traceId: null });
+    return json(route, 200, { ...u, id: u.id });
+  });
+  await page.route('**/v1/admin/users/*/force-logout', (route) => {
+    const id = route.request().url().match(/\/v1\/admin\/users\/([^/]+)\/force-logout/)?.[1];
+    const u = USERS.find((x) => x.id === id);
+    if (!u) return json(route, 404, { code: 'not_found', message: 'User not found', traceId: null });
+    if (id === 'u1') return json(route, 400, { code: 'self_force_logout', message: 'Cannot force-logout yourself', traceId: null });
+    return json(route, 200, { revokedSessions: 2 });
+  });
+  await page.route('**/v1/admin/users/*', (route) => {
+    const id = route.request().url().match(/\/v1\/admin\/users\/([^/]+)$/)?.[1];
+    const u = USERS.find((x) => x.id === id);
+    if (!u) return json(route, 404, { code: 'not_found', message: 'User not found', traceId: null });
+    const body = route.request().postDataJSON() as Record<string, unknown>;
+    const updated = {
+      ...u,
+      ...(body.displayName !== undefined ? { displayName: body.displayName as string } : {}),
+      ...(body.locale !== undefined ? { locale: body.locale as string } : {}),
+      ...(body.status !== undefined ? { status: body.status as string } : {}),
+      ...(body.role !== undefined ? { role: body.role as string } : {}),
+    } as MockUser;
+    Object.assign(u, updated);
+    return json(route, 200, updated);
+  });
 }
 
 /** Seeds a session so the shell boots straight into the authenticated area. */

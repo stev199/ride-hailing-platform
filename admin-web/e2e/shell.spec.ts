@@ -64,6 +64,14 @@ test.describe('shell (seeded ADMIN_SUPER session)', () => {
       await page.getByTestId('theme-toggle').click();
       await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
       await page.screenshot({ path: 'artifacts/admin-overview-dark.png', fullPage: true });
+      // Batch tier (D69): dark-mode evidence for screens changed this batch
+      // (P1-5a config live view + P1-4b users mutations).
+      await page.goto('/users');
+      await expect(page.getByTestId('users-table')).toBeVisible();
+      await page.screenshot({ path: 'artifacts/admin-users-dark.png', fullPage: true });
+      await page.goto('/config');
+      await expect(page.getByTestId('config-current-version')).toBeVisible();
+      await page.screenshot({ path: 'artifacts/admin-config-dark.png', fullPage: true });
     });
   });
 });

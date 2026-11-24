@@ -28,7 +28,9 @@ Ordered granular tasks. Each is finishable and verifiable in one work session. D
 | P1-4b | Admin users mutation UI: create/edit/ban/reset-password/force-logout against the P1-3 admin endpoints (buttons exist as hints in P1-4 shell) | P1-4 | todo |
 | P1-4c | Admin i18n EN/FR/AR-RTL + light/dark screenshot baselines (D3.4 full set; current shell is EN-only, D68) | P1-4 | todo |
 | P1-5 | Ledger/wallet schema + double-entry invariant tests (schema now, services Phase 7) | P1-1 | todo |
-| P1-5a | Config service endpoints: signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig (config center v0 needs them to go live) | P1-1 | todo |
+| P1-5a | Config service endpoints: signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig (config center v0 needs them to go live) | P1-1 | done | commit 4544b13: ConfigService + provider wiring + /v1/config + admin GET/PATCH + openapi + admin-web live page; task-tier verified (D69); config EDITORS (PATCH UI) still open below |
+| P1-5a2 | Config center editors: PATCH /v1/admin/config/login-methods UI (CONFIG_WRITE; toggle switches + priority inputs) + smoke | P1-5a | todo | backend PATCH already live |
+| P1-4c-sec | admin-web dependency security: 7 Dependabot alerts (2 critical: tinypool RCE gadget, vitest mocker injection/path-traversal; react-router open redirect CVE-2025-68470 bypass + SSR deserializeErrors) - all in dev/test tooling or SPA router; npm update of vitest/tinypool/react-router + full green re-run | P1-4 | todo | cheap ride-along with P1-4b |
 | P1-6 | /test/barrier + /test/seed endpoints (test profile only) + test proving absence in release | P1-1 | done | /test/* routes + absence test (P1-1 commit) |
 | P1-CONTRACT | Wire authenticated schemathesis coverage (register/login hooks) so /v1/me, login/password, otp/verify, refresh get positive authenticated cases (currently 401-only warnings); consider --max-examples bump in nightly; PR runs keep pinned seed (D49) | P1-2 | todo | |
 | P1B-1 | mesh-core module: Gradle setup, binary envelope codec + fragmentation + fuzz/KAT/bit-flip tests (Stage 1) | P0-3 | done | 20 tests green run 45172363159 |
