@@ -45,6 +45,9 @@ class BridgeMeshTransport(
     private var out: DataOutputStream? = null
     private var reader: Thread? = null
     private val startLock = Any()
+    /** Serializes frame writes: broadcast/sendTo fire from arbitrary threads (app +
+     * rebroadcast scheduler); interleaved partial frames corrupt the TCP stream. */
+    private val writeLock = Any()
     @Volatile private var started = false
 
     override fun start(listener: MeshTransport.Listener) {
@@ -75,7 +78,9 @@ class BridgeMeshTransport(
 
     override fun broadcast(envelope: Envelope) {
         check(started) { "transport not started" }
-        SimBridgeFrames.writeFrame(out!!, SimBridgeFrames.TYPE_BCAST, Codec.encode(envelope))
+        synchronized(writeLock) {
+            SimBridgeFrames.writeFrame(out!!, SimBridgeFrames.TYPE_BCAST, Codec.encode(envelope))
+        }
     }
 
     override fun sendTo(nextHop: NodeAddress, envelope: Envelope): Boolean {
@@ -84,7 +89,9 @@ class BridgeMeshTransport(
         val latch = CountDownLatch(1)
         pendingAcks[s] = latch
         try {
-            SimBridgeFrames.writeFrame(out!!, SimBridgeFrames.TYPE_UNICAST, SimBridgeFrames.unicastBody(s, nextHop.value, Codec.encode(envelope)))
+            synchronized(writeLock) {
+                SimBridgeFrames.writeFrame(out!!, SimBridgeFrames.TYPE_UNICAST, SimBridgeFrames.unicastBody(s, nextHop.value, Codec.encode(envelope)))
+            }
             if (!latch.await(ackTimeoutMs, TimeUnit.MILLISECONDS)) return false
             return ackResults.remove(s) ?: false
         } finally {
