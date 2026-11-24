@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="core_title_rider">Ride Hailing — Passager</string>
+    <string name="core_title_driver">Ride Hailing — Chauffeur</string>
+    <string name="core_shell_placeholder">Coque prête. Navigation, Hilt, Room et la boîte d\'envoi arrivent en P2-1b/1c.</string>
+</resources>

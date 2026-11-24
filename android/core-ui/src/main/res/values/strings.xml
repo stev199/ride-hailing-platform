@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="core_title_rider">Ride Hailing — Rider</string>
+    <string name="core_title_driver">Ride Hailing — Driver</string>
+    <string name="core_shell_placeholder">App shell ready. Navigation, Hilt, Room and the outbox land in P2-1b/1c.</string>
+</resources>

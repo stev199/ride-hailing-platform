@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="core_title_rider">رحلة — الراكب</string>
+    <string name="core_title_driver">رحلة — السائق</string>
+    <string name="core_shell_placeholder">الواجهة جاهزة. التنقل و Hilt و Room وصندوق الرسائل الصادر في P2-1b/1c.</string>
+</resources>
