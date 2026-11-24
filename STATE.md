@@ -2,9 +2,9 @@
 
 Last updated: 2026-11-24
 Working mode: **SPEED MODE v2 (D69)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing.
-Current phase: 1 (backend core) - P1-4 admin shell DONE AND CI-VERIFIED (run 45333709256 success: admin-web-test vitest+playwright+axe, lint eslint/tsc, trivy admin-web image scan); next: P1-5a config service endpoints
-Current task: P1-5a config service endpoints (signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig) - makes the admin config center v0 live
-Last completed task: P1-4 admin shell (React+TS+Vite) - admin-web module: password login, single-flight refresh + boot rehydrate, best-effort logout, client RBAC mirror (pinned-fixture drift test vs Rbac.kt), permission-filtered layout, Overview/Users/Audit/Config-center-v0 pages; 18 vitest + 30 playwright (chromium+firefox, route-mocked API per D68, axe wcag2a/2aa 0 violations); nginx Dockerfile + compose service + trivy image scan wired; Makefile recipe tabs repaired (pre-existing breakage)
+Current phase: 1 (backend core) - batch DONE: P1-5a config service (4544b13) + P1-4b users mutation UI (462d319) + report-publish deploy fix (af5137c, D71) + P1-4c-sec deps security (846390f); CI run 45348236832 ALL GREEN incl. report-publish; run for 846390f checked at next task start
+Current task: P1B-5 Stage 4 prep: sim-bridge topology engine wiring (mesh-core -> android integration seam)
+Last completed task: P1-4c-sec dependency security (vitest 5.1.1 + react-router-dom 7.18.6, npm audit 0 vulnerabilities, all suites green)
 
 ## Gate status table
 
@@ -34,17 +34,17 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 19 (P1-4 admin shell - see PROGRESS_LOG.md)
-- CI runs green: 45256630914 (GATE 2 close-out full run), 45286635288 (P1-3 forced full run, ALL GREEN incl. ci-summary), 45333709256 (P1-4 admin shell: admin-web-test + lint + trivy image scan + report-publish + ci-summary; component jobs path-skipped); Pages gallery /runs/45333709256/ HTTP 200 (admin light/dark screenshots)
-- Fix attempts used this turn: 6 distinct root causes (D51 hop-budget off-by-one, D52 dedup-before-discovery, D53 inline clock stall, relay TTL slack, stress rate-limit config, live-view guard) - within retry budget (D23), no blockers
+- Tasks completed this phase: 22 (batch: P1-5a config service, P1-4b users mutations, CI deploy fix, P1-4c-sec deps - see PROGRESS_LOG.md)
+- CI runs green: 45256630914 (GATE 2 close-out), 45286635288 (P1-3 forced full run), 45333709256 (P1-4 admin shell), 45348236832 (batch: P1-5a-fix+P1-4b, ALL GREEN incl. report-publish settle fix); Pages gallery /latest HTTP 200
+- Fix attempts used this turn: 2 distinct root causes (RBAC test assumption corrected by matrix - not a product bug; deploy-pages artifact metadata eventual consistency - D71), within retry budget (D23), no blockers
 
 ## Next 5 tasks
 
-1. P1-5a config service: signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig (config center v0 goes live)
-2. P1-4b admin users mutation UI: create/edit/ban/reset-password/force-logout against the P1-3 admin endpoints
-3. P1B-5 Stage 4 prep: sim-bridge topology engine wiring
-4. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell); compose-backed admin Playwright project lands here (D68)
-5. P1-CONTRACT: authenticated schemathesis coverage (register/login hooks)
+1. P1B-5 Stage 4 prep: sim-bridge topology engine wiring
+2. P1-5a2 config editors: PATCH UI (CONFIG_WRITE; toggles + priority inputs) + smoke
+3. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell); compose-backed admin Playwright project lands here (D68)
+4. P1-CONTRACT: authenticated schemathesis coverage (register/login hooks)
+5. P1-4c admin i18n EN/FR/AR-RTL + screenshot baselines (gate-tier visual work)
 
 ## Phase 0 setup record (from repository bootstrap)
 
