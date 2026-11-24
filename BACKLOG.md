@@ -42,11 +42,15 @@ Ordered granular tasks. Each is finishable and verifiable in one work session. D
 
 ## Phase 2 (android shell) and beyond
 
-- P2-1 Android project skeleton (rider+driver modes, Compose theming, i18n en/fr/ar RTL, navigation, Hilt, Room+FTS, DataStore, outbox v1)
-- P2-2 MapLibre main screen against self-hosted tiles (CI compose)
-- P2-3 Storyboard helper wired into app modules + test-rule; Roborazzi baselines dir
-- P2-4 Auth UI against Phase 1 backend
-- P3-P11 per Part B delivery plan (tracked as phases land; P0/P1 features in FEATURES.md)
+| ID | Task | Depends | Status | Evidence |
+|---|---|---|---|---|
+| P2-1a | Android project scaffold: standalone android/ gradle root (AGP 8.7.3, Kotlin 2.0.21, wrapper 8.10.2, minSdk 26/target 34), :core-ui (Material3 theme light/dark + AppShell + AppMode + i18n en/fr/ar RTL-ready), :app-rider + :app-driver Compose shells, trivial unit tests (3/app) + locale-agnostic instrumented launch tests (P0-C surface); run-ui-tests.sh fixed for the standalone layout | P0-3 | done | commits e6fbec7, 426b1fc; FULL android-build CI contract verified locally (testDebugUnitTest + assembleDebug + assembleDebugAndroidTest both apps, APKs 8.7MB + ~986KB test APKs, aapt2 badging OK); actionlint clean |
+| P2-1b | Navigation (Compose Navigation) + full theming pass + i18n completion (all user-facing strings en/fr/ar) | P2-1a | todo | |
+| P2-1c | Hilt DI, Room+FTS (ride history/search), DataStore (session/theme), outbox v1 (offline-first write path) | P2-1b | todo | |
+| P2-2 | MapLibre main screen against self-hosted tiles (CI compose) | P2-1c | todo | |
+| P2-3 | Storyboard helper wired into app modules + test-rule; Roborazzi baselines dir | P2-1b | todo | |
+| P2-4 | Auth UI against Phase 1 backend | P2-1c | todo | |
+| P3-P11 | per Part B delivery plan | - | tracked as phases land; P0/P1 features in FEATURES.md | |
 
 ## Deferred / blocked
 

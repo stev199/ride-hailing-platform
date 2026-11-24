@@ -2,9 +2,9 @@
 
 Last updated: 2026-11-24
 Working mode: **SPEED MODE v2 (D69)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing.
-Current phase: 1 (backend core) - batch DONE: P1-CONTRACT auth hooks (1630a15; CI api-contract trigger fixed 4ff447b, first authenticated run lands on this push) + P1B-5 Stage 4 wiring (bfe77a4: StackE2EBridgeTest real-time stack e2e over the bridge; REAL transport write-corruption bug caught+fixed; D73 backend seam -> Phase 7; 111 mesh-core tests green local)
-Current task: batch boundary - push 1630a15..4ff447b, then next: P0-C remainder (needs Phase 2 android shell) or P1-4c admin i18n (gate-tier visual work) or Phase 2 android shell start
-Last completed task: P1B-5 Stage 4 wiring (D73; 111 tests green local task tier)
+Current phase: 2 (android shell) - Phase 1 batch DONE (P1-CONTRACT CI-verified run 45407895919 rounds 1-5; nightly 45405712150 ALL GREEN incl. mesh-long-sim fix)
+Current task: P2-1a Android scaffold pushed (e6fbec7..b791319: standalone gradle root, :core-ui theme+i18n en/fr/ar, :app-rider/:app-driver shells, trivial tests, FULL android-build CI contract verified locally incl. APKs) - CI android-build + android-ui emulator jobs + nightly matrix verify on this push; next: P2-1b navigation+theming, or P1-4c admin i18n (gate-tier visual)
+Last completed task: P2-1a Android project scaffold (task tier: unit tests green + assembleDebug + assembleDebugAndroidTest both apps; run-ui-tests.sh standalone layout fix; recycle-corrupted gradle caches purged)
 
 ## Gate status table
 
@@ -24,7 +24,7 @@ Last completed task: P1B-5 Stage 4 wiring (D73; 111 tests green local task tier)
 | JDK 17 (javac 17.0.21.1) | ok | /home/z/my-project/tools/jdk17 (reinstalled 2026-11-24) |
 | Gradle 8.10.2 | ok | /home/z/my-project/tools/gradle/gradle-8.10.2/bin/gradle (reinstalled; gradle-home cache survived the recycle) |
 | actionlint 1.7.7, schemathesis 4.34.0 (pip) | ok | reinstalled 2026-11-24; spectral via npx @stoplight/spectral-cli@6 |
-| Android SDK / adb / emulator | MISSING (local) | no KVM in sandbox, 2 vCPU, 8GB disk free - install scheduled with Phase 2 start; CI runners have KVM and carry emulator jobs (D4) |
+| Android SDK / adb / emulator | PARTIAL (local) | cmdline-tools 11076708 + platform-34 + build-tools 34.0.0 installed 2026-11-24 (Phase 2 start) - COMPILE-ONLY: no KVM/emulator (no KVM in sandbox, 2 vCPU); emulator verification stays on CI runners (D4) |
 | Docker / Compose | MISSING (local) | compose stacks run in CI (api-contract job) and on dev machines; degraded local verification recorded |
 | scrcpy / Xvfb / cloudflared | not installed (optional) | live-view workflow handles tunneling in CI |
 
@@ -34,17 +34,17 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 29 (batch: P1-CONTRACT triage rounds 1-5 closed + nightly mesh-long-sim fix - see PROGRESS_LOG.md)
+- Tasks completed this phase: 30 (P2-1a Android scaffold: standalone gradle root + :core-ui/:app-rider/:app-driver + trivial tests + run-ui-tests.sh layout fix; recycle recovery incl. gradle cache corruption purge - see PROGRESS_LOG.md)
 - CI runs green: 45256630914 (GATE 2 close-out), 45286635288 (P1-3 forced full run), 45333709256 (P1-4 admin shell), 45348236832 (batch 1), 45356449692 (P1-5a2 docs push), 45371383121 (P1-CONTRACT push; api-contract skipped there - contract filter fix 4ff447b), 45407895919 (P1-CONTRACT CI-VERIFIED: api-contract SUCCESS, rounds 1-5 closed), 45405712150 (nightly ALL GREEN incl. mesh-long-sim fix); Pages gallery /latest HTTP 200
-- Fix attempts used this turn: 5 contract-triage root causes total (rounds 1-4 prior session; round 5: kotlinx strict integer parse vs JSON Schema integer semantics + round-4 rewrite hole) + nightly aspirational task - all within D23 budget, no blockers; D23 evidence loop: local replication harness scripts/contract_local_run.sh reproduces the CI contract run exactly (native backend, seed, hooks)
+- Fix attempts used this turn: recycle recovery + gradle cache corruption diagnosis (empty workerMain/transforms dir shells -> purge; modules-2 verified intact) - all within D23 budget, no blockers
 
 ## Next 5 tasks
 
-1. Phase 2 android shell (P0-C unblocks: first-green pipeline with admin + two-emulator trivial tests, D68 compose Playwright)
-2. P1-4c admin i18n EN/FR/AR-RTL + screenshot baselines (gate-tier visual work)
-3. P0-C remainder tasks unlocked by the Phase 2 shell
-4. Extras: mesh long-mode scenario runner (nightly --scenario=long selection; BACKLOG)
-5. Extras: api-contract --max-examples bump in nightly (BACKLOG)
+1. Verify P2-1a on CI (android-build + android-ui rider/driver emulator shards + nightly matrix) - first CI compile of the android module
+2. P2-1b navigation (Compose Navigation) + full theming pass + i18n completion
+3. P1-4c admin i18n EN/FR/AR-RTL + screenshot baselines (gate-tier visual work)
+4. P2-1c Hilt DI, Room+FTS, DataStore, outbox v1
+5. Extras: mesh long-mode scenario runner (nightly --scenario=long selection; BACKLOG)
 
 ## Phase 0 setup record (from repository bootstrap)
 
