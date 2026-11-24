@@ -458,9 +458,14 @@ jobs:
           # filmstrip/video srcs are artifact-relative (ui-<app>-<shard>/...). Every gallery
           # image/video 404'd until now because this copy was missing (found while landing
           # the P2-3 storyboard filmstrip, run 45494296659). android-apks (~20MB) is build
-          # output, not gallery evidence - excluded from the site.
-          cp -r artifacts/. _site/
-          rm -rf _site/android-apks
+          # output, not gallery evidence - excluded from the site. Docs-only pushes have no
+          # component artifacts at all (download-artifact ran continue-on-error) - skip.
+          if [ -d artifacts ]; then
+            cp -r artifacts/. _site/
+            rm -rf _site/android-apks
+          else
+            echo "::notice::no component artifacts on this run - gallery ships without media"
+          fi
       - name: Restore gallery history - last 30 successful runs (E6)
         env:
           GH_TOKEN: ${{ github.token }}
