@@ -102,6 +102,19 @@ export interface AdminConfig {
   history: ConfigVersion[];
 }
 
+/** PATCH /v1/admin/config/login-methods body (openapi LoginMethodsPatch): absent fields are no-ops; all-absent is 400 empty_patch. */
+export interface LoginMethodsPatch {
+  passwordLoginEnabled?: boolean;
+  otpAutoRegister?: boolean;
+  otpChannels?: Record<string, ChannelPatch>;
+}
+
+/** Channel patch (openapi ChannelPatch): devOnly is a deployment property, not admin-settable (D37). */
+export interface ChannelPatch {
+  enabled?: boolean;
+  priority?: number;
+}
+
 /** Error body per the contract (401/403/404/409/429/400). */
 export interface ApiError {
   code: string;

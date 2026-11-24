@@ -55,6 +55,26 @@ export const ADMIN_CONFIG = {
   ],
 };
 
+type ConfigState = Omit<typeof ADMIN_CONFIG, 'loginMethods'> & {
+  loginMethods: Omit<typeof ADMIN_CONFIG['loginMethods'], 'otpChannels'> & {
+    otpChannels: Record<string, { enabled: boolean; priority: number; devOnly: boolean }>;
+  };
+};
+
+/** Mutable config state for P1-5a2 editor tests - fresh copy via resetConfig(). */
+let configState: ConfigState = JSON.parse(JSON.stringify(ADMIN_CONFIG));
+
+export function resetConfig(): void {
+  configState = JSON.parse(JSON.stringify(ADMIN_CONFIG));
+}
+
+/** Last PATCH body seen by the config route (tests assert the changed-fields-only contract). */
+let lastConfigPatch: Record<string, unknown> | null = null;
+
+export function getLastConfigPatch(): Record<string, unknown> | null {
+  return lastConfigPatch;
+}
+
 const json = (route: Route, status: number, body: unknown): Promise<void> =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
@@ -74,8 +94,57 @@ export async function mockApi(page: Page, role: string): Promise<void> {
     json(route, 200, { users: USERS, limit: 20, offset: 0 }));
   await page.route('**/v1/admin/audit?*', (route) =>
     json(route, 200, { verifyOk: true, events: AUDIT_EVENTS }));
-  await page.route('**/v1/admin/config/login-methods', (route) =>
-    json(route, 200, ADMIN_CONFIG));
+  await page.route('**/v1/admin/config/login-methods', (route) => {
+    if (route.request().method() !== 'PATCH') return json(route, 200, configState);
+    // P1-5a2 PATCH: mirror the backend contract (ConfigService.updateLoginMethods).
+    const body = route.request().postDataJSON() as {
+      passwordLoginEnabled?: boolean;
+      otpAutoRegister?: boolean;
+      otpChannels?: Record<string, { enabled?: boolean; priority?: number }>;
+    };
+    lastConfigPatch = body as Record<string, unknown>;
+    const hasPatchField = [body.passwordLoginEnabled, body.otpAutoRegister].some((v) => typeof v === 'boolean')
+      || (body.otpChannels !== undefined && Object.keys(body.otpChannels).length > 0);
+    if (!hasPatchField) {
+      return json(route, 400, { code: 'empty_patch', message: 'Validation failed: patch', traceId: null });
+    }
+    for (const name of Object.keys(body.otpChannels ?? {})) {
+      if (!['SMS', 'TELEGRAM', 'EMAIL', 'WHATSAPP'].includes(name)) {
+        return json(route, 400, { code: 'unknown_channel', message: `Validation failed: otpChannels.${name}`, traceId: null });
+      }
+    }
+    // Apply the patch to the fixture state, then enforce distinct priorities across ENABLED channels.
+    const next = JSON.parse(JSON.stringify(configState)) as ConfigState;
+    if (body.passwordLoginEnabled !== undefined) next.loginMethods.passwordLoginEnabled = body.passwordLoginEnabled;
+    if (body.otpAutoRegister !== undefined) next.loginMethods.otpAutoRegister = body.otpAutoRegister;
+    for (const [name, ch] of Object.entries(body.otpChannels ?? {})) {
+      const old = next.loginMethods.otpChannels[name];
+      if (!old) continue;
+      next.loginMethods.otpChannels[name] = {
+        enabled: ch.enabled ?? old.enabled,
+        priority: ch.priority ?? old.priority,
+        devOnly: old.devOnly,
+      };
+    }
+    const enabledPriorities = Object.values(next.loginMethods.otpChannels)
+      .filter((ch) => ch.enabled)
+      .map((ch) => ch.priority);
+    if (new Set(enabledPriorities).size !== enabledPriorities.length) {
+      return json(route, 400, { code: 'duplicate_priority', message: 'Validation failed: otpChannels.priority', traceId: null });
+    }
+    configState = next;
+    configState.currentVersion += 1;
+    const entry = {
+      version: configState.currentVersion,
+      issuedAtEpochSec: 1737620000,
+      config: '{"loginMethods":{}}',
+      signature: `sig${configState.currentVersion}`,
+      changedBy: 'u1',
+      change: 'login_methods_updated',
+    };
+    configState.history.unshift(entry);
+    return json(route, 200, entry);
+  });
 
   // P1-4b mutations. The created user joins the list (id u4); PATCH rewrites the row;
   // reset-password/force-logout answer the documented shapes.
