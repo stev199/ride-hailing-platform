@@ -7,6 +7,13 @@ SHARD="${2:-0}"
 NUM="${3:-1}"
 RECORD_ALL="${RECORD_ALL:-0}"
 
+# AGP 8.7.x refuses JDK > 21 (e.g. runner defaults). Prefer an explicit JAVA_HOME;
+# fall back to the GitHub-hosted runner's preinstalled JDK 17 if unset.
+if [ -z "${JAVA_HOME:-}" ] && [ -n "${JAVA_HOME_17_X64:-}" ]; then
+  export JAVA_HOME="$JAVA_HOME_17_X64"
+  export PATH="$JAVA_HOME/bin:$PATH"
+fi
+
 run_shard() {
   local module="$1" s="$2" n="$3"
   echo "== UI shard app=$module shard=$s/$n RECORD_ALL=$RECORD_ALL =="
