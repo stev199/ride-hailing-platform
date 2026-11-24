@@ -280,7 +280,10 @@ jobs:
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          target: aosp_atd
+          # google_apis (NOT aosp_atd): ATD images disable the display pipeline by design -
+          # accessibility works but screenshots/screenrecord are solid black (runs
+          # 45498794440/45496557524). Real pixel evidence needs a rendering target.
+          target: google_apis
           arch: x86_64
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
@@ -321,7 +324,9 @@ jobs:
       - uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          target: aosp_atd
+          # google_apis (NOT aosp_atd): ATD images disable the display pipeline by design -
+          # see the android-ui-rider comment.
+          target: google_apis
           arch: x86_64
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
@@ -351,9 +356,19 @@ jobs:
       - uses: actions/download-artifact@v4
         with: { name: android-apks }
       - run: make up-test && ./scripts/wait-for-health.sh && ./scripts/seed-test.sh e2e
+      - name: Install emulator + system image (this job does not use android-emulator-runner)
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "platform-tools" "system-images;android-34;google_apis;x86_64" > /dev/null
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+      - name: Create AVD + start two emulators (tri-view)
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n e2e_api34 -k "system-images;android-34;google_apis;x86_64" -d pixel_5
+          ./scripts/start-emulators.sh 2
       - name: Orchestrate two emulators + admin (tri-view recording)
         run: |
-          ./scripts/start-emulators.sh 2
           cd e2e && npm ci && RECORD_ALL=1 node orchestrator.js --scenario all
       - uses: actions/upload-artifact@v4
         if: always()

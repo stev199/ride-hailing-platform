@@ -1,7 +1,8 @@
 name: AVD cache warm
 
-# D11.3: cache-warming for emulator jobs. Boots an ATD AVD once and caches the AVD dir
-# (emulator snapshot included) so PR UI shards skip the cold-boot cost.
+# D11.3: cache-warming for emulator jobs. Boots a google_apis AVD once and caches the AVD
+# dir (emulator snapshot included) so PR UI shards skip the cold-boot cost. google_apis
+# (NOT aosp_atd): ATD disables the display pipeline - screenshots/screenrecord black.
 on:
   push:
     branches: [main]
@@ -31,13 +32,13 @@ jobs:
           path: |
             ~/.android/avd/*
             ~/.android/adb*
-          key: avd-aosp_atd-api34-x86_64-v1
+          key: avd-google_apis-api34-x86_64-v2
       - name: Create AVD + snapshot
         if: steps.avd-cache.outputs.cache-hit != 'true'
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
-          target: aosp_atd
+          target: google_apis
           arch: x86_64
           profile: pixel_5
           force-avd-creation: false
@@ -45,4 +46,4 @@ jobs:
           disable-animations: false
           script: adb shell getprop sys.boot_completed
       - name: Summary
-        run: echo "AVD cache key avd-aosp_atd-api34-x86_64-v1 ${{ steps.avd-cache.outputs.cache-hit == 'true' && 'already warm' || 'written' }}" >> "$GITHUB_STEP_SUMMARY"
+        run: echo "AVD cache key avd-google_apis-api34-x86_64-v2 ${{ steps.avd-cache.outputs.cache-hit == 'true' && 'already warm' || 'written' }}" >> "$GITHUB_STEP_SUMMARY"
