@@ -15,6 +15,12 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // run-ui-tests.sh passes -Pandroid.testInstrumentationRunnerArguments.<k>=<v>
+        // (P2-3: real numShards/shardIndex sharding + runId for the storyboard layout).
+        listOf("numShards", "shardIndex", "runId").forEach { key ->
+            (project.findProperty("android.testInstrumentationRunnerArguments.$key") as? String)
+                ?.let { testInstrumentationRunnerArguments[key] = it }
+        }
     }
 
     buildTypes {
@@ -43,6 +49,7 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
 
+    androidTestImplementation(project(":storyboard"))
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
