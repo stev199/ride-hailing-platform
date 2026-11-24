@@ -80,21 +80,14 @@ object StepStoryboard {
         post(testId, testName, app, shard, step = null, screenshotB64 = null, event = "test-end", status = status)
 
     /**
-     * Copy this test's storyboard out of the app-under-test's external files dir into
-     * /data/local/tmp/storyboard/<app>/<test-slug>/ (best effort). AGP UNINSTALLS the app
-     * after connectedDebugAndroidTest, wiping /sdcard/Android/data/<pkg> (API 30+ scoped
-     * storage removes external data on uninstall) - a collect that runs afterwards would
-     * find nothing. UiAutomation shell commands run with shell privileges, so the copy
-     * survives the uninstall; collect-artifacts.sh pulls /data/local/tmp/storyboard.
+     * UiAutomation shell commands run as the APP uid on aosp_atd (empty output, no effect;
+     * SELinux denies app writes to /data/local/tmp) - the old persist-to-/data/local/tmp
+     * bridge cannot work. Evidence survives via run-ui-tests.sh's poll-pull loop, which
+     * drains the app's external files dir WHILE the tests run, before the post-test
+     * uninstall wipes it. Kept as a hook only (no-op here).
      */
     fun persist() {
-        runCatching {
-            val dest = "/data/local/tmp/storyboard/$app/${Slug.of(testId)}"
-            val out = device.executeShellCommand(
-                "mkdir -p '$dest' && cp -R '${artifactDir.absolutePath}/.' '$dest/' ; ls -la '$dest'"
-            )
-            println("[storyboard] persist output: ${out.take(400)}")
-        }.onFailure { println("[storyboard] persist failed: ${it.message}") }
+        println("[storyboard] persist: no-op (poll-pull collects during the run; UiAutomation shell = app uid on this image)")
     }
 
     private fun capture(slug: String, isBefore: Boolean = false, failed: Boolean = false) {
@@ -104,28 +97,21 @@ object StepStoryboard {
             else -> "%02d".format(counter)
         }
         val name = "$tag-${Slug.of(slug)}.png"
-        val remoteDir = "/data/local/tmp/storyboard/$app/${Slug.of(testId)}"
-        // PRIMARY: screencap via UiAutomation shell privileges, straight into
-        // /data/local/tmp (survives the post-test app uninstall that wipes
-        // /sdcard/Android/data/<pkg>; screencap proven working on aosp_atd where the
-        // in-process UiDevice.takeScreenshot path produced nothing on
-        // runs 45473604435/45476940195).
-        val shellOut = runCatching {
-            device.executeShellCommand(
-                "mkdir -p '$remoteDir' && screencap -p '$remoteDir/$name' && ls -la '$remoteDir/$name'"
-            )
-        }.getOrNull()
-        if (shellOut != null && shellOut.contains(name)) {
-            lastFile = File(remoteDir, name)
-            return
-        }
-        println("[storyboard] screencap path failed for $name: ${shellOut?.take(300) ?: "<executeShellCommand threw>"}")
-        // FALLBACK: UiDevice screenshot into the app's external files dir (picked up by
-        // persist() before the uninstall).
+        // PRIMARY: in-process UiDevice screenshot into the app's own external files dir.
+        // PROVEN writable on aosp_atd (runs 45473604435/45476940195/45479391089 logcat:
+        // UiDevice stores the PNG there), while UiAutomation shell commands run as the APP
+        // uid on this image (empty output, no effect - SELinux denies /data/local/tmp), so
+        // shell-level screencap/mkdir/cp bridges cannot work. run-ui-tests.sh pulls the
+        // dir continuously WHILE the tests run (poll-pull), before AGP's post-test
+        // uninstall wipes Android/data/<pkg>.
         val file = File(artifactDir, name)
-        runCatching {
-            if (device.takeScreenshot(file, 1.0f, 85)) lastFile = file
-        }.onFailure { println("[storyboard] takeScreenshot failed for $name: ${it.message}") }
+        val stored = runCatching { device.takeScreenshot(file, 1.0f, 85) }.getOrDefault(false)
+        if (stored && file.exists()) {
+            lastFile = file
+        } else {
+            println("[storyboard] capture failed for $name (stored=$stored)")
+            lastFile = null
+        }
     }
 
     private var lastFile: File? = null

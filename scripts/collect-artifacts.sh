@@ -7,20 +7,19 @@ SHARD="${2:-0}"
 OUT="artifacts/ui-${APP}-${SHARD}"
 mkdir -p "$OUT/logcat" "$OUT/screens" "$OUT/dumpsys" "$OUT/storyboard"
 
-# Storyboard step screenshots (E2): the instrumentation copies them to
-# /data/local/tmp/storyboard/<app>/<test-slug>/ DURING the test (StoryboardRule.persist)
-# because AGP uninstalls the app after connected tests, wiping /sdcard/Android/data/<pkg>
-# on API 30+. Pulled layout keeps the gallery walk depth limit (tools/report/generate.js):
-# artifacts/ui-<app>-<shard>/storyboard/<app>/<test-slug>/*.png.
-if adb pull /data/local/tmp/storyboard "$OUT/tmp-storyboard" >/dev/null 2>&1; then
-  cp -R "$OUT/tmp-storyboard/storyboard/." "$OUT/storyboard/" 2>/dev/null || true
-  rm -rf "$OUT/tmp-storyboard"
-  echo "[ok] storyboard pulled: $(find "$OUT/storyboard" -name '*.png' 2>/dev/null | wc -l) pngs"
-else
-  echo "[warn] storyboard pull failed; /data/local/tmp listing:"
-  adb shell ls -la /data/local/tmp/storyboard 2>&1 | tr -d '\r' | head -8
-fi
-adb shell rm -rf /data/local/tmp/storyboard >/dev/null 2>&1 || true
+# Storyboard step screenshots (E2): the instrumentation writes PNGs into its own external
+# files dir, and run-ui-tests.sh DRAINS them continuously while the tests run (AGP uninstalls
+# the app after connected tests, wiping /sdcard/Android/data/<pkg> on API 30+; UiAutomation
+# shell = app uid on aosp_atd, so no /data/local/tmp bridge is possible). This final drain
+# catches anything the poll loop raced on; the gallery-safe layout is
+# artifacts/ui-<app>-<shard>/storyboard/<app>/<test-slug>/*.png (walk depth limit).
+for pair in com.ridehailing.rider:rider com.ridehailing.driver:driver; do
+  pkg="${pair%%:*}"; app="${pair##*:}"
+  adb pull "/sdcard/Android/data/$pkg/files/storyboard" "$OUT/sb-$app" >/dev/null 2>&1 || continue
+  cp -R "$OUT/sb-$app/storyboard/." "$OUT/storyboard/$app/" 2>/dev/null || true
+  rm -rf "$OUT/sb-$app"
+done
+echo "[ok] storyboard evidence: $(find "$OUT/storyboard" -name '*.png' 2>/dev/null | wc -l) pngs"
 
 for s in $(adb devices | awk '/emulator-/{print $1}'); do
   adb -s "$s" shell screencap -p > "$OUT/screens/final-$s.png" 2>/dev/null || true

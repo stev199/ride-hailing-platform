@@ -28,11 +28,11 @@ if [ -z "${JAVA_HOME:-}" ] && [ -n "${JAVA_HOME_17_X64:-}" ]; then
 fi
 
 # Emulator images are userdebug: root adbd so the shell can reach /sdcard/Android/data
-# (stale-storyboard clean) - best effort; /data/local/tmp works with plain shell anyway.
+# (stale-storyboard clean + drains) - best effort; plain shell suffices on these images.
 adb root >/dev/null 2>&1 || true
 sleep 3
 # Clean slate so stale storyboards/recordings from a previous run cannot leak into the gallery.
-adb shell rm -rf /data/local/tmp/storyboard /data/local/tmp/ui-rec.mp4 \
+adb shell rm -rf /data/local/tmp/storyboard /data/local/tmp/ui-rec.mp4 /data/local/tmp/ui-probe.mp4 \
                  /sdcard/Android/data/com.ridehailing.rider/files/storyboard \
                  /sdcard/Android/data/com.ridehailing.driver/files/storyboard >/dev/null 2>&1 || true
 
@@ -109,6 +109,24 @@ stop_recorder() {
   echo "[ok] video evidence mode=$REC_MODE for $1"
 }
 
+# Storyboard transport (P2-3, run 45479391089 root cause): UiAutomation shell commands run
+# as the APP uid on aosp_atd (empty output, no effect - SELinux denies /data/local/tmp), so
+# the instrumentation cannot copy storyboards anywhere but its own external files dir, which
+# AGP's post-test uninstall WIPES. The gradle connected run therefore goes to the BACKGROUND
+# and this loop drains the app dirs WHILE the tests execute, before the wipe lands.
+OUT_DIR="artifacts/ui-${APP}-${SHARD}"
+mkdir -p "$OUT_DIR/storyboard/rider" "$OUT_DIR/storyboard/driver"
+pull_storyboards() {
+  local pkg="$1" app="$2"
+  adb pull "/sdcard/Android/data/$pkg/files/storyboard" "$OUT_DIR/sb-$app" >/dev/null 2>&1 || return 0
+  cp -R "$OUT_DIR/sb-$app/storyboard/." "$OUT_DIR/storyboard/$app/" 2>/dev/null || true
+  rm -rf "$OUT_DIR/sb-$app"
+}
+
+count_storyboards() {
+  find "$OUT_DIR/storyboard" -name '*.png' 2>/dev/null | wc -l
+}
+
 run_shard() {
   local module="$1" s="$2" n="$3"
   echo "== UI shard app=$module shard=$s/$n RECORD_ALL=$RECORD_ALL =="
@@ -120,7 +138,17 @@ run_shard() {
   ( cd android && ./gradlew ":${module}:connectedDebugAndroidTest" \
     -Pandroid.testInstrumentationRunnerArguments.numShards="$n" \
     -Pandroid.testInstrumentationRunnerArguments.shardIndex="$s" \
-    -Pandroid.testInstrumentationRunnerArguments.runId="$RUN_ID" ) || gradle_rc=$?
+    -Pandroid.testInstrumentationRunnerArguments.runId="$RUN_ID" ) &
+  local gradle_pid=$!
+  while kill -0 "$gradle_pid" 2>/dev/null; do
+    pull_storyboards com.ridehailing.rider rider
+    pull_storyboards com.ridehailing.driver driver
+    sleep 1
+  done
+  wait "$gradle_pid" || gradle_rc=$?
+  pull_storyboards com.ridehailing.rider rider
+  pull_storyboards com.ridehailing.driver driver
+  echo "[ok] storyboards drained: $(count_storyboards) pngs so far"
   stop_recorder "$module"
   return "$gradle_rc"
 }
