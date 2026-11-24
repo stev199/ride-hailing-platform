@@ -34,17 +34,17 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 27 (batch: P1-CONTRACT hooks + api-contract trigger fix + P1B-5 Stage 4 wiring e2e - see PROGRESS_LOG.md)
-- CI runs green: 45256630914 (GATE 2 close-out), 45286635288 (P1-3 forced full run), 45333709256 (P1-4 admin shell), 45348236832 (batch 1), 45356449692 (P1-5a2 docs push), 45371383121 (P1-CONTRACT push; NOTE api-contract skipped there - contract filter fix 4ff447b, authenticated coverage verifies on this push); Pages gallery /latest HTTP 200
-- Fix attempts used this turn: 2 root causes this batch (BridgeMeshTransport unsynchronized frame writes - real product bug caught by the new e2e; api-contract path-filter gap), within retry budget (D23), no blockers
+- Tasks completed this phase: 29 (batch: P1-CONTRACT triage rounds 1-5 closed + nightly mesh-long-sim fix - see PROGRESS_LOG.md)
+- CI runs green: 45256630914 (GATE 2 close-out), 45286635288 (P1-3 forced full run), 45333709256 (P1-4 admin shell), 45348236832 (batch 1), 45356449692 (P1-5a2 docs push), 45371383121 (P1-CONTRACT push; api-contract skipped there - contract filter fix 4ff447b), 45407895919 (P1-CONTRACT CI-VERIFIED: api-contract SUCCESS, rounds 1-5 closed), 45405712150 (nightly ALL GREEN incl. mesh-long-sim fix); Pages gallery /latest HTTP 200
+- Fix attempts used this turn: 5 contract-triage root causes total (rounds 1-4 prior session; round 5: kotlinx strict integer parse vs JSON Schema integer semantics + round-4 rewrite hole) + nightly aspirational task - all within D23 budget, no blockers; D23 evidence loop: local replication harness scripts/contract_local_run.sh reproduces the CI contract run exactly (native backend, seed, hooks)
 
 ## Next 5 tasks
 
-1. P1B-5 Stage 4 wiring: sim-bridge server <-> BridgeMeshTransport end-to-end + backend link seam
-2. P1-CONTRACT: authenticated schemathesis coverage (register/login hooks)
-3. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell); compose-backed admin Playwright project lands here (D68)
-4. P1-4c admin i18n EN/FR/AR-RTL + screenshot baselines (gate-tier visual work)
-5. Phase 2 android shell (P0-C unblocks)
+1. Phase 2 android shell (P0-C unblocks: first-green pipeline with admin + two-emulator trivial tests, D68 compose Playwright)
+2. P1-4c admin i18n EN/FR/AR-RTL + screenshot baselines (gate-tier visual work)
+3. P0-C remainder tasks unlocked by the Phase 2 shell
+4. Extras: mesh long-mode scenario runner (nightly --scenario=long selection; BACKLOG)
+5. Extras: api-contract --max-examples bump in nightly (BACKLOG)
 
 ## Phase 0 setup record (from repository bootstrap)
 
