@@ -73,6 +73,35 @@ export interface AuditTail {
   events: AuditEvent[];
 }
 
+/** P1-5a config service (openapi ConfigBundle / ConfigVersion / AdminConfig). */
+export interface ChannelState {
+  enabled: boolean;
+  priority: number;
+  devOnly: boolean;
+}
+
+export interface LoginMethodsState {
+  passwordLoginEnabled: boolean;
+  otpAutoRegister: boolean;
+  otpChannels: Record<string, ChannelState>;
+}
+
+export interface ConfigVersion {
+  version: number;
+  issuedAtEpochSec: number;
+  config: string;
+  signature: string;
+  changedBy: string;
+  change: string;
+}
+
+/** GET /v1/admin/config/login-methods 200 */
+export interface AdminConfig {
+  currentVersion: number;
+  loginMethods: LoginMethodsState;
+  history: ConfigVersion[];
+}
+
 /** Error body per the contract (401/403/404/409/429/400). */
 export interface ApiError {
   code: string;

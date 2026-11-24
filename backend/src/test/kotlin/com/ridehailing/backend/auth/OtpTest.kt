@@ -14,7 +14,7 @@ class OtpServiceTest {
     private fun makeService(methods: LoginMethodsConfig = LoginMethodsConfig()): OtpService =
         OtpService(
             providers = mapOf(OtpChannel.SMS to inbox),
-            loginMethods = methods,
+            loginMethods = { methods },
             clock = { now },
         )
 
@@ -128,7 +128,7 @@ class OtpServiceTest {
         val methods = LoginMethodsConfig(
             otpChannels = mapOf(OtpChannel.SMS to LoginMethodsConfig.ChannelConfig(enabled = true, priority = 1, devOnly = true)),
         )
-        val service = OtpService(mapOf(OtpChannel.SMS to inbox), methods, clock = { now })
+        val service = OtpService(mapOf(OtpChannel.SMS to inbox), { methods }, clock = { now })
         val envBefore = System.getenv("APP_ENV")
         // Cannot set env vars in-process; the guard is exercised via the flag check only
         // (isProductionRuntime reads APP_ENV). In this sandbox APP_ENV is unset, so we

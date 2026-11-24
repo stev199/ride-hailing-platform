@@ -19,6 +19,8 @@ tags:
     description: Registration, login (password/OTP), token lifecycle, profile, own sessions.
   - name: admin
     description: RBAC-gated admin operations (P1-3); every mutation is audited in the hash-chained event store.
+  - name: config
+    description: Signed config bundles (P1-5a) - public device serving + RBAC-gated admin read/patch.
 paths:
   /health:
     get:
@@ -397,6 +399,72 @@ paths:
                 $ref: "#/components/schemas/AuditTail"
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+  /v1/config:
+    get:
+      operationId: getConfigBundle
+      description: >-
+        Public signed configuration bundle (P1-5a). `config` is the EXACT canonical JSON string
+        the Ed25519 `signature` covers: verify over "version|config|issuedAtEpochSec" with the
+        served `publicKey`, and reject version <= the highest version already accepted
+        (anti-rollback). No authentication - devices fetch the bundle pre-login; the signature
+        is the trust anchor.
+      summary: Current signed config bundle (public)
+      tags: [config]
+      responses:
+        "200":
+          description: Current signed bundle (version 1 is bootstrapped on first read)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigBundle"
+  /v1/admin/config/login-methods:
+    get:
+      operationId: adminGetLoginMethods
+      description: >-
+        Current login-methods state + signed-bundle history (CONFIG_READ). OTP reads back the
+        exact structures PATCH accepts; `devOnly` channels are deployment properties (D37) and
+        are not patchable.
+      summary: Read login methods config
+      tags: [config]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current state + full version history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminConfig"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    patch:
+      operationId: adminPatchLoginMethods
+      description: >-
+        Patch the live login methods (CONFIG_WRITE). Absent fields are no-ops; JSON null equals
+        absent (D46). Every accepted patch bumps the config version, re-signs the bundle and
+        appends a `config.login_methods.updated` audit event; the change affects the very next
+        auth call. Validation failures answer 400 with codes empty_patch, unknown_channel,
+        invalid_priority or duplicate_priority (enabled channels must keep distinct priorities).
+      summary: Patch login methods (publishes a new signed version)
+      tags: [config]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginMethodsPatch"
+      responses:
+        "200":
+          description: The published version entry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConfigVersion"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
 components:
   securitySchemes:
     bearerAuth:
@@ -721,6 +789,105 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AuditEvent"
+    ConfigBundle:
+      type: object
+      required: [version, issuedAtEpochSec, config, signature, publicKey]
+      properties:
+        version:
+          type: integer
+          format: int64
+          description: Monotonic config version; devices reject version <= last accepted.
+        issuedAtEpochSec:
+          type: integer
+          format: int64
+        config:
+          type: string
+          description: The exact canonical JSON string the signature covers (verify verbatim; do not re-serialize a parsed object).
+        signature:
+          type: string
+          description: Ed25519 signature over "version|config|issuedAtEpochSec", hex-encoded.
+        publicKey:
+          type: string
+          description: Ed25519 public key (X.509 SubjectPublicKeyInfo DER), hex-encoded.
+    ConfigVersion:
+      type: object
+      required: [version, issuedAtEpochSec, config, signature, changedBy, change]
+      properties:
+        version:
+          type: integer
+          format: int64
+        issuedAtEpochSec:
+          type: integer
+          format: int64
+        config:
+          type: string
+        signature:
+          type: string
+        changedBy:
+          type: string
+          description: Actor id ("system" for the bootstrap version).
+        change:
+          type: string
+          description: bootstrap or login_methods_updated.
+    AdminConfig:
+      type: object
+      required: [currentVersion, loginMethods, history]
+      properties:
+        currentVersion:
+          type: integer
+          format: int64
+        loginMethods:
+          $ref: "#/components/schemas/LoginMethodsState"
+        history:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConfigVersion"
+    LoginMethodsState:
+      type: object
+      required: [passwordLoginEnabled, otpAutoRegister, otpChannels]
+      properties:
+        passwordLoginEnabled:
+          type: boolean
+        otpAutoRegister:
+          type: boolean
+        otpChannels:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/ChannelState"
+    ChannelState:
+      type: object
+      required: [enabled, priority, devOnly]
+      properties:
+        enabled:
+          type: boolean
+        priority:
+          type: integer
+          description: Admin-set ordering, lower first; distinct across enabled channels.
+        devOnly:
+          type: boolean
+          description: Deployment property (D37); channel auto-disables in production runtimes.
+    LoginMethodsPatch:
+      type: object
+      description: Absent fields are no-ops; an all-absent body is 400 empty_patch.
+      properties:
+        passwordLoginEnabled:
+          type: [boolean, "null"]
+        otpAutoRegister:
+          type: [boolean, "null"]
+        otpChannels:
+          type: [object, "null"]
+          description: Keys are OTP channel names (SMS, TELEGRAM, EMAIL, WHATSAPP); unknown names are 400.
+          additionalProperties:
+            $ref: "#/components/schemas/ChannelPatch"
+    ChannelPatch:
+      type: object
+      description: devOnly is intentionally absent - a deployment property, not an admin preference (D37).
+      properties:
+        enabled:
+          type: [boolean, "null"]
+        priority:
+          type: [integer, "null"]
+          minimum: 0
   responses:
     NotFound:
       description: Resource not found

@@ -193,7 +193,8 @@ object SmtpSupport {
  */
 class OtpService(
     private val providers: Map<OtpChannel, OtpProvider>,
-    private val loginMethods: LoginMethodsConfig,
+    /** P1-5a: provider, not snapshot - admin config patches take effect on the next call. */
+    private val loginMethods: () -> LoginMethodsConfig,
     private val clock: () -> Instant = Instant::now,
 ) {
 
@@ -252,7 +253,7 @@ class OtpService(
      * provider call; disabled/unconfigured channels are refused without generating.
      */
     suspend fun issue(channel: OtpChannel, target: String, locale: String): Either<Issued, String> {
-        if (!loginMethods.isOtpChannelEnabled(channel)) return Either.Right("channel_disabled")
+        if (!loginMethods().isOtpChannelEnabled(channel)) return Either.Right("channel_disabled")
         val provider = providers[channel] ?: return Either.Right("provider_unavailable")
         val now = clock()
         val key = targetKey(channel, target)

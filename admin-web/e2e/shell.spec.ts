@@ -17,10 +17,15 @@ test.describe('shell (seeded ADMIN_SUPER session)', () => {
     await expect(rows.first()).toContainText('admin.user.updated');
   });
 
-  test('config center v0 shows the empty state (endpoints land with config service)', async ({ page }) => {
+  test('config center shows the live login-methods state and version history (P1-5a)', async ({ page }) => {
     await page.goto('/config');
-    await expect(page.getByTestId('config-empty-state')).toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Planned sections' })).toBeVisible();
+    await expect(page.getByTestId('config-current-version')).toContainText('Current config version: 2');
+    await expect(page.getByTestId('config-methods-table')).toBeVisible();
+    await expect(page.getByTestId('config-row-password')).toContainText('Password login');
+    await expect(page.getByTestId('config-row-SMS')).toContainText('devOnly');
+    await expect(page.getByTestId('config-history-2')).toContainText('login_methods_updated');
+    await expect(page.getByTestId('config-history-1')).toContainText('bootstrap');
+    await expect(page.getByTestId('config-history-table')).toHaveCount(1);
   });
 
   test('logout returns to the login screen and clears the session', async ({ page }) => {

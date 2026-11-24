@@ -11,7 +11,8 @@ class AuthService(
     private val passwords: PasswordService,
     private val tokens: JwtService,
     private val otp: OtpService,
-    private val loginMethods: LoginMethodsConfig,
+    /** P1-5a: provider, not snapshot - admin config patches take effect on the next call. */
+    private val loginMethods: () -> LoginMethodsConfig,
     private val eventRecorder: EventChainRecorder,
     private val devices: DeviceStore? = null,
     private val clock: () -> java.time.Instant = java.time.Instant::now,
@@ -105,7 +106,7 @@ class AuthService(
      * unknown identifiers to equalize timing (B-04).
      */
     fun loginWithPassword(identifier: String, password: String, deviceLabel: String? = null): PasswordLoginResult {
-        if (!loginMethods.passwordLoginEnabled) return PasswordLoginResult.Disabled
+        if (!loginMethods().passwordLoginEnabled) return PasswordLoginResult.Disabled
         val user = identifier.toUser()
         val hash = user?.passwordHash
         val ok = if (user != null && hash != null) passwords.verify(password, hash) else {
@@ -161,7 +162,7 @@ class AuthService(
             eventRecorder.append("auth.login.otp", mapOf("userId" to existing.id, "channel" to match.channel.name))
             return OtpVerifyResult.Success(existing, sessionFor(existing, now, deviceLabel), created = false)
         }
-        if (!loginMethods.otpAutoRegister) return OtpVerifyResult.Failed("registration_disabled")
+        if (!loginMethods().otpAutoRegister) return OtpVerifyResult.Failed("registration_disabled")
         val displayName = displayNameRaw?.trim()?.takeIf { it.length in 2..64 } ?: "Rider"
         val user = User(
             id = Ids.newId(),

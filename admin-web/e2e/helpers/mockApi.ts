@@ -26,6 +26,24 @@ const AUDIT_EVENTS = [
 
 const TOKENS = { accessToken: 'e2e-access', refreshToken: 'e2e-refresh', accessExpiresAtEpochSec: 4102444800 };
 
+/** P1-5a config service fixture: current login methods + 2-version history. */
+export const ADMIN_CONFIG = {
+  currentVersion: 2,
+  loginMethods: {
+    passwordLoginEnabled: true,
+    otpAutoRegister: true,
+    otpChannels: {
+      SMS: { enabled: true, priority: 10, devOnly: true },
+      TELEGRAM: { enabled: false, priority: 20, devOnly: false },
+      EMAIL: { enabled: false, priority: 30, devOnly: false },
+    },
+  },
+  history: [
+    { version: 2, issuedAtEpochSec: 1737610000, config: '{"loginMethods":{}}', signature: 'sig2', changedBy: 'u1', change: 'login_methods_updated' },
+    { version: 1, issuedAtEpochSec: 1737600000, config: '{"loginMethods":{}}', signature: 'sig1', changedBy: 'system', change: 'bootstrap' },
+  ],
+};
+
 const json = (route: Route, status: number, body: unknown): Promise<void> =>
   route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(body) });
 
@@ -45,6 +63,8 @@ export async function mockApi(page: Page, role: string): Promise<void> {
     json(route, 200, { users: USERS, limit: 20, offset: 0 }));
   await page.route('**/v1/admin/audit?*', (route) =>
     json(route, 200, { verifyOk: true, events: AUDIT_EVENTS }));
+  await page.route('**/v1/admin/config/login-methods', (route) =>
+    json(route, 200, ADMIN_CONFIG));
 }
 
 /** Seeds a session so the shell boots straight into the authenticated area. */

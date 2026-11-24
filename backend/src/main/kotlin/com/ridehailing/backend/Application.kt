@@ -19,7 +19,9 @@ import com.ridehailing.backend.auth.UserStatus
 import com.ridehailing.backend.auth.Role
 import com.ridehailing.backend.auth.DeviceStore
 import com.ridehailing.backend.auth.authRoutes
+import com.ridehailing.backend.config.ConfigService
 import com.ridehailing.backend.config.SignedConfigBundle
+import com.ridehailing.backend.config.configRoutes
 import com.ridehailing.backend.events.EventChain
 import com.ridehailing.backend.health.healthRoutes
 import com.ridehailing.backend.rbac.AdminService
@@ -56,6 +58,8 @@ private val ROUTE_METHODS: Map<String, String> = mapOf(
     "/v1/me" to "GET",
     "/v1/me/sessions" to "GET",
     "/v1/me/sessions/{familyId}" to "DELETE",
+    "/v1/config" to "GET",
+    "/v1/admin/config/login-methods" to "GET, PATCH",
     "/v1/admin/users" to "GET, POST",
     "/v1/admin/users/{id}" to "GET, PATCH",
     "/v1/admin/users/{id}/reset-password" to "POST",
@@ -82,20 +86,25 @@ class AuthGraph(
     val passwords: PasswordService = PasswordService(),
     val tokens: JwtService = JwtService(),
     val devInbox: DevInboxOtpProvider = DevInboxOtpProvider(),
-    val loginMethods: LoginMethodsConfig = LoginMethodsConfig(),
     val devices: DeviceStore = InMemoryDeviceStore(),
     val eventChain: EventChain = EventChain(),
 ) {
-    val otp = OtpService(providers = buildProviders(devInbox), loginMethods = loginMethods)
-
     private val recorder = AuthService.EventChainRecorder { type, payload -> eventChain.append(type, payload) }
+
+    /** P1-5a: the live config center - owns LoginMethodsConfig + signed bundle history. */
+    val config: ConfigService = ConfigService(
+        bundle = SignedConfigBundle.inMemoryDevKeys(),
+        eventRecorder = { type, payload -> eventChain.append(type, payload) },
+    )
+
+    val otp = OtpService(providers = buildProviders(devInbox), loginMethods = { config.loginMethods })
 
     val service = AuthService(
         users = users,
         passwords = passwords,
         tokens = tokens,
         otp = otp,
-        loginMethods = loginMethods,
+        loginMethods = { config.loginMethods },
         eventRecorder = recorder,
         devices = devices,
     )
@@ -236,6 +245,7 @@ fun Application.module(
         healthRoutes(version = BACKEND_VERSION)
         authRoutes(auth.service)
         adminRoutes(auth.service, auth.admin, auth.eventChain)
+        configRoutes(auth.config, auth.service)
         if (testProfile) testRoutes(eventChain, configBundle, auth.devInbox)
     }
 }
