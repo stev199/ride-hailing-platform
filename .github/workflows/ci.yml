@@ -136,7 +136,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [changes, backend-test]
-    if: ${{ needs.changes.outputs.contract == 'true' }}
+    if: ${{ needs.changes.outputs.contract == 'true' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v4
       - if: ${{ hashFiles('backend/Dockerfile') == '' }}
