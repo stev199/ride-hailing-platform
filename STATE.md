@@ -1,9 +1,9 @@
 # STATE - ride-hailing-platform
 
 Last updated: 2026-11-24
-Working mode: **SPEED MODE v2 (D69)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing.
+Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
 Current phase: 2 (android shell) - P2-1a scaffold, P2-1b navigation/theming/i18n, P2-3 storyboard+video evidence DONE AND CI-VERIFIED (run 45507128835: 6 real-UI storyboard step screenshots + 2 screen recordings on the gallery); Phase 1 closed earlier (P1-CONTRACT rounds 1-5)
-Current task: P0-C CLOSED (formal): report gallery shows the storyboard filmstrip AND video for a green run - https://stev199.github.io/ride-hailing-platform/runs/45507128835/. Next: P2-1c (Hilt/Room+FTS/DataStore/outbox v1) or P1-4c admin i18n or P2-2 MapLibre main screen (needs P2-1c)
+Current task: P0-C CLOSED (formal, CI-verified run 45507128835); CI green at HEAD b1c54eb (run 45509270766). NOW: P2-1c (Hilt DI + Room+FTS + DataStore + outbox v1) - started 2026-11-25 session. Next: P2-2 MapLibre (needs P2-1c), P1-4c admin i18n, P1-5 ledger schema.
 Last completed task: P2-3 evidence chain - 15 CI iterations, 8 distinct root causes (3 pre-existing bugs found on the way: gallery media never shipped; e2e-cross-actor ran hollow-green for its whole history; guest screenrecord dead on ATD), all fixed with log evidence - see PROGRESS_LOG 2026-11-24 entries
 
 ## Gate status table
