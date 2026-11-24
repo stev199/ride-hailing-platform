@@ -169,6 +169,8 @@ jobs:
           npm test                      # vitest/RTL
           npx playwright install --with-deps chromium firefox
           npx playwright test           # chromium+firefox, route-mocked API (P1-4), axe checks
+          # summary.json feeds the report gallery shard cards (tools/report/generate.js)
+          node -e "const r=require('./artifacts/admin-playwright.json');const s=r.stats??{};require('fs').writeFileSync('artifacts/summary.json',JSON.stringify({tests:(s.expected??0)+(s.unexpected??0)+(s.skipped??0)+(s.flaky??0),passed:s.expected??0,failed:s.unexpected??0,skipped:s.skipped??0,flaky:[]}))"
       - uses: actions/upload-artifact@v4
         if: ${{ always() && hashFiles('admin-web/package.json') != '' }}
         with:

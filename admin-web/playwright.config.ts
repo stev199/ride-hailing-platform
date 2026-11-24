@@ -12,7 +12,9 @@ export default defineConfig({
   fullyParallel: true,
   retries: process.env.CI ? 1 : 0,
   workers: 2,
-  reporter: process.env.CI ? [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]] : [['list']],
+  reporter: process.env.CI
+    ? [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }], ['json', { outputFile: 'artifacts/admin-playwright.json' }]]
+    : [['list'], ['json', { outputFile: 'artifacts/admin-playwright.json' }]],
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'retain-on-failure',
