@@ -102,6 +102,22 @@ private fun parseStatus(raw: String): UserStatus? =
 private fun parseRole(raw: String): Role? = Role.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
 
 /**
+ * P1-CONTRACT: admin list pagination must match the openapi query schemas
+ * (D49 generator-precision): limit in 1..maxLimit, offset >= 0. Out-of-range
+ * = 400 invalid_pagination (schemathesis ST201 caught the silent clamp/accept).
+ * Returns null after responding when the parameters violate the contract.
+ */
+private suspend fun ApplicationCall.paginationOr400(defaultLimit: Int, maxLimit: Int): Pair<Int, Int>? {
+    val limit = request.queryParameters["limit"]?.toIntOrNull() ?: defaultLimit
+    val offset = request.queryParameters["offset"]?.toIntOrNull() ?: 0
+    if (limit < 1 || limit > maxLimit || offset < 0) {
+        respond(HttpStatusCode.BadRequest, err("invalid_pagination", "limit must be 1..$maxLimit, offset must be >= 0"))
+        return null
+    }
+    return limit to offset
+}
+
+/**
  * P1-3 admin routes: user management with audited mutations, audit tail, session
  * admin, and the user's own session list. Every mutation goes through AdminService
  * which appends to the hash-chained event store.
@@ -111,10 +127,10 @@ fun Route.adminRoutes(service: AuthService, admin: AdminService, eventChain: Eve
         get("/users") {
             call.withPermission(service, Perm.USERS_READ) {
                 val query = call.request.queryParameters["query"]
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 20
-                val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
+                val (limit, offset) = call.paginationOr400(defaultLimit = 20, maxLimit = 100)
+                    ?: return@withPermission
                 val users = admin.search(query, limit, offset)
-                call.respond(HttpStatusCode.OK, AdminUserListDto(users.map { it.toDto() }, limit.coerceIn(1, 100), offset))
+                call.respond(HttpStatusCode.OK, AdminUserListDto(users.map { it.toDto() }, limit, offset))
             }
         }
         post("/users") {
@@ -193,7 +209,8 @@ fun Route.adminRoutes(service: AuthService, admin: AdminService, eventChain: Eve
         }
         get("/audit") {
             call.withPermission(service, Perm.AUDIT_READ) {
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 500) ?: 50
+                val (limit, _) = call.paginationOr400(defaultLimit = 50, maxLimit = 500)
+                    ?: return@withPermission
                 val events = eventChain.snapshot().takeLast(limit)
                 call.respond(
                     HttpStatusCode.OK,

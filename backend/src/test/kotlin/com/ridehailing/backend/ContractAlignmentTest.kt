@@ -185,4 +185,37 @@ class ContractAlignmentTest {
         assertTrue(!re.matches("331234567890123456789"))
         assertTrue(!re.matches("331234 56789"))
     }
+
+    @Test
+    fun `admin create phone mirrors the enforced normalization - P1-CONTRACT ST202 fix`() {
+        val register = pattern("RegisterRequest", "phone")
+        val admin = pattern("AdminCreateUser", "phone")
+        assertEquals(register.pattern, admin.pattern, "admin create enforces the same phone shape (AdminService.invalid_phone)")
+        for (raw in listOf("33620000003", "00000000", "12345678", "1234567", "1234567890123456", "+33612345678", "336-12345678", "331234 56789")) {
+            val expected = Identifiers.normalizePhone(raw) != null
+            assertEquals(expected, admin.matches(raw), "AdminCreateUser.phone mismatch for '$raw'")
+            assertEquals(expected, register.matches(raw), "register/admin pattern drift for '$raw'")
+        }
+    }
+
+    @Test
+    fun `admin patch locale is an enum of the server-supported set - P1-CONTRACT ST202 fix`() {
+        val loc = prop("AdminPatchUser", "locale")
+        val values = loc["enum"] as? List<*> ?: fail("AdminPatchUser.locale must be an enum (AdminService 400 invalid_locale)")
+        assertEquals(setOf("en", "fr", "ar", null), values.toSet(), "patch supports en/fr/ar plus absent-null")
+    }
+
+    @Test
+    fun `login methods patch is schema-precise on empty bodies and channel keys - P1-CONTRACT ST202 fix`() {
+        @Suppress("UNCHECKED_CAST")
+        val schema = schemas["LoginMethodsPatch"] as? Map<String, Any> ?: fail("LoginMethodsPatch missing")
+        assertEquals(1, schema["minProperties"], "an all-absent body must be schema-invalid: the server answers 400 empty_patch (D70)")
+        @Suppress("UNCHECKED_CAST")
+        val otp = (schema["properties"] as Map<String, Any>)["otpChannels"] as? Map<String, Any> ?: fail("otpChannels missing")
+        @Suppress("UNCHECKED_CAST")
+        val names = otp["propertyNames"] as? Map<String, Any> ?: fail("otpChannels must constrain keys via propertyNames (unknown_channel is 400)")
+        @Suppress("UNCHECKED_CAST")
+        val keys = names["enum"] as List<*>
+        assertEquals(setOf("SMS", "TELEGRAM", "EMAIL", "WHATSAPP"), keys.toSet())
+    }
 }

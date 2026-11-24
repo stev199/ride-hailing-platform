@@ -465,6 +465,7 @@ paths:
         "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
 components:
   securitySchemes:
     bearerAuth:
@@ -703,6 +704,8 @@ components:
           enum: [RIDER, DRIVER, ADMIN_SUPER, ADMIN_OPS, ADMIN_SUPPORT, ADMIN_FINANCE, ADMIN_VERIFIER, ADMIN_READONLY]
         phone:
           type: [string, "null"]
+          pattern: '^(?:[^0-9]*[0-9]){8,15}[^0-9]*$'
+          description: 8-15 ASCII digits; every other character (spaces, dashes, parentheses, a leading +) is ignored during normalization. Values with fewer than 8 or more than 15 digits are rejected with 400 invalid_phone (same shape as RegisterRequest.phone).
         email:
           type: [string, "null"]
         password:
@@ -722,6 +725,7 @@ components:
           pattern: '[^ \t\n\u000B\f\r ]'
         locale:
           type: [string, "null"]
+          enum: [en, fr, ar, null]
           description: Server-supported values en, fr, ar; other values are rejected with 400 invalid_locale.
         status:
           type: [string, "null"]
@@ -868,7 +872,8 @@ components:
           description: Deployment property (D37); channel auto-disables in production runtimes.
     LoginMethodsPatch:
       type: object
-      description: Absent fields are no-ops; an all-absent body is 400 empty_patch.
+      minProperties: 1
+      description: Absent fields are no-ops; an all-absent body is 400 empty_patch (D70), so the schema never generates one.
       properties:
         passwordLoginEnabled:
           type: [boolean, "null"]
@@ -877,6 +882,8 @@ components:
         otpChannels:
           type: [object, "null"]
           description: Keys are OTP channel names (SMS, TELEGRAM, EMAIL, WHATSAPP); unknown names are 400.
+          propertyNames:
+            enum: [SMS, TELEGRAM, EMAIL, WHATSAPP]
           additionalProperties:
             $ref: "#/components/schemas/ChannelPatch"
     ChannelPatch:

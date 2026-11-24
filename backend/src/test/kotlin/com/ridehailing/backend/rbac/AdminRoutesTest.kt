@@ -64,6 +64,26 @@ class AdminRoutesTest {
     }
 
     @Test
+    fun `pagination outside documented bounds is 400 invalid_pagination - P1-CONTRACT`() = withApp { client, graph ->
+        createAdminIn(graph, "33610000007", Role.ADMIN_SUPER)
+        val superToken = client.getToken("33610000007", "admin-password-1")
+
+        // GET /v1/admin/users: documented limit 1..100, offset >= 0.
+        for (bad in listOf("/v1/admin/users?limit=0", "/v1/admin/users?limit=101", "/v1/admin/users?offset=-1", "/v1/admin/users?limit=501")) {
+            val res = client.authed(bad, superToken)
+            assertEquals(HttpStatusCode.BadRequest, res.status, "expected 400 for $bad: ${res.bodyAsText()}")
+            assertEquals("invalid_pagination", res.errCode(), bad)
+        }
+        // Documented boundaries stay accepted.
+        assertEquals(HttpStatusCode.OK, client.authed("/v1/admin/users?limit=100&offset=0", superToken).status)
+
+        // GET /v1/admin/audit: documented limit 1..500 - no silent clamp (ST201 finding).
+        assertEquals(HttpStatusCode.BadRequest, client.authed("/v1/admin/audit?limit=501", superToken).status)
+        assertEquals(HttpStatusCode.BadRequest, client.authed("/v1/admin/audit?limit=0", superToken).status)
+        assertEquals(HttpStatusCode.OK, client.authed("/v1/admin/audit?limit=500", superToken).status)
+    }
+
+    @Test
     fun `driver and rider tokens get 403 on admin routes - driver blindness precursor`() = withApp { client, graph ->
         createAdminIn(graph, "33610000001", Role.ADMIN_SUPER)
         val superToken = client.getToken("33610000001", "admin-password-1")
