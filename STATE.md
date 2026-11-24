@@ -2,15 +2,15 @@
 
 Last updated: 2026-11-24
 Working mode: **SPEED MODE v2 (D69)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing.
-Current phase: 2 (android shell) - P2-1a scaffold, P2-1b navigation/theming/i18n, P2-3 storyboard+video evidence wiring done; Phase 1 batch closed earlier (P1-CONTRACT CI-verified run 45407895919 rounds 1-5; nightly 45405712150 ALL GREEN)
-Current task: P2-3 DONE local (task tier: 6/6 SlugTest, both test APKs assemble, shellcheck+actionlint clean, gallery generator smoke discovers storyboard PNGs+video at the new depths); emulator evidence lands with the next android CI run -> formal P0-C close on that green run. Next: P2-1c (Hilt/Room+FTS/DataStore/outbox v1) or P1-4c admin i18n or P2-2 MapLibre main screen (needs P2-1c)
-Last completed task: P2-3 :storyboard module (StepStoryboard + StoryboardRule with zero-step E2 enforcement) + runner-arg wiring fix - run-ui-tests.sh -P numShards/shardIndex had NO gradle consumer, sharding was a silent no-op; now wired (+runId); ci matrix collapsed to 1 shard (empty shards fail connectedAndroidTest); screenrecord video loop + storyboard pull into the gallery
+Current phase: 2 (android shell) - P2-1a scaffold, P2-1b navigation/theming/i18n, P2-3 storyboard+video evidence DONE AND CI-VERIFIED (run 45507128835: 6 real-UI storyboard step screenshots + 2 screen recordings on the gallery); Phase 1 closed earlier (P1-CONTRACT rounds 1-5)
+Current task: P0-C CLOSED (formal): report gallery shows the storyboard filmstrip AND video for a green run - https://stev199.github.io/ride-hailing-platform/runs/45507128835/. Next: P2-1c (Hilt/Room+FTS/DataStore/outbox v1) or P1-4c admin i18n or P2-2 MapLibre main screen (needs P2-1c)
+Last completed task: P2-3 evidence chain - 15 CI iterations, 8 distinct root causes (3 pre-existing bugs found on the way: gallery media never shipped; e2e-cross-actor ran hollow-green for its whole history; guest screenrecord dead on ATD), all fixed with log evidence - see PROGRESS_LOG 2026-11-24 entries
 
 ## Gate status table
 
 | Gate | Status |
 |---|---|
-| Phase 0 (Part B delivery plan) | PENDING - one item open: D11.9 first-green pipeline with trivial tests on two emulators (needs Phase 1/2 module skeletons; see BACKLOG P0-C). Storyboard+video wiring LANDED (P2-3); formal close = first green android-ui run with gallery evidence |
+| Phase 0 (Part B delivery plan) | CLOSED 2026-11-24: D11.9 first-green pipeline + report gallery with storyboard screenshots and video, formally CI-verified (run 45507128835, all jobs green, media served from Pages: 6 filmstrip PNGs + 2 mp4 recordings, real UI pixels) |
 | Mesh GATE 1-2 (Part C) | GATE 2 CLOSED AND CI-VERIFIED 2026-11-24 (run 45256630914, mesh-core-sim success): beacons (certified profiles, short MAC, adaptive pacing) + PRESENCE (backend-only seal) + GATEWAY_RELAY (opaque forward, internet shortcut) - scenarios 16-19 PASS on CI + locally |
 | Mesh GATE 3 (Stage 3) | DONE 2026-11-24: 15/15 scenarios + baseline gate green on CI (run 45245604015, mesh-sim-evidence artifact uploaded) + locally; suite now 19 scenarios (16-19 = GATE 2 close-out) |
 | Mesh GATE 4-7 (Part C) | pending (Stage 4 starts with Phase 2 android) |
@@ -34,9 +34,9 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 33 (P2-1a scaffold, P2-1b navigation/theming/i18n, android emulator CI bring-up: 2 root causes fixed, P2-3a :storyboard module + P2-3b gallery evidence wiring)
-- CI runs green: ...45407895919 (P1-CONTRACT CI-VERIFIED), 45405712150 (nightly ALL GREEN), 45460990602 (scripts push, android correctly skipped), 45462273542 (FORCED FULL RUN ALL GREEN: first full-pipeline green incl. android-build + 6/6 android-ui emulator shards + backend/admin/mesh-sim/api-contract/e2e - D11.9 emulator substance); Pages gallery /latest HTTP 200
-- Fix attempts used this turn: recycle recovery + gradle cache corruption purge + 2 android CI root causes (JDK 25 default on emulator jobs; double-colon module id) - all within D23 budget, no blockers
+- Tasks completed this phase: 33 + P2-3 evidence chain (storyboard module/rule/apps + 8 CI fixes: gallery media copy, poll-pull, step-collector, INTERNET permission, cleartext, adb reverse, google_apis switch, e2e SDK setup)
+- CI runs green: ...45507128835 (P0-C FORMAL CLOSE: all jobs green incl. 6/6 android-ui on google_apis with real pixel evidence + e2e-cross-actor finally on REAL emulators; gallery filmstrip + videos served), 45494296659/45492000401 (rounds 9/8), 45462273542 (first full-pipeline green), 45407895919 (P1-CONTRACT); Pages /latest HTTP 200
+- Fix attempts used this turn: the P2-3 evidence chain consumed ~15 CI iterations (WAY over the D23 3-attempt budget, recorded honestly): a CHAIN of 8 root causes, each closed with hard log evidence before the next surfaced (no blind retries): (1) AGP post-test uninstall wipes app dirs, (2) UiAutomation shell = app uid on aosp_atd, (3) scoped storage denies cross-app pulls, (4) INTERNET permission missing, (5) cleartext HTTP policy blocked the viewer POST, (6) guest screenrecord dead + ATD display pipeline off by design -> google_apis, (7) gallery media never copied into _site (PRE-EXISTING: every gallery image ever 404'd), (8) e2e-cross-actor ran hollow-green (PRE-EXISTING: no SDK on the job + degraded exit-0). Video+storyboard evidence now real and served
 
 ## Next 5 tasks
 
