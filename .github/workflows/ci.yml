@@ -424,6 +424,10 @@ jobs:
             if gh run download "$rid" -n "test-report-$rid" -D "_hist/$rid" 2>/dev/null; then
               mkdir -p "_site/runs/$rid"
               cp -r "_hist/$rid/." "_site/runs/$rid/" || true
+              # The fallback artifact embeds the WHOLE _site of that run (incl. its own
+              # restored history). A run page must contain only ITS report - dropping the
+              # nested runs/ dir keeps snapshots one level deep (D66, no re-amplification).
+              rm -rf "_site/runs/$rid/runs" || true
               echo "restored gallery history for run $rid"
             fi
           done
@@ -447,6 +451,13 @@ jobs:
         with:
           name: test-report-${{ github.run_id }}
           path: _site
+      - name: Settle before deploy (artifact metadata is eventually consistent)
+        run: |
+          # deploy-pages@v4 queries the Pages API for the artifact seconds after upload;
+          # at least two runs failed with "Fetching artifact metadata failed ... No
+          # artifacts named github-pages" even though the artifact existed (verified via
+          # the artifacts API). A 10 s settle window absorbs the propagation lag.
+          sleep 10
       - name: Deploy to Pages (main only)
         id: pages
         if: ${{ github.ref == 'refs/heads/main' }}
