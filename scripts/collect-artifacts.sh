@@ -9,15 +9,17 @@ mkdir -p "$OUT/logcat" "$OUT/screens" "$OUT/dumpsys" "$OUT/storyboard"
 
 # Storyboard step screenshots (E2): the instrumentation writes PNGs into its own external
 # files dir, and run-ui-tests.sh DRAINS them continuously while the tests run (AGP uninstalls
-# the app after connected tests, wiping /sdcard/Android/data/<pkg> on API 30+; UiAutomation
-# shell = app uid on aosp_atd, so no /data/local/tmp bridge is possible). This final drain
-# catches anything the poll loop raced on; the gallery-safe layout is
+# the app after connected tests, wiping /sdcard/Android/data/<pkg> on API 30+; plain adb pull
+# of another app's dir is denied by scoped storage -> run-as tar, see run-ui-tests.sh). This
+# final drain catches anything the poll loop raced on; gallery-safe layout:
 # artifacts/ui-<app>-<shard>/storyboard/<app>/<test-slug>/*.png (walk depth limit).
 for pair in com.ridehailing.rider:rider com.ridehailing.driver:driver; do
   pkg="${pair%%:*}"; app="${pair##*:}"
-  adb pull "/sdcard/Android/data/$pkg/files/storyboard" "$OUT/sb-$app" >/dev/null 2>&1 || continue
-  cp -R "$OUT/sb-$app/storyboard/." "$OUT/storyboard/$app/" 2>/dev/null || true
-  rm -rf "$OUT/sb-$app"
+  tmp="$OUT/sb-$app"; mkdir -p "$tmp"
+  adb exec-out "run-as $pkg tar -cf - /storage/emulated/0/Android/data/$pkg/files/storyboard 2>/dev/null" \
+    | tar -xf - -C "$tmp" 2>/dev/null || { rm -rf "$tmp"; continue; }
+  cp -R "$tmp/storage/emulated/0/Android/data/$pkg/files/storyboard/." "$OUT/storyboard/$app/" 2>/dev/null || true
+  rm -rf "$tmp"
 done
 echo "[ok] storyboard evidence: $(find "$OUT/storyboard" -name '*.png' 2>/dev/null | wc -l) pngs"
 

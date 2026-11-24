@@ -27,14 +27,11 @@ if [ -z "${JAVA_HOME:-}" ] && [ -n "${JAVA_HOME_17_X64:-}" ]; then
   export PATH="$JAVA_HOME/bin:$PATH"
 fi
 
-# Emulator images are userdebug: root adbd so the shell can reach /sdcard/Android/data
-# (stale-storyboard clean + drains) - best effort; plain shell suffices on these images.
-adb root >/dev/null 2>&1 || true
-sleep 3
-# Clean slate so stale storyboards/recordings from a previous run cannot leak into the gallery.
-adb shell rm -rf /data/local/tmp/storyboard /data/local/tmp/ui-rec.mp4 /data/local/tmp/ui-probe.mp4 \
-                 /sdcard/Android/data/com.ridehailing.rider/files/storyboard \
-                 /sdcard/Android/data/com.ridehailing.driver/files/storyboard >/dev/null 2>&1 || true
+# Storyboard transport is run-as based (see pull_storyboards) - no adb root needed.
+# Clean slate so stale storyboards/recordings from a previous run cannot leak into the gallery
+# (run-as = app uid, absolute external path; fails harmlessly before the app is installed).
+adb shell "run-as com.ridehailing.rider rm -rf /storage/emulated/0/Android/data/com.ridehailing.rider/files/storyboard 2>/dev/null ; run-as com.ridehailing.driver rm -rf /storage/emulated/0/Android/data/com.ridehailing.driver/files/storyboard 2>/dev/null" >/dev/null 2>&1 || true
+adb shell rm -rf /data/local/tmp/ui-rec.mp4 /data/local/tmp/ui-probe.mp4 >/dev/null 2>&1 || true
 
 VIDEO_DIR="artifacts/ui-${APP}-${SHARD}/video"
 mkdir -p "$VIDEO_DIR"
@@ -109,18 +106,24 @@ stop_recorder() {
   echo "[ok] video evidence mode=$REC_MODE for $1"
 }
 
-# Storyboard transport (P2-3, run 45479391089 root cause): UiAutomation shell commands run
-# as the APP uid on aosp_atd (empty output, no effect - SELinux denies /data/local/tmp), so
-# the instrumentation cannot copy storyboards anywhere but its own external files dir, which
-# AGP's post-test uninstall WIPES. The gradle connected run therefore goes to the BACKGROUND
-# and this loop drains the app dirs WHILE the tests execute, before the wipe lands.
+# Storyboard transport (P2-3, runs 45473604435..45482463962 root causes):
+# 1) UiAutomation shell commands run as the APP uid on aosp_atd (empty output, no effect -
+#    SELinux denies /data/local/tmp) -> no in-test bridge;
+# 2) AGP uninstalls the app after connectedDebugAndroidTest, wiping /sdcard/Android/data/<pkg>
+#    -> post-test pulls find nothing;
+# 3) plain adb pull of another app's Android/data is denied by scoped storage (non-root shell).
+# FIX: the app under test is DEBUGGABLE -> run-as (app uid) can tar its own external files dir,
+# and run-ui-tests.sh drains it WHILE the tests run (backgrounded gradle), before the wipe.
 OUT_DIR="artifacts/ui-${APP}-${SHARD}"
 mkdir -p "$OUT_DIR/storyboard/rider" "$OUT_DIR/storyboard/driver"
 pull_storyboards() {
   local pkg="$1" app="$2"
-  adb pull "/sdcard/Android/data/$pkg/files/storyboard" "$OUT_DIR/sb-$app" >/dev/null 2>&1 || return 0
-  cp -R "$OUT_DIR/sb-$app/storyboard/." "$OUT_DIR/storyboard/$app/" 2>/dev/null || true
-  rm -rf "$OUT_DIR/sb-$app"
+  local tmp="$OUT_DIR/sb-$app"
+  mkdir -p "$tmp"
+  adb exec-out "run-as $pkg tar -cf - /storage/emulated/0/Android/data/$pkg/files/storyboard 2>/dev/null" \
+    | tar -xf - -C "$tmp" 2>/dev/null || { rm -rf "$tmp"; return 0; }
+  cp -R "$tmp/storage/emulated/0/Android/data/$pkg/files/storyboard/." "$OUT_DIR/storyboard/$app/" 2>/dev/null || true
+  rm -rf "$tmp"
 }
 
 count_storyboards() {
