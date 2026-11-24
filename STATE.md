@@ -2,9 +2,9 @@
 
 Last updated: 2026-11-24
 Working mode: **SPEED MODE v2 (D69)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing.
-Current phase: 2 (android shell) - Phase 1 batch DONE (P1-CONTRACT CI-verified run 45407895919 rounds 1-5; nightly 45405712150 ALL GREEN incl. mesh-long-sim fix)
-Current task: P2-1a Android scaffold pushed (e6fbec7..b791319: standalone gradle root, :core-ui theme+i18n en/fr/ar, :app-rider/:app-driver shells, trivial tests, FULL android-build CI contract verified locally incl. APKs) - CI android-build + android-ui emulator jobs + nightly matrix verify on this push; next: P2-1b navigation+theming, or P1-4c admin i18n (gate-tier visual)
-Last completed task: P2-1a Android project scaffold (task tier: unit tests green + assembleDebug + assembleDebugAndroidTest both apps; run-ui-tests.sh standalone layout fix; recycle-corrupted gradle caches purged)
+Current phase: 2 (android shell) - P2-1a scaffold + P2-1b navigation/theming/i18n done and CI-verified; Phase 1 batch closed earlier (P1-CONTRACT CI-verified run 45407895919 rounds 1-5; nightly 45405712150 ALL GREEN)
+Current task: P2-1b DONE + CI-VERIFIED (run 45462273542 ALL GREEN - first full-pipeline green incl. 6/6 android emulator shards with launch+navigation tests); next: P2-1c (Hilt/Room+FTS/DataStore/outbox v1) or P1-4c admin i18n or P2-3 storyboard helper (closes P0-C gallery piece)
+Last completed task: P2-1b shared two-tab navigation + mode-aware theme + i18n completion (commit f3f0daa; 2 CI root causes fixed on the way: emulator jobs ran on runner-default JDK 25.0.5 -> setup-java temurin 17 added, and '::app-rider' empty-segment module ids)
 
 ## Gate status table
 
@@ -34,16 +34,16 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 30 (P2-1a Android scaffold: standalone gradle root + :core-ui/:app-rider/:app-driver + trivial tests + run-ui-tests.sh layout fix; recycle recovery incl. gradle cache corruption purge - see PROGRESS_LOG.md)
-- CI runs green: 45256630914 (GATE 2 close-out), 45286635288 (P1-3 forced full run), 45333709256 (P1-4 admin shell), 45348236832 (batch 1), 45356449692 (P1-5a2 docs push), 45371383121 (P1-CONTRACT push; api-contract skipped there - contract filter fix 4ff447b), 45407895919 (P1-CONTRACT CI-VERIFIED: api-contract SUCCESS, rounds 1-5 closed), 45405712150 (nightly ALL GREEN incl. mesh-long-sim fix); Pages gallery /latest HTTP 200
-- Fix attempts used this turn: recycle recovery + gradle cache corruption diagnosis (empty workerMain/transforms dir shells -> purge; modules-2 verified intact) - all within D23 budget, no blockers
+- Tasks completed this phase: 31 (P2-1a scaffold + P2-1b navigation/theming/i18n + android emulator CI bring-up: 2 root causes fixed - see PROGRESS_LOG.md)
+- CI runs green: ...45407895919 (P1-CONTRACT CI-VERIFIED), 45405712150 (nightly ALL GREEN), 45460990602 (scripts push, android correctly skipped), 45462273542 (FORCED FULL RUN ALL GREEN: first full-pipeline green incl. android-build + 6/6 android-ui emulator shards + backend/admin/mesh-sim/api-contract/e2e - D11.9 emulator substance); Pages gallery /latest HTTP 200
+- Fix attempts used this turn: recycle recovery + gradle cache corruption purge + 2 android CI root causes (JDK 25 default on emulator jobs; double-colon module id) - all within D23 budget, no blockers
 
 ## Next 5 tasks
 
-1. Verify P2-1a on CI (android-build + android-ui rider/driver emulator shards + nightly matrix) - first CI compile of the android module
-2. P2-1b navigation (Compose Navigation) + full theming pass + i18n completion
+1. P2-3 storyboard helper wired into app modules + test-rule (closes the P0-C gallery piece: storyboard screenshots + video)
+2. P2-1c Hilt DI, Room+FTS, DataStore, outbox v1
 3. P1-4c admin i18n EN/FR/AR-RTL + screenshot baselines (gate-tier visual work)
-4. P2-1c Hilt DI, Room+FTS, DataStore, outbox v1
+4. P2-2 MapLibre main screen vs self-hosted tiles (needs P2-1c)
 5. Extras: mesh long-mode scenario runner (nightly --scenario=long selection; BACKLOG)
 
 ## Phase 0 setup record (from repository bootstrap)
