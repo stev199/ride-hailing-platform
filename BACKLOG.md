@@ -38,7 +38,7 @@ Ordered granular tasks. Each is finishable and verifiable in one work session. D
 | P1B-3 | mesh-core routing: seen-cache, flooding, breadcrumbs, route discovery, cost function + Dijkstra oracle (Stage 2) | P1B-2 | done | 61 tests incl. 200-graph oracle parity |
 | P1B-4 | mesh-core simulator: topology/mobility/loss models + 15 mandatory scenarios + metrics + baseline.json (Stage 3, GATE 3) | P1B-3 | done | docs/evidence/mesh-sim/; mesh-core/baseline.json gate; 15/15 PASS local 2026-11-24; D51-D58; CI wiring in ci.yml mesh job (test simReport + artifact); CI green run 45245604015 |
 | P1B-2b | GATE 2 close-out: DRIVER_BEACON (certified profile snippet relay-once, short MAC, adaptive pacing), PRESENCE (sealed to backend), GATEWAY_RELAY (opaque forward, internet shortcut) + scenarios 16-19 | P1B-4 | done | mesh-core/src/main/kotlin/com/ridehailing/mesh/app/ (22 tests); scenarios 16-19 all PASS local; baseline.json additive (existing 15 byte-identical); replay hole caught+fixed (D60); commits a1a055d, d73e26d |
-| P1B-5 | mesh-core Stage 4 Android integration prep: sim-bridge topology engine wiring | P1B-4 | todo |
+| P1B-5 | mesh-core Stage 4 Android integration prep: sim-bridge topology engine wiring | P1B-4 | done | host bridge ad327cc (D72) + Stage 4 wiring bfe77a4: StackE2EBridgeTest real-time stack e2e over real sockets (2-hop flood byte-exact, flood-echo + dense multi-path dedup, loop prevention, QUOTE return leg); REAL transport write-corruption bug caught+fixed (writeLock); D73: backend mesh-gateway seam -> Phase 7; 111 tests green local task tier |
 
 ## Phase 2 (android shell) and beyond
 

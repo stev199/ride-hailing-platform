@@ -2,9 +2,9 @@
 
 Last updated: 2026-11-24
 Working mode: **SPEED MODE v2 (D69)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing.
-Current phase: 1 (backend core) - batch DONE: P1-5a config service (4544b13) + P1-4b users mutation UI (462d319) + report-publish deploy fix (af5137c, D71) + P1-4c-sec deps security (846390f) + P1B-5 sim-bridge (ad327cc) + P1-5a2 config editors (981c040, CI-verified docs push run 45356449692) + P1-CONTRACT auth hooks (1630a15)
-Current task: P1-CONTRACT committed (1630a15, local task-tier: schemathesis 4.34.0 load_from_env import+registration OK, paths/env cross-checked); CI api-contract positive-case flip pending push. Next up: P1B-5 Stage 4 wiring (sim-bridge -> BridgeMeshTransport end-to-end + backend link seam) or P0-C remainder (needs Phase 2 android shell)
-Last completed task: P1-CONTRACT authenticated schemathesis coverage (rider+bootstrap-admin bearer auth, login/otp/refresh full-shape overrides, refresh rotation self-heal)
+Current phase: 1 (backend core) - batch DONE: P1-CONTRACT auth hooks (1630a15; CI api-contract trigger fixed 4ff447b, first authenticated run lands on this push) + P1B-5 Stage 4 wiring (bfe77a4: StackE2EBridgeTest real-time stack e2e over the bridge; REAL transport write-corruption bug caught+fixed; D73 backend seam -> Phase 7; 111 mesh-core tests green local)
+Current task: batch boundary - push 1630a15..4ff447b, then next: P0-C remainder (needs Phase 2 android shell) or P1-4c admin i18n (gate-tier visual work) or Phase 2 android shell start
+Last completed task: P1B-5 Stage 4 wiring (D73; 111 tests green local task tier)
 
 ## Gate status table
 
@@ -34,9 +34,9 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 25 (batch: P1-5a, P1-4b, CI deploy fix, P1-4c-sec, P1B-5 sim-bridge, P1-5a2 editors, P1-CONTRACT hooks - see PROGRESS_LOG.md)
-- CI runs green: 45256630914 (GATE 2 close-out), 45286635288 (P1-3 forced full run), 45333709256 (P1-4 admin shell), 45348236832 (batch 1), 45348878127 (docs push), 45350717360 (P1B-5 docs push), 45356449692 (P1-5a2 docs push); Pages gallery /latest HTTP 200
-- Fix attempts used this turn: 2 distinct root causes (RBAC test assumption corrected by matrix - not a product bug; deploy-pages artifact metadata eventual consistency - D71), within retry budget (D23), no blockers
+- Tasks completed this phase: 27 (batch: P1-CONTRACT hooks + api-contract trigger fix + P1B-5 Stage 4 wiring e2e - see PROGRESS_LOG.md)
+- CI runs green: 45256630914 (GATE 2 close-out), 45286635288 (P1-3 forced full run), 45333709256 (P1-4 admin shell), 45348236832 (batch 1), 45356449692 (P1-5a2 docs push), 45371383121 (P1-CONTRACT push; NOTE api-contract skipped there - contract filter fix 4ff447b, authenticated coverage verifies on this push); Pages gallery /latest HTTP 200
+- Fix attempts used this turn: 2 root causes this batch (BridgeMeshTransport unsynchronized frame writes - real product bug caught by the new e2e; api-contract path-filter gap), within retry budget (D23), no blockers
 
 ## Next 5 tasks
 
