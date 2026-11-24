@@ -165,6 +165,13 @@ run_shard() {
   # Install first, unrecorded: builds + installs both APKs so the recorded connected run
   # covers only the test execution.
   ( cd android && ./gradlew ":${module}:installDebug" ":${module}:installDebugAndroidTest" ) || return 1
+  # aosp_atd boots with the DISPLAY OFF (designed for headless test runs): accessibility
+  # works (compose tests pass) but every screen capture is a solid black frame (confirmed:
+  # 320x640 all-black PNGs, run 45496557524). Wake the screen + dismiss keyguard so the
+  # storyboard screenshots and the screen recording show the actual UI.
+  adb shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
+  adb shell wm dismiss-keyguard >/dev/null 2>&1 || true
+  adb shell settings put system screen_off_timeout 600000 >/dev/null 2>&1 || true
   start_collector
   start_recorder "$module"
   local gradle_rc=0
