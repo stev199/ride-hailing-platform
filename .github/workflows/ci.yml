@@ -75,9 +75,13 @@ jobs:
       - name: Kotlin lint (ktlint/detekt) - lands with modules
         if: ${{ hashFiles('backend/**/*.kt', 'android/**/*.kt', 'mesh-core/**/*.kt') != '' }}
         run: echo "::notice::ktlint/detekt wired when backend/android modules land (Phase 1-2)."
-      - name: Admin lint (eslint/tsc) - lands with module
-        if: ${{ hashFiles('admin-web/**/*.ts') != '' }}
-        run: echo "::notice::eslint/tsc wired when admin-web module lands (Phase 2)."
+      - name: Admin lint (eslint/tsc) - P1-4 admin shell
+        if: ${{ hashFiles('admin-web/package.json') != '' }}
+        run: |
+          cd admin-web
+          npm ci --ignore-scripts
+          npm run typecheck
+          npm run lint
 
   # ---------- 2. backend tests (service containers, migrations, RBAC, ledger invariant, parity) ----------
   backend-test:
@@ -148,16 +152,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - if: ${{ hashFiles('admin-web/package.json') == '' }}
-        run: echo "::notice::admin-web absent - skipping (Phase 2)." && exit 0
+        run: echo "::notice::admin-web absent - skipping (module lands with P1-4)." && exit 0
       - uses: actions/setup-node@v4
         if: ${{ hashFiles('admin-web/package.json') != '' }}
-        with: { node-version: '20' }
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: admin-web/package-lock.json
       - if: ${{ hashFiles('admin-web/package.json') != '' }}
         run: |
           cd admin-web
           npm ci
-          npm test --if-present        # vitest/RTL
-          npx playwright test          # chromium+firefox shards, axe checks, screenshots
+          npm run typecheck
+          npm run lint
+          npm test                      # vitest/RTL
+          npx playwright install --with-deps chromium firefox
+          npx playwright test           # chromium+firefox, route-mocked API (P1-4), axe checks
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && hashFiles('admin-web/package.json') != '' }}
+        with:
+          name: admin-web-evidence
+          path: |
+            admin-web/playwright-report/
+            admin-web/artifacts/
+            admin-web/test-results/
+          retention-days: 14
 
   # ---------- 5. mesh-core simulation suite (Part C Stage 3, D3.5) ----------
   mesh-core-sim:
@@ -341,9 +360,16 @@ jobs:
           exit-code: '0'   # findings reported; gating starts when runtime code lands (DECISIONS)
           vuln-type: os,library
           format: table
-      - name: Trivy image scans - lands with images
-        if: ${{ hashFiles('backend/Dockerfile', 'admin-web/Dockerfile') != '' }}
-        run: echo "::notice::image scans wired when images exist (Phase 1-2)."
+      - name: Trivy image scan (admin-web; backend image scan lands with shared build artifacts, D9)
+        if: ${{ hashFiles('admin-web/Dockerfile') != '' }}
+        run: |
+          docker compose -f infra/docker-compose.yml build admin-web
+          img=$(docker compose -f infra/docker-compose.yml images -q admin-web)
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.58.2 image --severity HIGH,CRITICAL --exit-code 0 "$img"
+      - name: Backend image scan - lands with image-build sharing
+        if: ${{ hashFiles('backend/Dockerfile') != '' }}
+        run: echo "::notice::backend image scan deferred - api-contract builds it; sharing lands with the P0-C pipeline work."
 
   # ---------- 11. report gallery (E6) ----------
   report-publish:

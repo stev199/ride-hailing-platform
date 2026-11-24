@@ -97,5 +97,14 @@ services:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
 
-  # admin-web: lands with Phase 2 (uncomment when ../admin-web/Dockerfile exists)
+  admin-web:
+    # React admin shell (P1-4): static SPA via nginx; the browser calls the backend
+    # on the host at VITE_API_BASE (default http://localhost:8080).
+    build:
+      context: ../admin-web
+      dockerfile: Dockerfile
+      args: { VITE_API_BASE: http://localhost:8080 }
+    profiles: [app, test]
+    ports: ["8081:80"]
+    depends_on: [backend]
   # mock-otp-inbox: lands with auth providers (P1-2, Dockerfile.mock-otp)

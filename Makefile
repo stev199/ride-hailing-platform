@@ -32,7 +32,7 @@ test-backend:
 	@if [ -d backend ]; then cd backend && ./gradlew test; else echo "backend module lands in Phase 1 - nothing to test yet"; fi
 
 test-admin:
-	@if [ -d admin-web ]; then cd admin-web && npm ci && npm test && npx playwright test; else echo "admin-web module lands in Phase 2 - nothing to test yet"; fi
+	@if [ -d admin-web ]; then cd admin-web && npm ci && npm run typecheck && npm run lint && npm test && npx playwright install --with-deps chromium firefox && npx playwright test; else echo "admin-web module lands in Phase 2 - nothing to test yet"; fi
 
 test-android-ui:
 	@if [ -d android ]; then ./scripts/start-emulators.sh 2 && ./scripts/run-ui-tests.sh all 0 1; else echo "android module lands in Phase 2 - nothing to test yet"; fi
