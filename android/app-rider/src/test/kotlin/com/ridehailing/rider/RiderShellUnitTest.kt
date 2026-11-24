@@ -19,7 +19,7 @@ class RiderShellUnitTest {
     @Test
     fun modeSchema_andThemeSchema_arePinned() {
         assertEquals(1, AppMode.CURRENT_SCHEMA)
-        assertEquals(1, ThemeVersion.SCHEMA)
+        assertEquals(2, ThemeVersion.SCHEMA)
     }
 
     @Test

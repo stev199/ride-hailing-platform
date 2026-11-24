@@ -2,5 +2,8 @@
 <resources>
     <string name="core_title_rider">Ride Hailing — Rider</string>
     <string name="core_title_driver">Ride Hailing — Driver</string>
-    <string name="core_shell_placeholder">App shell ready. Navigation, Hilt, Room and the outbox land in P2-1b/1c.</string>
+    <string name="core_nav_home">Home</string>
+    <string name="core_nav_settings">Settings</string>
+    <string name="core_body_home">App shell ready. Maps, booking and the outbox land in P2-2/1c.</string>
+    <string name="core_body_settings">Theme, locale and account settings land with the auth UI (P2-4).</string>
 </resources>

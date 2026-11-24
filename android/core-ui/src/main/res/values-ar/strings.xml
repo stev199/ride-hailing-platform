@@ -2,5 +2,8 @@
 <resources>
     <string name="core_title_rider">رحلة — الراكب</string>
     <string name="core_title_driver">رحلة — السائق</string>
-    <string name="core_shell_placeholder">الواجهة جاهزة. التنقل و Hilt و Room وصندوق الرسائل الصادر في P2-1b/1c.</string>
+    <string name="core_nav_home">الرئيسية</string>
+    <string name="core_nav_settings">الإعدادات</string>
+    <string name="core_body_home">الواجهة جاهزة. الخرائط والحجز وصندوق الرسائل الصادر في P2-2/1c.</string>
+    <string name="core_body_settings">الثيمة واللغة وإعدادات الحساب مع واجهة تسجيل الدخول (P2-4).</string>
 </resources>

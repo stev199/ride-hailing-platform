@@ -30,4 +30,5 @@ dependencies {
     api("androidx.compose.foundation:foundation")
     api("androidx.compose.material3:material3")
     api("androidx.compose.material:material-icons-core")
+    api("androidx.navigation:navigation-compose:2.8.5")
 }

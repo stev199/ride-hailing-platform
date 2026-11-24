@@ -2,5 +2,8 @@
 <resources>
     <string name="core_title_rider">Ride Hailing — Passager</string>
     <string name="core_title_driver">Ride Hailing — Chauffeur</string>
-    <string name="core_shell_placeholder">Coque prête. Navigation, Hilt, Room et la boîte d\'envoi arrivent en P2-1b/1c.</string>
+    <string name="core_nav_home">Accueil</string>
+    <string name="core_nav_settings">Paramètres</string>
+    <string name="core_body_home">Coque prête. Cartes, réservation et boîte d\'envoi en P2-2/1c.</string>
+    <string name="core_body_settings">Thème, langue et réglages de compte avec l\'UI d\'authentification (P2-4).</string>
 </resources>
