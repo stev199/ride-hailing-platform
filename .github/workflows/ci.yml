@@ -364,10 +364,9 @@ jobs:
       - name: Trivy image scan (admin-web; backend image scan lands with shared build artifacts, D9)
         if: ${{ hashFiles('admin-web/Dockerfile') != '' }}
         run: |
-          docker compose -f infra/docker-compose.yml build admin-web
-          img=$(docker compose -f infra/docker-compose.yml images -q admin-web)
+          docker build --build-arg VITE_API_BASE=http://localhost:8080 -t admin-web:scan admin-web
           docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy:0.58.2 image --severity HIGH,CRITICAL --exit-code 0 "$img"
+            aquasec/trivy:0.58.2 image --severity HIGH,CRITICAL --exit-code 0 admin-web:scan
       - name: Backend image scan - lands with image-build sharing
         if: ${{ hashFiles('backend/Dockerfile') != '' }}
         run: echo "::notice::backend image scan deferred - api-contract builds it; sharing lands with the P0-C pipeline work."
