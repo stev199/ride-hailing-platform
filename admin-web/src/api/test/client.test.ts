@@ -6,13 +6,13 @@ const jsonRes = (status: number, body: unknown): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
 
 describe('ApiClient auth behavior', () => {
-  const onAuthLost = vi.fn();
-  let refreshMock: ReturnType<typeof vi.fn>;
+  const onAuthLost = vi.fn<() => void>();
+  let refreshMock: ReturnType<typeof vi.fn<() => Promise<boolean>>>;
 
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn());
     onAuthLost.mockClear();
-    refreshMock = vi.fn();
+    refreshMock = vi.fn<() => Promise<boolean>>();
     tokenStore.clearAccess();
     tokenStore.clearRefresh();
   });
