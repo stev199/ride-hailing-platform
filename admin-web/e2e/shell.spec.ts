@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { mockApi, seedSession } from './helpers/mockApi';
 
@@ -29,7 +30,7 @@ test.describe('shell (seeded ADMIN_SUPER session)', () => {
   });
 
   test.describe('axe accessibility checks', () => {
-    async function expectNoAxeViolations(page: import('@playwright/test').Page, path: string): Promise<void> {
+    async function expectNoAxeViolations(page: Page, path: string): Promise<void> {
       await page.goto(path);
       await expect(page.getByTestId('role-badge')).toBeVisible();
       const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa']).analyze();

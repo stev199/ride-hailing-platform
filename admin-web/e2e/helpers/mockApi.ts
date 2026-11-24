@@ -34,7 +34,7 @@ const json = (route: Route, status: number, body: unknown): Promise<void> =>
  * `role` controls the identity returned by login / refresh + /v1/me.
  */
 export async function mockApi(page: Page, role: string): Promise<void> {
-  const user: MockUser = { id: 'u1', phone: '15550001111', email: null, displayName: 'Ops Admin', role, status: 'ACTIVE', locale: 'en' };
+  const user: MockUser = { id: 'u1', phone: '15550001111', email: null, displayName: 'Ops Admin', role, status: 'ACTIVE', locale: 'en', createdAtEpochSec: 1737600000 };
 
   await page.route('**/v1/auth/login/password', (route) =>
     json(route, 200, { user, tokens: TOKENS, created: false }));

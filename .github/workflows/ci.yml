@@ -80,7 +80,8 @@ jobs:
         run: |
           cd admin-web
           npm ci --ignore-scripts
-          npm run typecheck
+          npm run typecheck        # production build sources (tsconfig.app+node)
+          npm run typecheck:e2e    # playwright specs (standalone tsconfig)
           npm run lint
 
   # ---------- 2. backend tests (service containers, migrations, RBAC, ledger invariant, parity) ----------
