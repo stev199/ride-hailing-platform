@@ -48,6 +48,9 @@ class StoryboardRule(private val app: String, private val shard: Int = -1) : Tes
                 StepStoryboard.fail(t.message ?: t.javaClass.simpleName)
                 throw t
             } finally {
+                // Persist before finish: AGP uninstalls the app after connected tests and
+                // wipes its external files dir (see StepStoryboard.persist).
+                StepStoryboard.persist()
                 StepStoryboard.finish(if (failed) "failed" else "passed")
             }
             check(StepStoryboard.stepCount > 0) {

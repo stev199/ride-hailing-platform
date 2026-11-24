@@ -79,6 +79,23 @@ object StepStoryboard {
     fun finish(status: String) =
         post(testId, testName, app, shard, step = null, screenshotB64 = null, event = "test-end", status = status)
 
+    /**
+     * Copy this test's storyboard out of the app-under-test's external files dir into
+     * /data/local/tmp/storyboard/<app>/<test-slug>/ (best effort). AGP UNINSTALLS the app
+     * after connectedDebugAndroidTest, wiping /sdcard/Android/data/<pkg> (API 30+ scoped
+     * storage removes external data on uninstall) - a collect that runs afterwards would
+     * find nothing. UiAutomation shell commands run with shell privileges, so the copy
+     * survives the uninstall; collect-artifacts.sh pulls /data/local/tmp/storyboard.
+     */
+    fun persist() {
+        runCatching {
+            val dest = "/data/local/tmp/storyboard/$app/${Slug.of(testId)}"
+            device.executeShellCommand(
+                "mkdir -p '$dest' && cp -R '${artifactDir.absolutePath}/.' '$dest/'"
+            )
+        }
+    }
+
     private fun capture(slug: String, isBefore: Boolean = false, failed: Boolean = false) {
         val tag = when {
             failed -> "FAIL"

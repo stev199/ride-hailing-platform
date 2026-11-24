@@ -4,6 +4,14 @@
 # the -P properties had no gradle consumer and sharding was a silent no-op). Suites smaller
 # than the shard count would leave empty shards (connectedAndroidTest fails on zero tests),
 # so ci.yml collapses to 1 shard until suites grow.
+#
+# Evidence pipeline (P2-3, run 45473604435 lessons):
+# - APKs are built+installed FIRST (unrecorded gradle run); the recorded connected run then
+#   covers only the test execution, so a single 180 s recording window is enough regardless
+#   of gradle dependency download times.
+# - Storyboards: the instrumentation copies them to /data/local/tmp/storyboard DURING the
+#   test (StoryboardRule.persist) - AGP uninstalls the app after connected tests, wiping
+#   /sdcard/Android/data/<pkg> on API 30+, so /data/local/tmp is the only reliable transport.
 # Usage: run-ui-tests.sh <rider|driver|all> <shardIndex> <numShards>
 set -euo pipefail
 APP="${1:-all}"
@@ -20,54 +28,79 @@ if [ -z "${JAVA_HOME:-}" ] && [ -n "${JAVA_HOME_17_X64:-}" ]; then
 fi
 
 # Emulator images are userdebug: root adbd so the shell can reach /sdcard/Android/data
-# (storyboard pulls) - best effort; non-rooted devices fall back to run-as in collect.
+# (stale-storyboard clean) - best effort; /data/local/tmp works with plain shell anyway.
 adb root >/dev/null 2>&1 || true
 sleep 3
-# Clean slate so stale storyboards from a previous run cannot leak into the gallery.
-adb shell rm -rf /sdcard/Android/data/com.ridehailing.rider/files/storyboard \
+# Clean slate so stale storyboards/recordings from a previous run cannot leak into the gallery.
+adb shell rm -rf /data/local/tmp/storyboard /data/local/tmp/ui-rec.mp4 \
+                 /sdcard/Android/data/com.ridehailing.rider/files/storyboard \
                  /sdcard/Android/data/com.ridehailing.driver/files/storyboard >/dev/null 2>&1 || true
 
-# Screen recording for the report gallery video (E3/P0-C): best-effort, never fails tests.
-# screenrecord caps at 180 s per segment; a background loop rotates segments and keeps only
-# the last two (the actual test execution is the tail of the gradle run).
 VIDEO_DIR="artifacts/ui-${APP}-${SHARD}/video"
 mkdir -p "$VIDEO_DIR"
-REC_PID=""
+REC_MODE="none"
+REC_STARTED=0
+
 start_recorder() {
-  ( i=0
-    while :; do
-      adb shell screenrecord --bit-rate 1000000 --time-limit 180 "/data/local/tmp/ui-seg-${i}.mp4" >/dev/null 2>&1 || true
-      if [ "$i" -ge 2 ]; then
-        adb shell rm -f "/data/local/tmp/ui-seg-$((i-2)).mp4" >/dev/null 2>&1 || true
-      fi
-      i=$((i+1))
-    done ) &
-  REC_PID=$!
+  # local $1 = module id, for the artifact file name
+  if adb shell command -v screenrecord >/dev/null 2>&1; then
+    REC_MODE="guest"
+    adb shell screenrecord --bit-rate 1000000 --time-limit 180 /data/local/tmp/ui-rec.mp4 >/dev/null 2>&1 &
+  elif adb emu screenrecord start --time-limit 180 "$VIDEO_DIR/ui-rec.webm" >/dev/null 2>&1; then
+    # Console screenrecord runs inside the emulator binary (host-side capture) - works
+    # even when the guest image (aosp_atd) lacks /system/bin/screenrecord.
+    REC_MODE="console"
+  else
+    REC_MODE="none"
+    echo "[warn] no screen recorder available - no video evidence for $1 this shard"
+  fi
+  REC_STARTED=$(date +%s)
 }
+
 stop_recorder() {
-  # SIGINT makes screenrecord finalize the current segment; SIGKILL would truncate it.
-  adb shell pkill -INT screenrecord >/dev/null 2>&1 \
-    || adb shell kill -s INT "$(adb shell pidof screenrecord | tr -d '\r')" >/dev/null 2>&1 || true
-  sleep 2
-  { [ -n "$REC_PID" ] && kill "$REC_PID"; } >/dev/null 2>&1 || true
-  wait "${REC_PID:-}" 2>/dev/null || true
-  # Pull whatever segments survived (the loop may have started one more after the SIGINT).
-  for f in $(adb shell ls /data/local/tmp/ 2>/dev/null | tr -d '\r' | awk '/^ui-seg-.*\.mp4$/' || true); do
-    adb pull "/data/local/tmp/$f" "$VIDEO_DIR/" >/dev/null 2>&1 || true
-    adb shell rm -f "/data/local/tmp/$f" >/dev/null 2>&1 || true
-  done
+  # local $1 = module id
+  case "$REC_MODE" in
+    guest)
+      # SIGINT (2) makes screenrecord finalize the current file; SIGKILL would truncate it.
+      adb shell pkill -2 screenrecord >/dev/null 2>&1 \
+        || adb shell kill -2 "$(adb shell pidof screenrecord | tr -d '\r')" >/dev/null 2>&1 || true
+      sleep 2
+      adb pull /data/local/tmp/ui-rec.mp4 "$VIDEO_DIR/ui-$1-${SHARD}.mp4" >/dev/null 2>&1 || true
+      adb shell rm -f /data/local/tmp/ui-rec.mp4 >/dev/null 2>&1 || true
+      ;;
+    console)
+      # The emulator finalizes the host-side webm at the time limit (no documented stop
+      # command); wait for a size-stable file, bounded, so artifact upload never races it.
+      local waited=0
+      while [ "$waited" -lt 210 ]; do
+        local s1 s2
+        s1=$(stat -c %s "$VIDEO_DIR/ui-rec.webm" 2>/dev/null || echo 0)
+        sleep 5
+        waited=$((waited + 5))
+        s2=$(stat -c %s "$VIDEO_DIR/ui-rec.webm" 2>/dev/null || echo 0)
+        if [ "$s1" -gt 0 ] && [ "$s1" = "$s2" ]; then break; fi
+      done
+      if [ -s "$VIDEO_DIR/ui-rec.webm" ]; then
+        mv "$VIDEO_DIR/ui-rec.webm" "$VIDEO_DIR/ui-$1-${SHARD}.webm" 2>/dev/null || true
+      fi
+      ;;
+  esac
+  echo "[ok] video evidence mode=$REC_MODE for $1"
 }
 
 run_shard() {
   local module="$1" s="$2" n="$3"
   echo "== UI shard app=$module shard=$s/$n RECORD_ALL=$RECORD_ALL =="
-  start_recorder
+  # Install first, unrecorded: builds + installs both APKs so the recorded connected run
+  # covers only the test execution.
+  ( cd android && ./gradlew ":${module}:installDebug" ":${module}:installDebugAndroidTest" ) || return 1
+  start_recorder "$module"
   local gradle_rc=0
   ( cd android && ./gradlew ":${module}:connectedDebugAndroidTest" \
     -Pandroid.testInstrumentationRunnerArguments.numShards="$n" \
     -Pandroid.testInstrumentationRunnerArguments.shardIndex="$s" \
     -Pandroid.testInstrumentationRunnerArguments.runId="$RUN_ID" ) || gradle_rc=$?
-  stop_recorder
+  stop_recorder "$module"
   return "$gradle_rc"
 }
 
