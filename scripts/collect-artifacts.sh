@@ -12,8 +12,14 @@ mkdir -p "$OUT/logcat" "$OUT/screens" "$OUT/dumpsys" "$OUT/storyboard"
 # because AGP uninstalls the app after connected tests, wiping /sdcard/Android/data/<pkg>
 # on API 30+. Pulled layout keeps the gallery walk depth limit (tools/report/generate.js):
 # artifacts/ui-<app>-<shard>/storyboard/<app>/<test-slug>/*.png.
-adb pull /data/local/tmp/storyboard/. "$OUT/storyboard/" >/dev/null 2>&1 \
-  || echo "[warn] no storyboard artifacts in /data/local/tmp/storyboard"
+if adb pull /data/local/tmp/storyboard "$OUT/tmp-storyboard" >/dev/null 2>&1; then
+  cp -R "$OUT/tmp-storyboard/storyboard/." "$OUT/storyboard/" 2>/dev/null || true
+  rm -rf "$OUT/tmp-storyboard"
+  echo "[ok] storyboard pulled: $(find "$OUT/storyboard" -name '*.png' 2>/dev/null | wc -l) pngs"
+else
+  echo "[warn] storyboard pull failed; /data/local/tmp listing:"
+  adb shell ls -la /data/local/tmp/storyboard 2>&1 | tr -d '\r' | head -8
+fi
 adb shell rm -rf /data/local/tmp/storyboard >/dev/null 2>&1 || true
 
 for s in $(adb devices | awk '/emulator-/{print $1}'); do

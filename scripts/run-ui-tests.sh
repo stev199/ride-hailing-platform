@@ -43,16 +43,31 @@ REC_STARTED=0
 
 start_recorder() {
   # local $1 = module id, for the artifact file name
+  # Guest screenrecord can silently die on some emulator builds (file never created), so
+  # a 3 s probe with surfaced stderr gates it before trusting it for the real run.
   if adb shell command -v screenrecord >/dev/null 2>&1; then
-    REC_MODE="guest"
-    adb shell screenrecord --bit-rate 1000000 --time-limit 180 /data/local/tmp/ui-rec.mp4 >/dev/null 2>&1 &
-  elif adb emu screenrecord start --time-limit 180 "$VIDEO_DIR/ui-rec.webm" >/dev/null 2>&1; then
-    # Console screenrecord runs inside the emulator binary (host-side capture) - works
-    # even when the guest image (aosp_atd) lacks /system/bin/screenrecord.
-    REC_MODE="console"
+    local probe_err probe_size
+    probe_err=$(adb shell screenrecord --time-limit 3 /data/local/tmp/ui-probe.mp4 2>&1 || true)
+    probe_size=$(adb shell stat -c %s /data/local/tmp/ui-probe.mp4 2>/dev/null | tr -d '\r' || echo 0)
+    if [ "${probe_size:-0}" -gt 1000 ]; then
+      REC_MODE="guest"
+      adb shell screenrecord --bit-rate 1000000 --time-limit 180 /data/local/tmp/ui-rec.mp4 >/dev/null 2>&1 &
+    else
+      echo "[warn] guest screenrecord probe failed (size=${probe_size:-none}): ${probe_err:0:200}"
+      REC_MODE=""
+    fi
   else
-    REC_MODE="none"
-    echo "[warn] no screen recorder available - no video evidence for $1 this shard"
+    REC_MODE=""
+  fi
+  if [ -z "$REC_MODE" ]; then
+    if adb emu screenrecord start --time-limit 180 "$VIDEO_DIR/ui-rec.webm" >/dev/null 2>&1; then
+      # Console screenrecord runs inside the emulator binary (host-side capture) - works
+      # even when the guest binary cannot record.
+      REC_MODE="console"
+    else
+      REC_MODE="none"
+      echo "[warn] no screen recorder available - no video evidence for $1 this shard"
+    fi
   fi
   REC_STARTED=$(date +%s)
 }
@@ -65,8 +80,14 @@ stop_recorder() {
       adb shell pkill -2 screenrecord >/dev/null 2>&1 \
         || adb shell kill -2 "$(adb shell pidof screenrecord | tr -d '\r')" >/dev/null 2>&1 || true
       sleep 2
-      adb pull /data/local/tmp/ui-rec.mp4 "$VIDEO_DIR/ui-$1-${SHARD}.mp4" >/dev/null 2>&1 || true
-      adb shell rm -f /data/local/tmp/ui-rec.mp4 >/dev/null 2>&1 || true
+      echo "[diag] recording file: $(adb shell ls -la /data/local/tmp/ui-rec.mp4 2>&1 | tr -d '\r')"
+      if adb pull /data/local/tmp/ui-rec.mp4 "$VIDEO_DIR/ui-$1-${SHARD}.mp4" >/dev/null 2>&1 \
+        && [ -s "$VIDEO_DIR/ui-$1-${SHARD}.mp4" ]; then
+        echo "[ok] video pulled: $(stat -c %s "$VIDEO_DIR/ui-$1-${SHARD}.mp4" 2>/dev/null || echo '?') bytes"
+      else
+        echo "[warn] video pull failed or empty for $1"
+      fi
+      adb shell rm -f /data/local/tmp/ui-rec.mp4 /data/local/tmp/ui-probe.mp4 >/dev/null 2>&1 || true
       ;;
     console)
       # The emulator finalizes the host-side webm at the time limit (no documented stop

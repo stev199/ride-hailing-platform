@@ -90,10 +90,11 @@ object StepStoryboard {
     fun persist() {
         runCatching {
             val dest = "/data/local/tmp/storyboard/$app/${Slug.of(testId)}"
-            device.executeShellCommand(
-                "mkdir -p '$dest' && cp -R '${artifactDir.absolutePath}/.' '$dest/'"
+            val out = device.executeShellCommand(
+                "mkdir -p '$dest' && cp -R '${artifactDir.absolutePath}/.' '$dest/' ; ls -la '$dest'"
             )
-        }
+            println("[storyboard] persist output: ${out.take(400)}")
+        }.onFailure { println("[storyboard] persist failed: ${it.message}") }
     }
 
     private fun capture(slug: String, isBefore: Boolean = false, failed: Boolean = false) {
@@ -102,11 +103,29 @@ object StepStoryboard {
             isBefore -> "pre"
             else -> "%02d".format(counter)
         }
-        val file = File(artifactDir, "$tag-${Slug.of(slug)}.png")
-        runCatching {
-            // uiautomator 2.3.x: File-based overloads (scale 1.0f, PNG quality 85).
-            if (device.takeScreenshot(file, 1.0f, 85)) lastFile = file
+        val name = "$tag-${Slug.of(slug)}.png"
+        val remoteDir = "/data/local/tmp/storyboard/$app/${Slug.of(testId)}"
+        // PRIMARY: screencap via UiAutomation shell privileges, straight into
+        // /data/local/tmp (survives the post-test app uninstall that wipes
+        // /sdcard/Android/data/<pkg>; screencap proven working on aosp_atd where the
+        // in-process UiDevice.takeScreenshot path produced nothing on
+        // runs 45473604435/45476940195).
+        val shellOut = runCatching {
+            device.executeShellCommand(
+                "mkdir -p '$remoteDir' && screencap -p '$remoteDir/$name' && ls -la '$remoteDir/$name'"
+            )
+        }.getOrNull()
+        if (shellOut != null && shellOut.contains(name)) {
+            lastFile = File(remoteDir, name)
+            return
         }
+        println("[storyboard] screencap path failed for $name: ${shellOut?.take(300) ?: "<executeShellCommand threw>"}")
+        // FALLBACK: UiDevice screenshot into the app's external files dir (picked up by
+        // persist() before the uninstall).
+        val file = File(artifactDir, name)
+        runCatching {
+            if (device.takeScreenshot(file, 1.0f, 85)) lastFile = file
+        }.onFailure { println("[storyboard] takeScreenshot failed for $name: ${it.message}") }
     }
 
     private var lastFile: File? = null
