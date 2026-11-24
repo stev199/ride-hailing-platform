@@ -2,9 +2,9 @@
 
 Last updated: 2026-11-24
 Working mode: **SPEED MODE v2 (D69)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing.
-Current phase: 1 (backend core) - batch DONE: P1-5a config service (4544b13) + P1-4b users mutation UI (462d319) + report-publish deploy fix (af5137c, D71) + P1-4c-sec deps security (846390f, backlog drift fixed) + P1B-5 sim-bridge (ad327cc; runs 45350717360/45350622206 green on docs push 7f104ed) + P1-5a2 config editors (981c040, local task-tier GREEN, CI in flight)
-Current task: P1-5a2 DONE locally (CI flip pending); next up: P1B-5 Stage 4 wiring (sim-bridge -> backend/adb) or P0-C remainder (needs Phase 2 android shell) or P1-CONTRACT
-Last completed task: P1-5a2 config editors: PATCH UI (toggles + priority inputs, changed-fields-only, verbatim errors; 3 unit + 5 e2e, local task-tier green)
+Current phase: 1 (backend core) - batch DONE: P1-5a config service (4544b13) + P1-4b users mutation UI (462d319) + report-publish deploy fix (af5137c, D71) + P1-4c-sec deps security (846390f) + P1B-5 sim-bridge (ad327cc) + P1-5a2 config editors (981c040, CI-verified docs push run 45356449692) + P1-CONTRACT auth hooks (1630a15)
+Current task: P1-CONTRACT committed (1630a15, local task-tier: schemathesis 4.34.0 load_from_env import+registration OK, paths/env cross-checked); CI api-contract positive-case flip pending push. Next up: P1B-5 Stage 4 wiring (sim-bridge -> BridgeMeshTransport end-to-end + backend link seam) or P0-C remainder (needs Phase 2 android shell)
+Last completed task: P1-CONTRACT authenticated schemathesis coverage (rider+bootstrap-admin bearer auth, login/otp/refresh full-shape overrides, refresh rotation self-heal)
 
 ## Gate status table
 
@@ -34,8 +34,8 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 24 (batch: P1-5a, P1-4b, CI deploy fix, P1-4c-sec, P1B-5 sim-bridge, P1-5a2 editors - see PROGRESS_LOG.md)
-- CI runs green: 45256630914 (GATE 2 close-out), 45286635288 (P1-3 forced full run), 45333709256 (P1-4 admin shell), 45348236832 (batch 1), 45348878127 (docs push), 45350717360 (P1B-5 docs push); Pages gallery /latest HTTP 200
+- Tasks completed this phase: 25 (batch: P1-5a, P1-4b, CI deploy fix, P1-4c-sec, P1B-5 sim-bridge, P1-5a2 editors, P1-CONTRACT hooks - see PROGRESS_LOG.md)
+- CI runs green: 45256630914 (GATE 2 close-out), 45286635288 (P1-3 forced full run), 45333709256 (P1-4 admin shell), 45348236832 (batch 1), 45348878127 (docs push), 45350717360 (P1B-5 docs push), 45356449692 (P1-5a2 docs push); Pages gallery /latest HTTP 200
 - Fix attempts used this turn: 2 distinct root causes (RBAC test assumption corrected by matrix - not a product bug; deploy-pages artifact metadata eventual consistency - D71), within retry budget (D23), no blockers
 
 ## Next 5 tasks
