@@ -17,7 +17,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // run-ui-tests.sh passes -Pandroid.testInstrumentationRunnerArguments.<k>=<v>
         // (P2-3: real numShards/shardIndex sharding + runId for the storyboard layout).
-        listOf("numShards", "shardIndex", "runId").forEach { key ->
+        listOf("numShards", "shardIndex", "runId", "viewerUrl").forEach { key ->
             (project.findProperty("android.testInstrumentationRunnerArguments.$key") as? String)
                 ?.let { testInstrumentationRunnerArguments[key] = it }
         }

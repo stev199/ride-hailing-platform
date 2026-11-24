@@ -27,11 +27,16 @@ if [ -z "${JAVA_HOME:-}" ] && [ -n "${JAVA_HOME_17_X64:-}" ]; then
   export PATH="$JAVA_HOME/bin:$PATH"
 fi
 
-# Storyboard transport is run-as based (see pull_storyboards) - no adb root needed.
+# Storyboard transport is the E4 viewer POST via adb reverse (see start_collector) -
+# no adb root and no QEMU host-alias assumptions needed.
 # Clean slate so stale storyboards/recordings from a previous run cannot leak into the gallery
 # (run-as = app uid, absolute external path; fails harmlessly before the app is installed).
 adb shell "run-as com.ridehailing.rider rm -rf /storage/emulated/0/Android/data/com.ridehailing.rider/files/storyboard 2>/dev/null ; run-as com.ridehailing.driver rm -rf /storage/emulated/0/Android/data/com.ridehailing.driver/files/storyboard 2>/dev/null" >/dev/null 2>&1 || true
 adb shell rm -rf /data/local/tmp/ui-rec.mp4 /data/local/tmp/ui-probe.mp4 >/dev/null 2>&1 || true
+# adb reverse: device-side 127.0.0.1:7070 routes to the host collector (used via the
+# viewerUrl instrumentation arg below); survives scoped-storage/QEMU-network quirks.
+adb reverse tcp:7070 tcp:7070 >/dev/null 2>&1 \
+  || echo "[warn] adb reverse tcp:7070 failed - viewer POSTs fall back to 10.0.2.2"
 
 VIDEO_DIR="artifacts/ui-${APP}-${SHARD}/video"
 mkdir -p "$VIDEO_DIR"
@@ -166,7 +171,8 @@ run_shard() {
   ( cd android && ./gradlew ":${module}:connectedDebugAndroidTest" \
     -Pandroid.testInstrumentationRunnerArguments.numShards="$n" \
     -Pandroid.testInstrumentationRunnerArguments.shardIndex="$s" \
-    -Pandroid.testInstrumentationRunnerArguments.runId="$RUN_ID" ) &
+    -Pandroid.testInstrumentationRunnerArguments.runId="$RUN_ID" \
+    -Pandroid.testInstrumentationRunnerArguments.viewerUrl="http://127.0.0.1:7070" ) &
   local gradle_pid=$!
   while kill -0 "$gradle_pid" 2>/dev/null; do
     pull_storyboards com.ridehailing.rider rider

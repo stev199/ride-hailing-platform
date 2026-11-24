@@ -37,7 +37,10 @@ object StepStoryboard {
     private var testName: String = ""
     private var counter: Int = 0
     private var artifactDir: File = File("/data/local/tmp/storyboard")
-    private var viewerBase: String = System.getenv("VIEWER_URL") ?: "http://10.0.2.2:7070"
+    private var viewerBase: String =
+        InstrumentationRegistry.getArguments().getString("viewerUrl")
+            ?: System.getenv("VIEWER_URL")
+            ?: "http://10.0.2.2:7070"
 
     /** Number of step() calls made in the current test (zero-step enforcement, E2). */
     val stepCount: Int get() = counter
@@ -145,7 +148,11 @@ object StepStoryboard {
             }
             val req = Request.Builder().url("$viewerBase/api/step")
                 .post(body.toRequestBody(json)).build()
-            client.newCall(req).execute().use { it.close() }
+            client.newCall(req).execute().use { resp ->
+                println("[storyboard] POST ${resp.code} -> $viewerBase (testId=$testId, step=$step)")
+            }
+        }.onFailure {
+            println("[storyboard] POST failed -> $viewerBase: ${it.message?.take(200)}")
         }
     }
 }
