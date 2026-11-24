@@ -74,6 +74,13 @@ class AdminRoutesTest {
             assertEquals(HttpStatusCode.BadRequest, res.status, "expected 400 for $bad: ${res.bodyAsText()}")
             assertEquals("invalid_pagination", res.errCode(), bad)
         }
+        // A PRESENT value must PARSE (round 2: limit=false and offset beyond Int range
+        // silently took the default -> ST201).
+        for (bad in listOf("/v1/admin/users?limit=false", "/v1/admin/users?limit=abc", "/v1/admin/users?offset=-2147483649", "/v1/admin/audit?limit=false", "/v1/admin/audit?limit=99999999999")) {
+            val res = client.authed(bad, superToken)
+            assertEquals(HttpStatusCode.BadRequest, res.status, "expected 400 for $bad: ${res.bodyAsText()}")
+            assertEquals("invalid_pagination", res.errCode(), bad)
+        }
         // Documented boundaries stay accepted.
         assertEquals(HttpStatusCode.OK, client.authed("/v1/admin/users?limit=100&offset=0", superToken).status)
 

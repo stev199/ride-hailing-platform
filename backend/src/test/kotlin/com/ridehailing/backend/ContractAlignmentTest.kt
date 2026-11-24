@@ -206,6 +206,24 @@ class ContractAlignmentTest {
     }
 
     @Test
+    fun `admin create email mirrors the enforced normalization - P1-CONTRACT round 2 ST202 fix`() {
+        val register = pattern("RegisterRequest", "email")
+        val admin = pattern("AdminCreateUser", "email")
+        assertEquals(register.pattern, admin.pattern, "admin create enforces the same email shape (AdminService invalid_email)")
+        for (raw in listOf("a@b", "user.name@host.io", "0@0.com", "", "@", "a@", "@b", "a@b.", "a@b@c")) {
+            val expected = Identifiers.normalizeEmail(raw) != null
+            assertEquals(expected, admin.matches(raw), "AdminCreateUser.email mismatch for '$raw'")
+        }
+    }
+
+    @Test
+    fun `channel patch priority is Int32-bounded and non-negative - P1-CONTRACT round 2 ST202 fix`() {
+        val pr = prop("ChannelPatch", "priority")
+        assertEquals(0, (pr["minimum"] as? Int) ?: (pr["minimum"] as? Long)?.toInt() ?: fail("ChannelPatch.priority.minimum missing"), "negative priority is 400 invalid_priority (D70)")
+        assertEquals(2147483647, (pr["maximum"] as? Int) ?: (pr["maximum"] as? Long)?.toInt() ?: fail("ChannelPatch.priority.maximum missing"), "server parses Int32 - larger values break the body parser (invalid_body)")
+    }
+
+    @Test
     fun `login methods patch is schema-precise on empty bodies and channel keys - P1-CONTRACT ST202 fix`() {
         @Suppress("UNCHECKED_CAST")
         val schema = schemas["LoginMethodsPatch"] as? Map<String, Any> ?: fail("LoginMethodsPatch missing")

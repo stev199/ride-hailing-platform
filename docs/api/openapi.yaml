@@ -242,6 +242,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AdminUserList"
+        "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
     post:
@@ -397,6 +398,7 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuditTail"
+        "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
   /v1/config:
@@ -708,6 +710,8 @@ components:
           description: 8-15 ASCII digits; every other character (spaces, dashes, parentheses, a leading +) is ignored during normalization. Values with fewer than 8 or more than 15 digits are rejected with 400 invalid_phone (same shape as RegisterRequest.phone).
         email:
           type: [string, "null"]
+          pattern: '^[^@]+@[^@]*[^@.]$'
+          description: One '@' with a non-empty local part and a domain not ending in '.' (same shape as RegisterRequest.email); other values are rejected with 400 invalid_email.
         password:
           type: [string, "null"]
           minLength: 10
@@ -895,6 +899,8 @@ components:
         priority:
           type: [integer, "null"]
           minimum: 0
+          maximum: 2147483647
+          description: Admin-set ordering, lower first; distinct across enabled channels. Negative values are 400 invalid_priority (D70); the server parses Int32.
   responses:
     NotFound:
       description: Resource not found

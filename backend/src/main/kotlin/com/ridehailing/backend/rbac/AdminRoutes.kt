@@ -103,17 +103,22 @@ private fun parseRole(raw: String): Role? = Role.entries.firstOrNull { it.name.e
 
 /**
  * P1-CONTRACT: admin list pagination must match the openapi query schemas
- * (D49 generator-precision): limit in 1..maxLimit, offset >= 0. Out-of-range
- * = 400 invalid_pagination (schemathesis ST201 caught the silent clamp/accept).
- * Returns null after responding when the parameters violate the contract.
+ * (D49 generator-precision): limit in 1..maxLimit, offset >= 0, and a PRESENT
+ * value must parse as an integer (schemathesis round 2: limit=false and
+ * offset=-2147483649 silently took the default - ST201). Out-of-range or
+ * unparseable = 400 invalid_pagination. Returns null after responding when
+ * the parameters violate the contract.
  */
 private suspend fun ApplicationCall.paginationOr400(defaultLimit: Int, maxLimit: Int): Pair<Int, Int>? {
-    val limit = request.queryParameters["limit"]?.toIntOrNull() ?: defaultLimit
-    val offset = request.queryParameters["offset"]?.toIntOrNull() ?: 0
-    if (limit < 1 || limit > maxLimit || offset < 0) {
-        respond(HttpStatusCode.BadRequest, err("invalid_pagination", "limit must be 1..$maxLimit, offset must be >= 0"))
+    suspend fun bad(detail: String): Nothing? {
+        respond(HttpStatusCode.BadRequest, err("invalid_pagination", detail))
         return null
     }
+    val rawLimit = request.queryParameters["limit"]
+    val rawOffset = request.queryParameters["offset"]
+    val limit = rawLimit?.toIntOrNull() ?: if (rawLimit != null) return bad("limit must be an integer in 1..$maxLimit") else defaultLimit
+    val offset = rawOffset?.toIntOrNull() ?: if (rawOffset != null) return bad("offset must be a non-negative integer") else 0
+    if (limit < 1 || limit > maxLimit || offset < 0) return bad("limit must be 1..$maxLimit, offset must be >= 0")
     return limit to offset
 }
 
