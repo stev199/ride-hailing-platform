@@ -130,12 +130,37 @@ count_storyboards() {
   find "$OUT_DIR/storyboard" -name '*.png' 2>/dev/null | wc -l
 }
 
+# E4 host-side storyboard transport: StepStoryboard POSTs every step screenshot (base64)
+# to 10.0.2.2:7070 - the emulator's host-loopback alias. The collector below receives them
+# and writes the gallery filmstrip directly on the runner (immune to device filesystem
+# restrictions; the run-as device drain stays as belt-and-braces). One collector per shard
+# run; node is preinstalled on GitHub runners.
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+STEP_COLLECTOR_PID=""
+start_collector() {
+  node "$REPO_ROOT/tools/report/step-collector.js" --port 7070 --out "$OUT_DIR" >/dev/null 2>&1 &
+  STEP_COLLECTOR_PID=$!
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    curl -s -m 1 "http://127.0.0.1:7070/health" >/dev/null 2>&1 && break
+    sleep 0.5
+  done
+  echo "[ok] step collector up on 10.0.2.2:7070 -> $OUT_DIR/storyboard"
+}
+stop_collector() {
+  { [ -n "$STEP_COLLECTOR_PID" ] && kill "$STEP_COLLECTOR_PID"; } >/dev/null 2>&1 || true
+  wait "${STEP_COLLECTOR_PID:-}" 2>/dev/null || true
+  echo "[ok] step collector captured: $(count_storyboards) pngs"
+  STEP_COLLECTOR_PID=""
+}
+
 run_shard() {
   local module="$1" s="$2" n="$3"
   echo "== UI shard app=$module shard=$s/$n RECORD_ALL=$RECORD_ALL =="
   # Install first, unrecorded: builds + installs both APKs so the recorded connected run
   # covers only the test execution.
   ( cd android && ./gradlew ":${module}:installDebug" ":${module}:installDebugAndroidTest" ) || return 1
+  start_collector
   start_recorder "$module"
   local gradle_rc=0
   ( cd android && ./gradlew ":${module}:connectedDebugAndroidTest" \
@@ -153,6 +178,7 @@ run_shard() {
   pull_storyboards com.ridehailing.driver driver
   echo "[ok] storyboards drained: $(count_storyboards) pngs so far"
   stop_recorder "$module"
+  stop_collector
   return "$gradle_rc"
 }
 
