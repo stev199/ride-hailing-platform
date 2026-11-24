@@ -25,9 +25,9 @@ run_shard() {
 }
 
 case "$APP" in
-  rider)  run_shard ":app-rider" "$SHARD" "$NUM" ;;
-  driver) run_shard ":app-driver" "$SHARD" "$NUM" ;;
-  all)    run_shard ":app-rider" "$SHARD" "$NUM"; run_shard ":app-driver" "$SHARD" "$NUM" ;;
+  rider)  run_shard "app-rider" "$SHARD" "$NUM" ;;
+  driver) run_shard "app-driver" "$SHARD" "$NUM" ;;
+  all)    run_shard "app-rider" "$SHARD" "$NUM"; run_shard "app-driver" "$SHARD" "$NUM" ;;
   *) echo "unknown app $APP"; exit 1 ;;
 esac
 
