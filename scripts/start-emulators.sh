@@ -28,4 +28,8 @@ for i in $(seq 0 $(( N - 1 ))); do
     > "/tmp/emulator-$PORT.log" 2>&1 &
   echo "emulator serial emulator-$PORT starting (pid $!)"
 done
-./scripts/wait-for-boot.sh
+./scripts/wait-for-boot.sh "${BOOT_TIMEOUT:-600}" || {
+  echo "---- emulator logs (last 15 lines each) ----"
+  for f in /tmp/emulator-*.log; do echo "== $f =="; tail -15 "$f" 2>/dev/null || true; done
+  exit 1
+}
