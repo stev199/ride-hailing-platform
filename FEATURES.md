@@ -61,7 +61,7 @@ Phase mapping follows the Part B delivery plan (0-11).
 | ID | Pri | Feature | Tests | Phase | Status | Evidence |
 |----|-----|---------|-------|-------|--------|----------|
 | A-01 | P0 | RBAC roles: Super Admin, Operations, Support, Finance, Verifier, Read-only, custom roles; server-side enforcement | I,C,PW | 1/6 | todo | |
-| A-02 | P0 | Admin shell + login + TOTP 2FA + sessions | I,PW | 1 | todo | |
+| A-02 | P0 | Admin shell + login + TOTP 2FA + sessions | I,PW | 1 | partial | shell+login v0 done (no TOTP yet; admin session views land with P1-4b/P2): 18 vitest + 30 playwright green, axe 0 violations |
 | A-03 | P0 | Live map: online riders, drivers by status, active trips, OFFLINE riders (last known, hops, gateway, path), mesh nodes/links, filters, detail click, force-offline, message | I,PW,E2E | 6/10 | todo | |
 | A-04 | P0 | User management: search/create/edit riders/drivers/admins, CSV import/export, audited read-only impersonation, reset password, force logout, sessions/devices | I,PW | 6 | todo | |
 | A-05 | P0 | Verification center: document queue, zoom/rotate viewer, per-doc approve/reject + reason, expiry tracking, re-verification | I,PW,E2E | 6 | todo | |
@@ -69,7 +69,7 @@ Phase mapping follows the Part B delivery plan (0-11).
 | A-07 | P0 | Messaging: targeted push/in-app/OTP-channel by role/city/segment/user, templates, scheduling, delivery stats | I,PW | 9 | todo | |
 | A-08 | P0 | Trips: live + historical, full timeline, route replay, edit/cancel/refund, disputes, manual assignment, fraud flags, admin-only "Origin: online / offline-mesh" + mesh path | I,PW,E2E | 6/10 | todo | |
 | A-09 | P0 | Money: fares per city/ride type (base, per km/min, minimum, booking/cancel/wait fees, night/peak, surge), commissions, taxes, promos, ledger viewer, manual credit/debit (reason), payout approvals, points rules/limits/fees, reports, reconciliation, exports | U,I,PW | 7 | todo | |
-| A-10 | P0 | Config center: hot-reload, versioned, rollback, signed device bundles (login methods, OTP providers, mesh settings, cache limits, matching, scheduling, concurrent trips, cancellation, ride types, service-area polygon editor, feature flags, min app version, maintenance mode, legal, branding) | I,PW | 1/6 | todo | |
+| A-10 | P0 | Config center: hot-reload, versioned, rollback, signed device bundles (login methods, OTP providers, mesh settings, cache limits, matching, scheduling, concurrent trips, cancellation, ride types, service-area polygon editor, feature flags, min app version, maintenance mode, legal, branding) | I,PW | 1/6 | partial | v0 shell page + empty state (P1-4); endpoints land with P1-5a |
 | A-11 | P0 | Analytics: DAU/MAU, funnels, heatmaps, cancellations, driver performance, revenue, mesh stats | I,PW | 9 | todo | |
 | A-12 | P0 | Support inbox with SLA timers | I,PW | 9 | todo | |
 | A-13 | P0 | Security center: audit log viewer, TOTP, IP allowlist, sessions, rate limits, fraud signals | I,PW | 9 | todo | |

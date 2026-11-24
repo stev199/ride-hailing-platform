@@ -1,9 +1,9 @@
 # STATE - ride-hailing-platform
 
 Last updated: 2026-11-24
-Current phase: 1 (backend core) - P1-3 users/roles/RBAC DONE AND CI-VERIFIED (run 45286635288 ALL GREEN incl. backend-test with PG stores + api-contract); next: P1-4 admin shell
-Current task: P1-4 admin shell (React+TS+Vite): login, RBAC routing, layout, config center v0 (needs P1-5 config service endpoints)
-Last completed task: P1-3 users/roles/RBAC - 12-perm RBAC matrix (RIDER/DRIVER empty set = driver blindness precursor), session/device registry (force logout, X-Device-Label), admin user management with hash-chained audit (no secrets in payloads), PG-backed stores + V2 event_log reload migration; admin endpoints documented in openapi (spectral 0 errors)
+Current phase: 1 (backend core) - P1-4 admin shell DONE AND CI-VERIFIED (run 45333709256 success: admin-web-test vitest+playwright+axe, lint eslint/tsc, trivy admin-web image scan); next: P1-5a config service endpoints
+Current task: P1-5a config service endpoints (signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig) - makes the admin config center v0 live
+Last completed task: P1-4 admin shell (React+TS+Vite) - admin-web module: password login, single-flight refresh + boot rehydrate, best-effort logout, client RBAC mirror (pinned-fixture drift test vs Rbac.kt), permission-filtered layout, Overview/Users/Audit/Config-center-v0 pages; 18 vitest + 30 playwright (chromium+firefox, route-mocked API per D68, axe wcag2a/2aa 0 violations); nginx Dockerfile + compose service + trivy image scan wired; Makefile recipe tabs repaired (pre-existing breakage)
 
 ## Gate status table
 
@@ -13,13 +13,13 @@ Last completed task: P1-3 users/roles/RBAC - 12-perm RBAC matrix (RIDER/DRIVER e
 | Mesh GATE 1-2 (Part C) | GATE 2 CLOSED AND CI-VERIFIED 2026-11-24 (run 45256630914, mesh-core-sim success): beacons (certified profiles, short MAC, adaptive pacing) + PRESENCE (backend-only seal) + GATEWAY_RELAY (opaque forward, internet shortcut) - scenarios 16-19 PASS on CI + locally |
 | Mesh GATE 3 (Stage 3) | DONE 2026-11-24: 15/15 scenarios + baseline gate green on CI (run 45245604015, mesh-sim-evidence artifact uploaded) + locally; suite now 19 scenarios (16-19 = GATE 2 close-out) |
 | Mesh GATE 4-7 (Part C) | pending (Stage 4 starts with Phase 2 android) |
-| Phases 1-11 (Part B) | in progress (P1-1, P1-2, P1-6 done; P1-3/P1-4/P1-5 next) |
+| Phases 1-11 (Part B) | in progress (P1-1..P1-4, P1-6 done; P1-5a, P1-4b, P1-5 next) |
 
 ## Environment status (A3 bootstrap audit, 2026-11-23)
 
 | Tool | Local | Notes |
 |---|---|---|
-| git, gh 2.63.2, python3, ffmpeg, make, node, npm | ok | gh reinstalled 2026-11-24 at /home/z/my-project/tools/gh/bin (needs PATH + GH_TOKEN export each session); node v24, npm 11 |
+| git, gh 2.63.2, python3, ffmpeg, make, node, npm | ok | gh reinstalled 2026-11-24 at /home/z/my-project/tools/gh/bin (needs PATH + GH_TOKEN export each session); node v24, npm 11; actionlint 1.7.7 re-fetched to /tmp (session-local) |
 | JDK 17 (javac 17.0.21.1) | ok | /home/z/my-project/tools/jdk17 (reinstalled 2026-11-24) |
 | Gradle 8.10.2 | ok | /home/z/my-project/tools/gradle/gradle-8.10.2/bin/gradle (reinstalled; gradle-home cache survived the recycle) |
 | actionlint 1.7.7, schemathesis 4.34.0 (pip) | ok | reinstalled 2026-11-24; spectral via npx @stoplight/spectral-cli@6 |
@@ -33,16 +33,16 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 18 (P1B-2b GATE 2 close-out + P1-3 users/roles/RBAC - see PROGRESS_LOG.md)
-- CI runs green: 45256630914 (GATE 2 close-out full run), 45286635288 (P1-3 forced full run: backend-test incl. PG stores vs the postgres service container, api-contract incl. schemathesis on the new admin endpoints, mesh 19 scenarios, report-publish after the D66 recursion fix, ALL GREEN incl. ci-summary); Pages gallery /runs/45286635288/ HTTP 200
+- Tasks completed this phase: 19 (P1-4 admin shell - see PROGRESS_LOG.md)
+- CI runs green: 45256630914 (GATE 2 close-out full run), 45286635288 (P1-3 forced full run, ALL GREEN incl. ci-summary), 45333709256 (P1-4 admin shell: admin-web-test + lint + trivy image scan + report-publish + ci-summary; component jobs path-skipped); Pages gallery /runs/45333709256/ HTTP 200 (admin light/dark screenshots)
 - Fix attempts used this turn: 6 distinct root causes (D51 hop-budget off-by-one, D52 dedup-before-discovery, D53 inline clock stall, relay TTL slack, stress rate-limit config, live-view guard) - within retry budget (D23), no blockers
 
 ## Next 5 tasks
 
-1. P1-4 admin shell (React+TS+Vite): login, RBAC routing, layout (against the P1-3 admin API)
-2. P1-5 config service: signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig
+1. P1-5a config service: signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig (config center v0 goes live)
+2. P1-4b admin users mutation UI: create/edit/ban/reset-password/force-logout against the P1-3 admin endpoints
 3. P1B-5 Stage 4 prep: sim-bridge topology engine wiring
-4. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell)
+4. P0-C remainder: first-green pipeline with admin + two-emulator trivial tests (needs Phase 2 android shell); compose-backed admin Playwright project lands here (D68)
 5. P1-CONTRACT: authenticated schemathesis coverage (register/login hooks)
 
 ## Phase 0 setup record (from repository bootstrap)
