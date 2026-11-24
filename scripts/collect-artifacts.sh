@@ -5,7 +5,29 @@ set -uo pipefail
 APP="${1:-all}"
 SHARD="${2:-0}"
 OUT="artifacts/ui-${APP}-${SHARD}"
-mkdir -p "$OUT/logcat" "$OUT/screens" "$OUT/dumpsys"
+mkdir -p "$OUT/logcat" "$OUT/screens" "$OUT/dumpsys" "$OUT/storyboard"
+
+# Storyboard step screenshots (E2): instrumentation wrote them under the app-under-test's
+# external files dir (<...>/files/storyboard/<test-slug>/<NN>-<step-slug>.png). adb root was
+# requested by run-ui-tests.sh; when it failed (non-rooted device), fall back to run-as tar
+# for the debuggable app-under-test. Pulled layout keeps the gallery walk depth limit
+# (tools/report/generate.js): artifacts/ui-<app>-<shard>/storyboard/<app>/<test-slug>/*.png.
+for pkg in com.ridehailing.rider com.ridehailing.driver; do
+  app="${pkg##*.}"
+  mkdir -p "$OUT/storyboard/$app"
+  if adb pull "/sdcard/Android/data/$pkg/files/storyboard/." "$OUT/storyboard/$app/" >/dev/null 2>&1; then
+    echo "[ok] storyboard pulled for $pkg"
+  else
+    rm -rf "/tmp/sb-${pkg}"; mkdir -p "/tmp/sb-${pkg}"
+    if adb exec-out run-as "$pkg" tar -cf - files/storyboard 2>/dev/null | tar -xf - -C "/tmp/sb-${pkg}" 2>/dev/null; then
+      cp -R "/tmp/sb-${pkg}/files/storyboard/." "$OUT/storyboard/$app/" 2>/dev/null || true
+      echo "[ok] storyboard pulled via run-as for $pkg"
+    else
+      echo "[warn] no storyboard artifacts for $pkg"
+    fi
+    rm -rf "/tmp/sb-${pkg}"
+  fi
+done
 
 for s in $(adb devices | awk '/emulator-/{print $1}'); do
   adb -s "$s" shell screencap -p > "$OUT/screens/final-$s.png" 2>/dev/null || true

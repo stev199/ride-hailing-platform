@@ -259,7 +259,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2]
+        # Suites smaller than the shard count leave empty shards (connectedAndroidTest
+        # fails on zero tests) - collapse to 1 shard until the suites grow (P2-3 note).
+        shard: [0]
     steps:
       - uses: actions/checkout@v4
       - if: ${{ hashFiles('android/**/build.gradle.kts') == '' }}
@@ -282,7 +284,7 @@ jobs:
           arch: x86_64
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
-          script: ./scripts/run-ui-tests.sh rider ${{ matrix.shard }} 3
+          script: ./scripts/run-ui-tests.sh rider ${{ matrix.shard }} 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -298,7 +300,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [0, 1, 2]
+        # Suites smaller than the shard count leave empty shards (connectedAndroidTest
+        # fails on zero tests) - collapse to 1 shard until the suites grow (P2-3 note).
+        shard: [0]
     steps:
       - uses: actions/checkout@v4
       - if: ${{ hashFiles('android/**/build.gradle.kts') == '' }}
@@ -321,7 +325,7 @@ jobs:
           arch: x86_64
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
-          script: ./scripts/run-ui-tests.sh driver ${{ matrix.shard }} 3
+          script: ./scripts/run-ui-tests.sh driver ${{ matrix.shard }} 1
       - uses: actions/upload-artifact@v4
         if: always()
         with:
