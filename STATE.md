@@ -2,9 +2,9 @@
 
 Last updated: 2026-11-24
 Working mode: **SPEED MODE v2 (D69)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing.
-Current phase: 1 (backend core) - batch DONE: P1-5a config service (4544b13) + P1-4b users mutation UI (462d319) + report-publish deploy fix (af5137c, D71) + P1-4c-sec deps security (846390f); CI run 45348236832 ALL GREEN incl. report-publish; run for 846390f checked at next task start
-Current task: P1B-5 Stage 4 prep: sim-bridge topology engine wiring (mesh-core -> android integration seam)
-Last completed task: P1-4c-sec dependency security (vitest 5.1.1 + react-router-dom 7.18.6, npm audit 0 vulnerabilities, all suites green)
+Current phase: 1 (backend core) - batch DONE: P1-5a config service (4544b13) + P1-4b users mutation UI (462d319) + report-publish deploy fix (af5137c, D71) + P1-4c-sec deps security (846390f) + P1B-5 sim-bridge (ad327cc); CI green through docs push 45348878127; P1B-5 run checked at next task start
+Current task: P1B-5 DONE; next up: P1-5a2 config editors (PATCH UI) or P0-C remainder (needs Phase 2 android shell)
+Last completed task: P1B-5 Stage 4 prep: host sim-bridge (TopologyEngine + TCP relay + BridgeMeshTransport, 6 tests, D72)
 
 ## Gate status table
 
@@ -34,8 +34,8 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Counters
 
-- Tasks completed this phase: 22 (batch: P1-5a config service, P1-4b users mutations, CI deploy fix, P1-4c-sec deps - see PROGRESS_LOG.md)
-- CI runs green: 45256630914 (GATE 2 close-out), 45286635288 (P1-3 forced full run), 45333709256 (P1-4 admin shell), 45348236832 (batch: P1-5a-fix+P1-4b, ALL GREEN incl. report-publish settle fix); Pages gallery /latest HTTP 200
+- Tasks completed this phase: 23 (batch: P1-5a config service, P1-4b users mutations, CI deploy fix, P1-4c-sec deps, P1B-5 sim-bridge - see PROGRESS_LOG.md)
+- CI runs green: 45256630914 (GATE 2 close-out), 45286635288 (P1-3 forced full run), 45333709256 (P1-4 admin shell), 45348236832 (batch 1), 45348878127 (docs push); Pages gallery /latest HTTP 200
 - Fix attempts used this turn: 2 distinct root causes (RBAC test assumption corrected by matrix - not a product bug; deploy-pages artifact metadata eventual consistency - D71), within retry budget (D23), no blockers
 
 ## Next 5 tasks
