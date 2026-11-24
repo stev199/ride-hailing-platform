@@ -1,6 +1,7 @@
 # STATE - ride-hailing-platform
 
 Last updated: 2026-11-24
+Working mode: **SPEED MODE v2 (D69)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing.
 Current phase: 1 (backend core) - P1-4 admin shell DONE AND CI-VERIFIED (run 45333709256 success: admin-web-test vitest+playwright+axe, lint eslint/tsc, trivy admin-web image scan); next: P1-5a config service endpoints
 Current task: P1-5a config service endpoints (signed bundle serving /v1/config + login-methods wired to LoginMethodsConfig) - makes the admin config center v0 live
 Last completed task: P1-4 admin shell (React+TS+Vite) - admin-web module: password login, single-flight refresh + boot rehydrate, best-effort logout, client RBAC mirror (pinned-fixture drift test vs Rbac.kt), permission-filtered layout, Overview/Users/Audit/Config-center-v0 pages; 18 vitest + 30 playwright (chromium+firefox, route-mocked API per D68, axe wcag2a/2aa 0 violations); nginx Dockerfile + compose service + trivy image scan wired; Makefile recipe tabs repaired (pre-existing breakage)
