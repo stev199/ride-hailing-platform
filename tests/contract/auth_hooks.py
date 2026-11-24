@@ -48,6 +48,7 @@ _lock = threading.Lock()
 _access = {"rider": None, "admin": None}
 _refresh_token = {"rider": None}
 _otp_cache = {"request_id": None, "code": None}
+_admin_id_cache = {"id": None, "failed": False}
 
 
 def _tokens_of(payload: dict) -> dict | None:
@@ -130,6 +131,40 @@ def _request_otp() -> tuple[str, str] | None:
         return request_id, code
 
 
+def _admin_self_id() -> str | None:
+    """The bootstrap admin's user id (lazily resolved via the admin list).
+    Used to detect SELF-targeted mutations whose 400 refusal is DESIGNED behavior
+    (P1-3: no self force-logout, no self role/status change) - those rules are
+    pinned by the backend unit suite, so the contract run exercises the positive
+    path on a random UUID (documented 404) instead of tripping ST202 forever."""
+    with _lock:
+        if _admin_id_cache["id"]:
+            return _admin_id_cache["id"]
+        if _admin_id_cache["failed"]:
+            return None
+    token = _session_for("admin")
+    if not token:
+        return None
+    r = requests.get(
+        f"{BACKEND_URL}/v1/admin/users",
+        params={"query": ADMIN_PHONE, "limit": 5},
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=10,
+    )
+    if r.status_code == 200:
+        for u in r.json().get("users", []):
+            if u.get("phone") == ADMIN_PHONE:
+                with _lock:
+                    _admin_id_cache["id"] = u["id"]
+                return u["id"]
+    with _lock:
+        _admin_id_cache["failed"] = True
+    return None
+
+
+_RANDOM_UUID = "00000000-0000-0000-0000-000000000000"
+
+
 @schemathesis.auth(cache_by_key=lambda case, ctx: "admin" if case.operation.path.startswith("/v1/admin") else "rider")
 class ContractAuth:
     """Rider bearer for the API; the bootstrap admin only for /v1/admin/*.
@@ -160,6 +195,14 @@ def before_call(ctx, case, **kwargs):
     body = case.body if isinstance(case.body, dict) else None
     if body is None:
         return
+    # Self-targeted mutation rewrites (designed 400 refusals are unit-tested; see _admin_self_id).
+    admin_self = None
+    if path.startswith("/v1/admin/users/{id}"):
+        admin_self = _admin_self_id()
+        if admin_self and case.path_parameters.get("id") == admin_self:
+            if path == "/v1/admin/users/{id}/force-logout" or ("role" in body or "status" in body):
+                case.path_parameters = {**case.path_parameters, "id": _RANDOM_UUID}
+                return
     # Full-shape-only upgrades (coverage-phase partial bodies keep their negative path).
     if path == "/v1/auth/login/password" and "identifier" in body and "password" in body:
         case.body = {**body, "identifier": RIDER_PHONE, "password": RIDER_PASSWORD}

@@ -234,7 +234,7 @@ paths:
         - name: offset
           in: query
           required: false
-          schema: { type: integer, minimum: 0, default: 0 }
+          schema: { type: integer, minimum: 0, maximum: 2147483647, default: 0 }
       responses:
         "200":
           description: Matching users
@@ -282,7 +282,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string }
+          schema: { type: string, format: uuid }
       responses:
         "200":
           description: The user
@@ -304,7 +304,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string }
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -335,7 +335,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string }
+          schema: { type: string, format: uuid }
       requestBody:
         required: true
         content:
@@ -366,7 +366,7 @@ paths:
         - name: id
           in: path
           required: true
-          schema: { type: string }
+          schema: { type: string, format: uuid }
       responses:
         "200":
           description: Sessions revoked
@@ -391,6 +391,10 @@ paths:
           in: query
           required: false
           schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 2147483647, default: 0 }
       responses:
         "200":
           description: Audit tail + chain verification
@@ -695,6 +699,14 @@ components:
     AdminCreateUser:
       type: object
       required: [displayName, role]
+      anyOf:
+        - required: [phone]
+          properties:
+            phone: { type: string }
+        - required: [email]
+          properties:
+            email: { type: string }
+      description: At least one identifier (phone OR email) is required - an all-identifier-less create is 400 identifier_required.
       properties:
         displayName:
           type: string
@@ -885,7 +897,8 @@ components:
           type: [boolean, "null"]
         otpChannels:
           type: [object, "null"]
-          description: Keys are OTP channel names (SMS, TELEGRAM, EMAIL, WHATSAPP); unknown names are 400.
+          minProperties: 1
+          description: Keys are OTP channel names (SMS, TELEGRAM, EMAIL, WHATSAPP); unknown names are 400; an empty map is 400 empty_patch (D70).
           propertyNames:
             enum: [SMS, TELEGRAM, EMAIL, WHATSAPP]
           additionalProperties:
