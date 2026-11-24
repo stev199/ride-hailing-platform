@@ -21,6 +21,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       backend: ${{ steps.f.outputs.backend }}
+      contract: ${{ steps.f.outputs.contract }}
       admin: ${{ steps.f.outputs.admin }}
       android: ${{ steps.f.outputs.android }}
       mesh: ${{ steps.f.outputs.mesh }}
@@ -34,6 +35,13 @@ jobs:
           filters: |
             backend:
               - 'backend/**'
+            # api-contract: the compose stack + schemathesis hooks live OUTSIDE backend/,
+            # so contract-infra changes must trigger the job too (P1-CONTRACT).
+            contract:
+              - 'backend/**'
+              - 'infra/**'
+              - 'tests/**'
+              - 'docs/api/**'
             admin:
               - 'admin-web/**'
             android:
@@ -128,7 +136,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: [changes, backend-test]
-    if: ${{ needs.changes.outputs.backend == 'true' }}
+    if: ${{ needs.changes.outputs.contract == 'true' }}
     steps:
       - uses: actions/checkout@v4
       - if: ${{ hashFiles('backend/Dockerfile') == '' }}
