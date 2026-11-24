@@ -50,7 +50,12 @@ jobs:
       - if: steps.guard.outputs.present == 'true'
         run: |
           cd mesh-core
-          gradle --no-daemon sim --scenario=long  # mobility/churn/partition long runs + fresh baseline stats
+          # GATE 3 suite (19 scenarios, fixed seeds) + baseline regression gate
+          # (>10% metric drift fails) + fresh evidence. The aspirational
+          # 'sim --scenario=long' never matched the build script and failed
+          # every nightly since mesh-core landed; scenario selection lands
+          # with the long-mode runner (BACKLOG).
+          gradle --no-daemon simReport
 
   android-nightly:
     name: android-nightly
@@ -90,7 +95,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
             adb shell settings put system system_locales ${{ matrix.locale }}
-            uiautomator locale/theme/font-scale variant capture (E2) - wired Phase 2
+            # uiautomator locale/theme/font-scale variant capture (E2) - wired Phase 2
             ./scripts/run-ui-tests.sh all 0 1
 
   backend-nightly:
