@@ -22,6 +22,13 @@ native-backend runs. What it provides over the plain (401-only) run:
    rotation chain current on 200 and self-heals on 401 (the family-reuse
    revocation is documented behavior - under parallel workers a stale refresh can
    revoke the family; the next case re-logs in transparently).
+5. DELETE /v1/me/sessions/{familyId} PATH REWRITE (positive-mode cases only) -
+   the op's only parameter is a plain `type: string` familyId, so generated
+   values are junk and every authenticated case answered 404 forever (zero
+   positive coverage; the auth-health warning fired because the op's mutated
+   auth cases are all 401/403). Positive cases get a REAL rider-owned familyId
+   (fresh lookup after each 204), i.e. the documented 204 revoke path is
+   actually exercised; negative-mode cases keep their junk/missing params.
 
 Intentionally NOT overridden: logout bodies (a positive logout revokes the whole
 rider family mid-run and would 401 every later rider case; positive logout is
@@ -49,6 +56,7 @@ _access = {"rider": None, "admin": None}
 _refresh_token = {"rider": None}
 _otp_cache = {"request_id": None, "code": None}
 _admin_id_cache = {"id": None, "failed": False}
+_own_session_cache = {"family_id": None}
 
 
 def _tokens_of(payload: dict) -> dict | None:
@@ -162,6 +170,51 @@ def _admin_self_id() -> str | None:
     return None
 
 
+def _fetch_own_session_family_id(token: str) -> str | None:
+    """Newest familyId of the rider's live sessions, or None on any failure."""
+    try:
+        r = requests.get(
+            f"{BACKEND_URL}/v1/me/sessions",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+        )
+        sessions = r.json().get("sessions", []) if r.status_code == 200 else []
+    except Exception:
+        return None
+    if not sessions:
+        return None
+    return sessions[-1]["familyId"]
+
+
+def _own_session_family_id() -> str | None:
+    """A familyId from the rider's OWN live sessions (for the DELETE rewrite).
+
+    Revoking a family never invalidates ACCESS tokens (currentUser verifies the
+    JWT signature + user status only), so targeting any listed family is safe
+    for the run. The newest entry is preferred: it is the least likely to be
+    the family behind the cached access token.
+
+    NEVER re-authenticates: by the time DELETE cases run, the login/password
+    override cases have usually tripped the rider's brute-force lockout
+    (P1-3), so a fresh _session_for would 429 -> None forever. Instead the
+    family lookup piggybacks on whatever token the auth layer already primed
+    (GET /v1/me/sessions cases run before the DELETE ones and prime it), and
+    ContractAuth.get primes the cache at the first fresh login.
+    """
+    with _lock:
+        fid = _own_session_cache["family_id"]
+        if fid:
+            return fid
+        token = _access["rider"]
+    if not token:
+        return None
+    fid = _fetch_own_session_family_id(token)
+    if fid:
+        with _lock:
+            _own_session_cache["family_id"] = fid
+    return fid
+
+
 _RANDOM_UUID = "00000000-0000-0000-0000-000000000000"
 
 
@@ -182,6 +235,15 @@ class ContractAuth:
             token = _session_for(kind)
             with _lock:
                 _access[kind] = token
+            if kind == "rider" and token:
+                # Prime the DELETE-rewrite cache at the FIRST fresh login
+                # (later lookups must not re-login: the login/password
+                # override cases trip the brute-force lockout and any fresh
+                # _session_for would just 429).
+                fid = _fetch_own_session_family_id(token)
+                if fid:
+                    with _lock:
+                        _own_session_cache["family_id"] = fid
         return token
 
     def set(self, case, data, ctx):
@@ -193,6 +255,23 @@ class ContractAuth:
 def before_call(ctx, case, **kwargs):
     path = case.operation.path
     body = case.body if isinstance(case.body, dict) else None
+    # DELETE /v1/me/sessions/{familyId} is BODYLESS - rewrite before the
+    # body-None early return (docstring 5).
+    if path == "/v1/me/sessions/{familyId}":
+        params = case.path_parameters or {}
+        mode = getattr(getattr(case, "meta", None), "generation", None)
+        mode = getattr(mode, "mode", None)
+        if "familyId" in params and getattr(mode, "name", "") != "NEGATIVE":
+            fid = _own_session_family_id()
+            if fid:
+                case.path_parameters = {**params, "familyId": fid}
+                # NOTE: deliberately NOT forcing the Authorization header here.
+                # A forced real header turns negative-mode auth-mutation cases
+                # into accidental 204s (transport may override the mutated
+                # auth) -> ST401. The rewrite alone yields 204s whenever the
+                # transport applies the cached token; the residual auth-health
+                # warning on this op is a probe artifact (deep-diagnosed in
+                # round 6), not a server defect.
     if body is None:
         return
     # Self-targeted mutation rewrites (designed 400 refusals are unit-tested; see _admin_self_id).
@@ -213,7 +292,16 @@ def before_call(ctx, case, **kwargs):
         # probes it forever. The refusal is pinned by ConfigServiceTest, so the
         # contract run exercises the positive path: rewrite to an all-null
         # channel entry, which the server treats as a no-op bump (200).
-        present = [k for k, v in body.items() if k != "otpChannels" and v is not None]
+        present = [
+            k
+            for k, v in body.items()
+            # Only KNOWN patch fields with non-null values make the patch
+            # non-absent (D46: null == absent). Unknown keys ("", garbage) are
+            # server-ignored (ignoreUnknownKeys) - counting them as present
+            # skipped the rewrite and let an all-absent patch 400 empty_patch
+            # on a schema-valid fuzzing body (round-6 ST202).
+            if k in ("passwordLoginEnabled", "otpAutoRegister") and v is not None
+        ]
         channels = body.get("otpChannels")
         if not present and (channels is None or channels == {}):
             case.body = {"otpChannels": {"SMS": {"enabled": None, "priority": None}}}
@@ -242,6 +330,11 @@ def after_call(ctx, case, response):
             with _lock:
                 _access["rider"] = tokens["accessToken"]
                 _refresh_token["rider"] = tokens["refreshToken"]
+    elif path == "/v1/me/sessions/{familyId}" and response.status_code == 204:
+        # The cached family is now revoked - look up a fresh one for the next
+        # positive case so the 204 path keeps being exercised.
+        with _lock:
+            _own_session_cache["family_id"] = None
     elif response.status_code == 401:
         # Self-heal: a 401 on a request WE authenticated (family revoked by a
         # refresh race / consumed code) drops the stored pair; the next get()

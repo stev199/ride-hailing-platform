@@ -272,6 +272,36 @@ class AdminRoutesTest {
         graph.bootstrapAdminFromEnv() // env unset -> no-op
         assertEquals(0, graph.users.search(null, 100, 0).filter { it.role.isAdmin }.size)
     }
+
+    @Test
+    fun `login-methods patch accepts zero-fraction integers (JSON Schema integer semantics) - P1-CONTRACT`() = withApp { client, graph ->
+        createAdminIn(graph, "33610000009", Role.ADMIN_SUPER)
+        val token = client.getToken("33610000009", "admin-password-1")
+
+        // Zero-fraction numbers ARE integers per draft 2020-12 - schemathesis
+        // fuzzing generates them for type: [integer, "null"] (round-5 ST202
+        // finding: strict kotlinx parse answered 400 invalid_body on a
+        // schema-valid request).
+        for (body in listOf(
+            """{"otpChannels":{"SMS":{"priority":0.0}}}""",
+            """{"otpChannels":{"SMS":{"priority":3.0}}}""",
+            """{"otpChannels":{"SMS":{"priority":1e2}}}""",
+        )) {
+            val res = client.patchJson("/v1/admin/config/login-methods", body, token)
+            assertEquals(HttpStatusCode.OK, res.status, "$body -> ${res.bodyAsText()}")
+        }
+
+        // Schema-INVALID shapes still fail the body parser (documented 400):
+        for (body in listOf(
+            """{"otpChannels":{"SMS":{"priority":2.5}}}""", // non-integral fraction
+            """{"otpChannels":{"SMS":{"priority":"0"}}}""", // string in a number field
+            """{"otpChannels":{"SMS":{"priority":2147483648.0}}}""", // beyond Int32
+        )) {
+            val res = client.patchJson("/v1/admin/config/login-methods", body, token)
+            assertEquals(HttpStatusCode.BadRequest, res.status, "$body -> ${res.bodyAsText()}")
+            assertEquals("invalid_body", res.errCode())
+        }
+    }
 }
 
 // ---------- top-level helpers (member extensions mis-resolve inside test lambdas) ----------

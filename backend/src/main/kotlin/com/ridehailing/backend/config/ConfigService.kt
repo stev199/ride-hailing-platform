@@ -191,6 +191,11 @@ data class LoginMethodsPatch(
 )
 
 @Serializable
-data class ChannelPatch(val enabled: Boolean? = null, val priority: Int? = null)
+data class ChannelPatch(
+    val enabled: Boolean? = null,
+    // JSON Schema integer semantics: 0.0/3.0/1e3 are schema-valid integers
+    // (zero fractional part) - strict kotlinx parse would 400 them (ST202).
+    @Serializable(with = ZeroFractionIntSerializer::class) val priority: Int? = null,
+)
 
 private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
