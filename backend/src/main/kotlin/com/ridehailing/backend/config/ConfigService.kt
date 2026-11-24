@@ -86,6 +86,13 @@ class ConfigService(
         ) {
             return UpdateResult.Invalid("patch", "empty_patch")
         }
+        // P1-CONTRACT round 5 (ST201): an empty channel map inside a NON-empty patch is
+        // equally content-free - the openapi schema forbids it (minProperties 1), so the
+        // server must reject it with the same anti-noise code instead of publishing a
+        // version that changes nothing.
+        if (patch.otpChannels?.isEmpty() == true) {
+            return UpdateResult.Invalid("otpChannels", "empty_patch")
+        }
         patch.otpChannels?.forEach { (name, ch) ->
             if (OtpChannel.entries.none { it.name == name }) {
                 return UpdateResult.Invalid("otpChannels.$name", "unknown_channel")

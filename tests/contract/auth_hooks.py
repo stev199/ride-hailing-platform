@@ -206,6 +206,17 @@ def before_call(ctx, case, **kwargs):
     # Full-shape-only upgrades (coverage-phase partial bodies keep their negative path).
     if path == "/v1/auth/login/password" and "identifier" in body and "password" in body:
         case.body = {**body, "identifier": RIDER_PHONE, "password": RIDER_PASSWORD}
+    elif path == "/v1/admin/config/login-methods":
+        # The designed 400 empty_patch (D70: an all-absent patch must not burn a
+        # version) is schema-invisible - {"otpAutoRegister": null} passes
+        # minProperties because null == absent (D46) - and the coverage phase
+        # probes it forever. The refusal is pinned by ConfigServiceTest, so the
+        # contract run exercises the positive path: rewrite to an all-null
+        # channel entry, which the server treats as a no-op bump (200).
+        present = [k for k, v in body.items() if k != "otpChannels" and v is not None]
+        channels = body.get("otpChannels")
+        if not present and (channels is None or channels == {}):
+            case.body = {"otpChannels": {"SMS": {"enabled": None, "priority": None}}}
     elif path == "/v1/auth/refresh" and "refreshToken" in body:
         with _lock:
             token = _refresh_token["rider"]

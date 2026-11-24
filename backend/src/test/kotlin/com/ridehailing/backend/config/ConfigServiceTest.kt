@@ -107,6 +107,10 @@ class ConfigServiceTest {
             is ConfigService.UpdateResult.Invalid, "empty patch must be rejected (no version burned)")
         assertTrue(config.updateLoginMethods("a", LoginMethodsPatch(otpChannels = emptyMap()))
             is ConfigService.UpdateResult.Invalid, "empty channel map is an empty patch")
+        // P1-CONTRACT round 5 (ST201): empty map inside a NON-empty patch is equally
+        // content-free - schema minProperties 1 must be mirrored by the server.
+        assertTrue(config.updateLoginMethods("a", LoginMethodsPatch(passwordLoginEnabled = false, otpChannels = emptyMap()))
+            is ConfigService.UpdateResult.Invalid, "partial patch with an empty channel map must be rejected")
         assertEquals(1L, config.currentBundle().version, "rejected patches must not publish a version")
     }
 
