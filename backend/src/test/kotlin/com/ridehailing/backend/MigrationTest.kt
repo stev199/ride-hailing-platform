@@ -34,7 +34,9 @@ class MigrationTest {
             .migrate()
 
         DriverManager.getConnection(url, user, password).use { conn ->
-            val expected = listOf("app_user", "device", "event_log", "config_version", "wallet", "ledger_entry")
+            val expected = listOf(
+                "app_user", "device", "event_log", "config_version", "wallet", "ledger_entry", "ledger_transaction",
+            )
             for (table in expected) {
                 conn.createStatement().use { st ->
                     st.executeQuery("SELECT to_regclass('public.$table') IS NOT NULL").use { rs ->
