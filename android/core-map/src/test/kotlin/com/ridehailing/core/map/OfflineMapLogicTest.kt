@@ -34,7 +34,7 @@ class OfflineMapLogicTest {
 
     @Test
     fun mapConfig_defaultRegion_staysInsideWebMercatorBounds() {
-        val config = MapConfig(styleUrl = "http://10.0.2.2:8081/styles/basic/style.json")
+        val config = MapConfig(styleUrl = "http://10.0.2.2:8081/styles/basic-preview/style.json")
         // SPAN_DEG around the Monaco center must stay within the Web Mercator latitude
         // clip (|lat| <= 85) that OfflineTilePyramidRegionDefinition requires
         val north = (config.centerLat + OfflineMapManager.SPAN_DEG)

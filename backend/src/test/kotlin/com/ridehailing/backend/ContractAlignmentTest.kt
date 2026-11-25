@@ -20,13 +20,26 @@ import kotlin.test.fail
 class ContractAlignmentTest {
 
     @Suppress("UNCHECKED_CAST")
-    private val schemas: Map<String, Any> by lazy {
+    private val rootSpec: Map<String, Any> by lazy {
         val candidates = listOf(File("../docs/api/openapi.yaml"), File("docs/api/openapi.yaml"))
         val file = candidates.firstOrNull { it.isFile }
             ?: fail("openapi.yaml not found relative to ${File("").absolutePath}")
-        val root = Yaml().load(file.inputStream()) as Map<String, Any>
-        val components = root["components"] as Map<String, Any>
+        Yaml().load(file.inputStream()) as Map<String, Any>
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private val schemas: Map<String, Any> by lazy {
+        val components = rootSpec["components"] as Map<String, Any>
         components["schemas"] as Map<String, Any>
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun getQueryParam(path: String, name: String): Map<String, Any> {
+        val op = ((rootSpec["paths"] as? Map<String, Any>)?.get(path) as? Map<String, Any>)
+            ?.get("get") as? Map<String, Any> ?: fail("$path has no GET operation")
+        val params = op["parameters"] as? List<Map<String, Any>> ?: fail("$path GET has no parameters")
+        return params.firstOrNull { it["name"] == name }?.get("schema") as? Map<String, Any>
+            ?: fail("$path GET parameter $name missing")
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -332,5 +345,14 @@ class ContractAlignmentTest {
         assertEquals(100.0, lmax)
         val omin = prop("RideListDto", "offset")["minimum"] as? Int ?: fail("offset.minimum missing")
         assertEquals(0, omin, "server: offset >= 0")
+        // Round-12 ST202: the server parses offset with toIntOrNull() (Int32). The query
+        // param AND the response echo must cap at Int32.MAX_VALUE, otherwise the generator
+        // produces 9223372036854775808 - schema-valid but rejected 400 (violates the
+        // D49 generator-precision rule).
+        val echoMax = prop("RideListDto", "offset")["maximum"] as? Int ?: fail("offset.maximum missing")
+        assertEquals(2147483647, echoMax, "server: offset parsed via toIntOrNull (Int32)")
+        val paramMax = getQueryParam("/v1/rides", "offset")["maximum"] as? Int
+            ?: fail("/v1/rides offset parameter maximum missing")
+        assertEquals(2147483647, paramMax, "offset query param must cap at Int32 (server toIntOrNull)")
     }
 }

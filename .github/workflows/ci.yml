@@ -417,12 +417,26 @@ jobs:
       - name: Start the self-hosted tile server (standalone; host port 8081 -> emulator 10.0.2.2:8081)
         run: |
           docker run -d --name tileserver -p 8081:8081 -v "$PWD/infra/data:/data" maptiler/tileserver-gl:v4.6.2 --mbtiles /data/city.mbtiles -p 8081
+          # Round-12 root cause (run 45616285742): tileserver-gl v4.6.2 bundles
+          # tileserver-gl-styles@2.0.0 = ONLY the "basic-preview" style, so the old
+          # /styles/basic/style.json poll 404'd for 60s AND the `curl -S | head -1`
+          # pipeline masked curl's exit code (hollow step). The app's style URL was
+          # fixed to basic-preview in the same batch (MapConfig.EMULATOR_STYLE_URL).
+          # GET + explicit fail-closed now: on timeout, print the container logs.
+          STYLE_URL="http://localhost:8081/styles/basic-preview/style.json"
+          up=""
           for i in $(seq 1 30); do
-            if curl -fsSI "http://localhost:8081/styles/basic/style.json" | head -1 | grep -q "200"; then echo "tile server up (attempt $i/30)"; break; fi
+            if curl -fsS "$STYLE_URL" -o /tmp/style.json 2>/dev/null; then up=1; echo "tile server up (attempt $i/30)"; break; fi
             echo "waiting for tile server (attempt $i/30)"
             sleep 2
           done
-          curl -fsSI "http://localhost:8081/styles/basic/style.json" | head -1
+          if [ -z "$up" ]; then
+            echo "::error::tile server never served $STYLE_URL"
+            docker logs tileserver 2>&1 | tail -40 || true
+            exit 1
+          fi
+          # Style sanity: parseable JSON with at least one source (GET already proved 200).
+          python3 -c 'import json,sys; s=json.load(open("/tmp/style.json")); print("style OK:", s.get("name","unnamed"), "| sources:", list(s.get("sources",{}))); sys.exit(0 if s.get("sources") else 1)' || { echo "::error::style has no sources - tiles can never render"; exit 1; }
       - name: Install emulator + system image
         run: |
           export ANDROID_HOME=/usr/local/lib/android/sdk
@@ -477,7 +491,15 @@ jobs:
           adb shell am instrument -w -e class com.ridehailing.rider.OfflineMapsInstrumentedTest#downloadRegionOffline \
             -e viewerUrl http://127.0.0.1:7070 \
             com.ridehailing.rider.test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-offline-download.log
-          grep -q "INSTRUMENTATION_STATUS_CODE: 0" artifacts-offline-download.log
+          # Round-12: "OK (1 test)" ALSO covers an Assume-skip, and the runner does not
+          # always print a trailing INSTRUMENTATION_STATUS_CODE line (run 45616285742:
+          # "OK (1 test)" + grep miss + 0 pngs = silent skip with zero evidence).
+          # Gates now: JUnit OK line AND real storyboard evidence - an Assume-skip
+          # produces 0 pngs, which must fail the e2e cell (fail-closed, no hollow-green).
+          grep -qE '^OK \([0-9]+ tests?\)' artifacts-offline-download.log || { echo "::error::instrumentation did not report OK"; exit 1; }
+          PNGS=$(find offline-art -name '*.png' 2>/dev/null | wc -l)
+          [ "$PNGS" -ge 1 ] || { echo "::error::download step captured 0 storyboard pngs - test skipped or collector broken (fail-closed)"; exit 1; }
+          echo "download evidence: $PNGS storyboard pngs"
       - name: AIRPLANE MODE (svc wifi/data disable; no root needed on google_apis)
         run: |
           adb shell svc wifi disable
@@ -489,7 +511,10 @@ jobs:
           adb shell am instrument -w -e class com.ridehailing.rider.OfflineMapsInstrumentedTest#mapRendersFromOfflineRegion \
             -e viewerUrl http://127.0.0.1:7070 \
             com.ridehailing.rider.test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-offline-render.log
-          grep -q "INSTRUMENTATION_STATUS_CODE: 0" artifacts-offline-render.log
+          grep -qE '^OK \([0-9]+ tests?\)' artifacts-offline-render.log || { echo "::error::instrumentation did not report OK"; exit 1; }
+          PNGS=$(find offline-art -name '*.png' 2>/dev/null | wc -l)
+          [ "$PNGS" -ge 2 ] || { echo "::error::render step captured <2 storyboard pngs total (fail-closed)"; exit 1; }
+          echo "render evidence: $PNGS storyboard pngs total"
       - name: Restore connectivity + stop the collector (job hygiene)
         if: always()
         run: |

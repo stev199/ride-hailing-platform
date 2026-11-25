@@ -174,6 +174,30 @@ class FareRoutesTest {
         assertEquals(HttpStatusCode.OK, client.patchJson("/v1/admin/config/fares", patchBody, opsToken).status)
     }
 
+    @Test
+    fun `empty cities full-replace is 400 - live config can never go schema-invalid (round-12 ST201+ST108)`() = withApp { client, graph ->
+        createUserIn(graph, "33620000007", Role.ADMIN_OPS)
+        val opsToken = client.getToken("33620000007", "password-1")
+
+        // The exact fuzzer case from round-12 (run 45616285742): a COMPLETE document
+        // whose cities map is empty passed the required-keys gate and was stored 200,
+        // so the next GET served {"cities":{}} - a FareConfig.cities minProperties:1
+        // violation. Empty cities must be 400 (openapi minProperties mirror).
+        val emptyCities = """
+            {"cities":{},
+             "straightLine":{"detourFactor":1.4,"assumedAvgSpeedKmh":24.0},
+             "quote":{"validitySeconds":90,"mode":"upfront_locked","meteredCapMultiplier":1.5}}
+        """.trimIndent()
+        val res = client.patchJson("/v1/admin/config/fares", emptyCities, opsToken)
+        assertEquals(HttpStatusCode.BadRequest, res.status, res.bodyAsText())
+        assertEquals("invalid_fares", res.errCode())
+        assertTrue("at least one city" in res.bodyAsText(), res.bodyAsText())
+        // The live config still serves a schema-valid document (default monaco/standard).
+        val getRes = client.authed("/v1/admin/config/fares", opsToken)
+        assertEquals(HttpStatusCode.OK, getRes.status)
+        assertTrue("\"monaco\"" in getRes.bodyAsText(), getRes.bodyAsText())
+    }
+
     // ---------- helpers (file-local mirrors of the AdminRoutesTest ones) ----------
 
     private suspend fun HttpResponse.json(): JsonObject = Json.parseToJsonElement(bodyAsText()).jsonObject

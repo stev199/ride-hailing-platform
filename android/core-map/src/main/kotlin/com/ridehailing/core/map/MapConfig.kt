@@ -22,8 +22,16 @@ data class MapConfig(
         const val DEFAULT_CENTER_LNG: Double = 7.4246
         const val DEFAULT_ZOOM: Double = 12.5
 
-        /** Emulator -> host loopback: the compose geo profile serves tiles on :8081. */
+        /**
+         * Emulator -> host loopback: the compose geo profile serves tiles on :8081.
+         * Style id "basic-preview" (round-12): tileserver-gl v4.6.2 bundles
+         * tileserver-gl-styles@2.0.0, which ships ONLY "basic-preview" - the previously
+         * hardcoded /styles/basic/style.json never existed anywhere (404 forever), so
+         * every style load silently degraded to the app's graceful-offline fallback.
+         * Verified empirically against a local tileserver-gl-light@4.6.2 + Planetiler
+         * Monaco extract and against the image's styles package listing.
+         */
         const val EMULATOR_STYLE_URL: String =
-            "http://10.0.2.2:8081/styles/basic/style.json"
+            "http://10.0.2.2:8081/styles/basic-preview/style.json"
     }
 }

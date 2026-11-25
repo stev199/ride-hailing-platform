@@ -79,6 +79,24 @@ class FareConfigServiceTest {
     }
 
     @Test
+    fun `validation rejects an empty cities map (openapi minProperties 1)`() {
+        // Round-12 ST201: the fuzzer PATCHed cities:{} and the server stored it, so the
+        // next GET served a schema-violating FareConfig. The spec requires >= 1 city.
+        val errs = valid.copy(cities = emptyMap()).validationErrors()
+        assertTrue(errs.any { it.contains("at least one city") }, "empty cities rejected: $errs")
+    }
+
+    @Test
+    fun `updateFares rejects an empty cities map without burning a version`() {
+        val svc = service()
+        val before = svc.currentBundle().version
+        val r = svc.updateFares("admin-1", valid.copy(cities = emptyMap()))
+        assertTrue(r is ConfigService.UpdateResult.Invalid)
+        assertEquals(before, svc.currentBundle().version)
+        assertTrue(events.none { it == "config.fares.updated" })
+    }
+
+    @Test
     fun `fares land in the signed device bundle`() {
         val svc = service()
         val canonical = svc.currentBundle().configJson

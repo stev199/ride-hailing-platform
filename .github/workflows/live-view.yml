@@ -103,8 +103,14 @@ jobs:
           ./scripts/start-emulators.sh 2
       - name: Tunnel (cloudflared quick tunnel, pinned)
         run: |
-          curl -fsSL -o /tmp/cloudflared.tgz "https://github.com/cloudflare/cloudflared/releases/download/2024.12.2/cloudflared-linux-amd64.tgz"
-          tar -xzf /tmp/cloudflared.tgz -C /tmp cloudflared && chmod +x /tmp/cloudflared
+          # Round-11 root cause (run 45647842910): the pinned download URL was
+          # https://github.com/cloudflare/cloudflared/releases/download/2024.12.2/cloudflared-linux-amd64.tgz
+          # -> HTTP 404 (tag does not exist, and linux assets ship as a PLAIN BINARY -
+          # only darwin gets a .tgz). curl -f then exited 22 and the job died before the
+          # tunnel ever started. Pinned to a verified-real tag+asset (2026.11.2, plain
+          # binary, asset list checked via the releases API 2026-11-25).
+          curl -fsSL -o /tmp/cloudflared "https://github.com/cloudflare/cloudflared/releases/download/2026.11.2/cloudflared-linux-amd64"
+          chmod +x /tmp/cloudflared
           nohup /tmp/cloudflared tunnel --no-autoupdate --url http://localhost:7070 > /tmp/cloudflared.log 2>&1 &
           URL=""
           for _ in $(seq 1 30); do

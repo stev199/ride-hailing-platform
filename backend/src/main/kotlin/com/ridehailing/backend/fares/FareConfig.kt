@@ -35,6 +35,10 @@ data class FareConfig(
     /** Guard for map sizes: config bundles are device-cached; a hostile patch must not ship a 10MB bundle. */
     fun validationErrors(): List<String> {
         val errs = mutableListOf<String>()
+        // openapi FareConfig.cities minProperties:1 (round-12 ST201/ST108): the fuzzer
+        // PATCHed cities:{} -> 200, poisoned the live config, and GET then served a
+        // schema-violating response. Mirror the spec bound exactly.
+        if (cities.isEmpty()) errs += "cities: at least one city required"
         if (cities.size > MAX_CITIES) errs += "cities: at most $MAX_CITIES cities"
         for ((city, c) in cities) {
             if (!city.matches(CITY_KEY_RE)) errs += "cities.$city: city key must match $CITY_KEY_DESC"

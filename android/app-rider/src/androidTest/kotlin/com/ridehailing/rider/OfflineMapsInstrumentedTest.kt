@@ -53,7 +53,9 @@ class OfflineMapsInstrumentedTest {
     /** 10.0.2.2 reaches the host docker tileserver from the emulator. */
     private fun tileServerReachable(): Boolean = runBlocking {
         try {
-            val url = java.net.URL("http://10.0.2.2:8081/styles/basic/style.json")
+            // Same style contract as MapConfig.EMULATOR_STYLE_URL ("basic-preview" is the
+            // only style tileserver-gl v4.6.2 bundles - round-12 root cause for the 404s).
+            val url = java.net.URL("http://10.0.2.2:8081/styles/basic-preview/style.json")
             val conn = url.openConnection() as java.net.HttpURLConnection
             conn.connectTimeout = 3_000
             conn.readTimeout = 3_000

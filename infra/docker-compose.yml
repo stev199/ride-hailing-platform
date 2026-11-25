@@ -109,6 +109,8 @@ services:
       dockerfile: Dockerfile
       args: { VITE_API_BASE: http://localhost:8080 }
     profiles: [app, test]
-    ports: ["8081:80"]
+    # Host port 8090: the tileserver (geo profile) owns 8081 on the host - both used
+    # to publish 8081 and running geo+app/test together failed to bind (compose).
+    ports: ["8090:80"]
     depends_on: [backend]
   # mock-otp-inbox: lands with auth providers (P1-2, Dockerfile.mock-otp)

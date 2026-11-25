@@ -561,7 +561,10 @@ paths:
         - bearerAuth: []
       parameters:
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 }, description: Page size (default 20). Out-of-range = 400 invalid_pagination. }
-        - { name: offset, in: query, schema: { type: integer, minimum: 0 }, description: Page offset (default 0). }
+        # maximum: 2147483647 mirrors the server parser (toIntOrNull -> Int32). Without
+        # it the generator produced 9223372036854775808 (schema-valid, Int32-unparseable)
+        # and a schema-valid request was rejected 400 (round-12 ST202).
+        - { name: offset, in: query, schema: { type: integer, minimum: 0, maximum: 2147483647, default: 0 }, description: Page offset (default 0). }
       responses:
         "200":
           description: Ride page
@@ -1442,6 +1445,7 @@ components:
         offset:
           type: integer
           minimum: 0
+          maximum: 2147483647
   responses:
     NotFound:
       description: Resource not found
