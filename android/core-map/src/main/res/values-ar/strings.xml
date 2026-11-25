@@ -10,4 +10,11 @@
     <string name="map_duty_online">متصل — استقبال الرحلات</string>
     <string name="map_duty_offline">غير متصل — مزامنة الخدمة مع المرحلة 5</string>
     <string name="map_duty_placeholder">عند الاتصال بالإنترنت ستبدأ البث ومطابقة الرحلات.</string>
+    <string name="offline_title">خرائط دون اتصال</string>
+    <string name="offline_download">تنزيل مقتطف المدينة للاستخدام دون اتصال</string>
+    <string name="offline_progress">جارٍ التنزيل… %1$d%%</string>
+    <string name="offline_done">الخرائط دون اتصال جاهزة (وضع الطيران يعمل).</string>
+    <string name="offline_failed">فشل التنزيل: %1$s</string>
+    <string name="offline_delete">حذف</string>
+    <string name="offline_noRegions">لا توجد مناطق مخزنة دون اتصال بعد.</string>
 </resources>

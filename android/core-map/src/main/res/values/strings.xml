@@ -10,4 +10,11 @@
     <string name="map_duty_online">Online — receiving trips</string>
     <string name="map_duty_offline">Offline — duty sync lands with Phase 5</string>
     <string name="map_duty_placeholder">Going online will start beaconing and trip matching.</string>
+    <string name="offline_title">Offline maps</string>
+    <string name="offline_download">Download city extract for offline use</string>
+    <string name="offline_progress">Downloading… %1$d%%</string>
+    <string name="offline_done">Offline maps ready (airplane mode OK).</string>
+    <string name="offline_failed">Download failed: %1$s</string>
+    <string name="offline_delete">Delete</string>
+    <string name="offline_noRegions">No offline regions stored yet.</string>
 </resources>

@@ -11,6 +11,7 @@ import com.ridehailing.core.data.outbox.OutboxRepository
 import com.ridehailing.core.data.prefs.ThemeStore
 import com.ridehailing.core.map.MapConfig
 import com.ridehailing.core.map.RiderMapScreen
+import com.ridehailing.core.map.OfflineMapCard
 import com.ridehailing.core.screens.SessionScreen
 import com.ridehailing.core.ui.AppMode
 import com.ridehailing.core.ui.ModeNavApp
@@ -66,6 +67,9 @@ class MainActivity : ComponentActivity() {
                             },
                             onLanguageChange = { value ->
                                 lifecycleScope.launch { themeStore.setLanguage(value) }
+                            },
+                            extraCard = {
+                                OfflineMapCard(config = MapConfig(styleUrl = BuildConfig.MAP_STYLE_URL))
                             },
                         )
                     },

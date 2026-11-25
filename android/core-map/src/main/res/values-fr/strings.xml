@@ -10,4 +10,11 @@
     <string name="map_duty_online">En ligne — réception des courses</string>
     <string name="map_duty_offline">Hors ligne — synchro de service avec la Phase 5</string>
     <string name="map_duty_placeholder">Passer en ligne activera la balise et le matching des courses.</string>
+    <string name="offline_title">Cartes hors ligne</string>
+    <string name="offline_download">Télécharger l’extrait de ville pour un usage hors ligne</string>
+    <string name="offline_progress">Téléchargement… %1$d%%</string>
+    <string name="offline_done">Cartes hors ligne prêtes (mode avion OK).</string>
+    <string name="offline_failed">Échec du téléchargement : %1$s</string>
+    <string name="offline_delete">Supprimer</string>
+    <string name="offline_noRegions">Aucune région hors ligne enregistrée.</string>
 </resources>

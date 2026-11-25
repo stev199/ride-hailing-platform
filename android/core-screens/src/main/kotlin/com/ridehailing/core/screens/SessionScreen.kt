@@ -42,6 +42,7 @@ fun SessionScreen(
     onThemeChange: (String?) -> Unit,
     onLanguageChange: (String?) -> Unit,
     modifier: Modifier = Modifier,
+    extraCard: @Composable () -> Unit = {},
 ) {
     val vm: SessionViewModel = hiltViewModel()
     val session by vm.session.collectAsState()
@@ -59,6 +60,9 @@ fun SessionScreen(
     } else {
         LoginCard(vm = vm, modifier = modifier)
     }
+    // App-provided card (P3-1 offline maps) renders OUTSIDE the auth gate: an anonymous
+    // rider can prepare offline maps too.
+    extraCard()
 }
 
 @Composable
