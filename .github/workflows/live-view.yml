@@ -86,15 +86,21 @@ jobs:
           VIEWER_TOKEN="$TOKEN" node server.js > /tmp/viewer.log 2>&1 &
           sleep 2
           curl -fsS "http://localhost:7070/api/state?token=$TOKEN" >/dev/null
-       - name: Install Android emulator + system image
+      - name: Install Android SDK components (emulator is NOT preinstalled on ubuntu-24.04)
         run: |
-          SDKM=$(ls $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager | head -n1)
-          yes | $SDKM --licenses >/dev/null || true
-          $SDKM --install "emulator" "platform-tools" "system-images;android-34;google_apis;x86_64"
-          echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "platform-tools" "system-images;android-34;google_apis;x86_64" > /dev/null
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
-      - name: Boot emulators + install apps
-        run: ./scripts/start-emulators.sh 2
+          echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
+      - name: Create AVD + boot two emulators (live stream)
+        run: |
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n e2e_api34 -k "system-images;android-34;google_apis;x86_64" -d pixel_5
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          ./scripts/start-emulators.sh 2
       - name: Tunnel (cloudflared quick tunnel, pinned)
         run: |
           curl -fsSL -o /tmp/cloudflared.tgz "https://github.com/cloudflare/cloudflared/releases/download/2024.12.2/cloudflared-linux-amd64.tgz"

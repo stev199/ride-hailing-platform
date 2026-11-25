@@ -403,6 +403,7 @@ def before_call(ctx, case, **kwargs):
         if getattr(mode, "name", "") != "NEGATIVE":
             case.body = {
                 "straightLine": {"detourFactor": 1.3, "assumedAvgSpeedKmh": 22.0},
+                "quote": {"validitySeconds": 90, "mode": "upfront_locked", "meteredCapMultiplier": 1.5},
                 "cities": {
                     "monaco": {
                         "currency": "EUR",

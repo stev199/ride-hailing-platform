@@ -296,7 +296,10 @@ class ContractAlignmentTest {
         assertEquals(1.0, detMin); assertEquals(3.0, detMax)
         @Suppress("UNCHECKED_CAST")
         val speed = prop("StraightLineCalibration", "assumedAvgSpeedKmh")
-        assertEquals(true, speed["exclusiveMinimum"] == true, "speed 0 is invalid (division guard)")
+        // OAS 3.1 numeric exclusiveMinimum: strictly x > 0 (0 is invalid - division guard).
+        val speedExcl = (speed["exclusiveMinimum"] as? Number)?.toDouble()
+            ?: fail("speed exclusiveMinimum (numeric, OAS 3.1) missing")
+        assertEquals(0.0, speedExcl, "speed 0 is invalid (division guard)")
         assertEquals(200.0, (speed["maximum"] as? Int)?.toDouble() ?: (speed["maximum"] as? Double) ?: fail("speed maximum missing"))
     }
 

@@ -37,6 +37,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
+import io.ktor.server.application.call
 import io.ktor.server.application.install
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
@@ -44,6 +45,7 @@ import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.request.path
 import io.ktor.server.response.respond
+import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
 
@@ -93,6 +95,25 @@ private fun allowFor(path: String): String = when {
     path == "/v1/rides" -> "GET, POST"
     path.startsWith("/v1/admin/audit") -> "GET"
     else -> "GET, POST"
+}
+
+/**
+ * True when the path template is REGISTERED in the API (exact map hit or one of the
+ * parameterized prefixes). Used by the catch-all route to separate 405 (known path,
+ * undeclared method - schemathesis ST204) from 404 (unknown path).
+ */
+private fun isKnownRoutePath(path: String): Boolean = when {
+    // /test/* first: NOT known even though ROUTE_METHODS lists them - in release builds
+    // those routes do not exist and the absence proof (HealthAndRoutesTest/AuthRoutesTest)
+    // must keep answering 404.
+    path.startsWith("/test/") -> false
+    ROUTE_METHODS.containsKey(path) -> true
+    path.startsWith("/health") -> true
+    path.startsWith("/v1/auth/") -> true
+    path.startsWith("/v1/me/sessions/") -> true
+    path.startsWith("/v1/admin/") -> true
+    path.startsWith("/v1/rides/") -> true
+    else -> false
 }
 
 /** Runtime dependency graph for the auth module (P1-2) + admin/RBAC (P1-3). */
@@ -285,6 +306,28 @@ fun Application.module(
         fareRoutes(auth.service, auth.fareService, auth.config)
         rideRoutes(auth.service, auth.rideService, auth.config.publicKeyHex())
         if (testProfile) testRoutes(eventChain, configBundle, auth.devInbox)
+        // Catch-all (registered LAST - earlier routes win at equal resolution quality):
+        // Ktor answers 404 for a KNOWN path hit with an undeclared method, but the
+        // contract expects 405 + Allow (RFC 9110, schemathesis ST204). Known path ->
+        // 405 with the computed Allow header; unknown path -> the standard 404 body.
+        route("{...}") {
+            handle {
+                val path = call.request.path()
+                if (isKnownRoutePath(path)) {
+                    val allow = allowFor(path)
+                    call.response.headers.append(HttpHeaders.Allow, allow)
+                    call.respond(
+                        HttpStatusCode.MethodNotAllowed,
+                        ErrorDto(code = "method_not_allowed", message = "Allowed: $allow"),
+                    )
+                } else {
+                    call.respond(
+                        HttpStatusCode.NotFound,
+                        ErrorDto(code = "not_found", message = "Resource not found"),
+                    )
+                }
+            }
+        }
     }
 }
 

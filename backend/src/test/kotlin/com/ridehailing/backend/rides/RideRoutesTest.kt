@@ -7,6 +7,7 @@ import com.ridehailing.backend.auth.User
 import com.ridehailing.backend.auth.UserStatus
 import com.ridehailing.backend.module
 import io.ktor.client.HttpClient
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -123,6 +124,36 @@ class RideRoutesTest {
         assertEquals(HttpStatusCode.BadRequest, client.authed("/v1/rides?limit=101", token).status)
         assertEquals(HttpStatusCode.BadRequest, client.authed("/v1/rides?offset=-1", token).status)
         assertEquals(HttpStatusCode.OK, client.authed("/v1/rides?limit=1&offset=0", token).status)
+    }
+
+    @Test
+    fun `malformed pagination params are 400 - never silently defaulted (round-11 ST201)`() = withApp { client, graph ->
+        createUserIn(graph, "33630000007", Role.RIDER)
+        val token = client.getToken("33630000007", "password-1")
+        // The exact fuzzer case (offset=null&offset=null) plus both-params variants.
+        assertEquals(HttpStatusCode.BadRequest, client.authed("/v1/rides?offset=null&offset=null", token).status)
+        assertEquals(HttpStatusCode.BadRequest, client.authed("/v1/rides?offset=null", token).status)
+        assertEquals(HttpStatusCode.BadRequest, client.authed("/v1/rides?limit=abc", token).status)
+        assertEquals(HttpStatusCode.OK, client.authed("/v1/rides?limit=5", token).status)
+    }
+
+    @Test
+    fun `known path with undeclared method is 405 with Allow and unknown path stays 404 (round-11 ST204)`() = withApp { client, _ ->
+        // /v1/rides/estimate declares POST only - a GET must be 405 (was 404 via fall-through).
+        val m = client.get("/v1/rides/estimate")
+        assertEquals(HttpStatusCode.MethodNotAllowed, m.status)
+        assertEquals("POST", m.headers[HttpHeaders.Allow])
+        assertEquals("method_not_allowed", m.errCode())
+        // /v1/rides declares GET+POST - DELETE is 405 with both listed.
+        val d = client.delete("/v1/rides")
+        assertEquals(HttpStatusCode.MethodNotAllowed, d.status)
+        assertEquals("GET, POST", d.headers[HttpHeaders.Allow])
+        // Unknown paths keep the standard 404 body.
+        val nf = client.get("/definitely-not-a-route")
+        assertEquals(HttpStatusCode.NotFound, nf.status)
+        assertEquals("not_found", nf.errCode())
+        // Declared methods are untouched (the catch-all is registered LAST).
+        assertEquals(HttpStatusCode.OK, client.get("/health").status)
     }
 
     @Test

@@ -1,23 +1,24 @@
 # STATE - ride-hailing-platform
 
-Last updated: 2026-11-25 (gate round 10: nexus_4 SDK removal + am instrument /test/ segment both root-caused and fixed; verification runs in flight; Phase 4 planning started)
+Last updated: 2026-11-25 (gate round 11: session recycle #5 recovery + 3 contract violations on the rides API fixed (ST201 x2, ST204) + web-view crash fix + live-view.yml YAML/SDK/AVD repair; verification runs in flight)
 Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
-Current phase: 3 (offline maps and visited places) - code COMPLETE (P3-1 8333005, P3-3 5738206, P3-2 cell wired b28fc38 + gate rounds 5-10); gate closure pending the two in-flight verification runs (below). Phase 2 closed with tag phase-2-gate; P2-5 screenshot cells now wired (the deferral closes).
-Gate round 10 (2026-11-25, session recycle #4): recovered toolchain (gh 2.63.2 at tools/bin/gh; JDK17/SDK wiped - see Environment status). Two red findings on HEAD 52846b1, both root-caused with source-level evidence and fixed:
-1. Nightly nexus_4 cells: Google REMOVED the Nexus 4 device profile from the SDK (verified by extracting com/android/sdklib/devices/nexus.xml from the current sdklib.core.jar - Nexus list starts at Nexus 7). Fix ada776b: small_phone (generic 720x1280@320dpi, same ~360x640dp footprint). Verify: nightly run 45592490175.
-2. e2e-offline-maps INSTRUMENTATION_FAILED-in-600ms (rounds 8+9 shared the same signature with different specs): the runner spec 'com.ridehailing.rider.test/test/androidx.test.runner.AndroidJUnitRunner' has a literal 'test/' middle segment; ComponentName.unflattenFromString splits at the FIRST '/' so the className never resolves and AMS.startInstrumentation returns false (AOSP Instrument.java android-14.0.0_r2 line 535 + AMS startInstrumentation false paths enumerated; APK ground truth from the failed run's android-apks artifact: package/testpkg/targetPackage/runner all correct). Fix ec8b474: spec = pkg.test/androidx.test.runner.AndroidJUnitRunner + pm-list-instrumentation preflight. Verify: forced run 45593853432.
-Last completed task: gate round 10 fixes (ada776b nightly matrix, ec8b474 e2e instrument spec) + batch bookkeeping (BACKLOG P2-5/P3-2 -> CI verify in flight, P3-3 -> done)
+Current phase: 4 (rider booking happy path) - P4-1 fare engine + P4-2 rides API committed (178e400, b3fcabc); round-11 contract run caught 3 violations (offset=null accepted, GET estimate 404-not-405 via {id} shadowing, partial fare PATCH silently default-resetting straightLine/quote) - ALL FIXED this batch, CI verification in flight. Phase 3 code complete; P3-2 offline-map e2e verification re-dispatched (previous run 45593853432 CANCELLED by concurrency before any job ran).
+Gate round 11 (2026-11-25, session recycle #5): toolchain wiped again (gh+JDK17+gradle gone; android-sdk/platforms survived). Recovered gh 2.63.2, JDK 17.0.21.1, mirror init script; repo re-cloned clean at 19ffe9b (origin==local). Findings + fixes:
+1. CI reds triaged: 45605167019 (actionlint: live-view.yml line-89 indent = 7 spaces from 19ffe9b - YAML invalid), 45600492576 (spectral: exclusiveMinimum boolean under OAS 3.1 + api-contract 3 failures on the NEW rides endpoints), 45604159692 (live-view dispatch: boot failed - emulator binary absent on ubuntu-24.04, ANDROID_HOME not set). P3-2 verification run 45593853432 was CANCELLED by concurrency with zero jobs (superseded before starting).
+2. api-contract 3 violations FIXED with tests (151 backend tests green local): (a) GET /v1/rides?offset=null was silently defaulted -> 400 invalid_pagination on present-but-malformed params; (b) GET /v1/rides/estimate hit GET /v1/rides/{id} ("estimate" as an id) -> 401 - explicit GET 405 route + catch-all route("{...}") (registered LAST) answering 405+Allow for known paths, 404 for unknown, with /test/* deliberately NOT known (release absence proofs keep 404); (c) PATCH /v1/admin/config/fares decoded partial bodies through default-valued fields -> silently RESET straightLine/quote - now demands every schema-required key (cities/straightLine/quote + nested) and 400s otherwise. Spec: FareConfig.quote section added (QuotePolicy component, required), exclusiveMinimum in OAS 3.1 numeric form, hooks fare body carries quote.
+3. WEB-VIEW (user directive "make sure web-view works"): test-viewer server.js CRASHED on /api/serials when adb is missing (unhandled spawn ENOENT error event killed the whole process) - fixed with guarded spawn + single-shot answer; local smoke green (401 gate, state/step/log APIs, HTML, REPLAY mode with REPLAY_DIR). live-view.yml: YAML fixed, emulator+platform-tools+google_apis image install hard-sets ANDROID_HOME=/usr/local/lib/android/sdk (ci.yml-proven pattern), AVD e2e_api34 pixel_5 created before start-emulators.sh.
+Last completed task: gate round 11 contract+web-view batch (commits this push)
 
 ## Gate status table
 
 | Gate | Status |
 |---|---|
 | Phase 0 (Part B delivery plan) | CLOSED 2026-11-24: D11.9 first-green pipeline + report gallery with storyboard screenshots and video, formally CI-verified (run 45507128835, all jobs green, media served from Pages: 6 filmstrip PNGs + 2 mp4 recordings, real UI pixels) |
-| Phase 2 (android shell) | GATE CLOSED 2026-11-25, tag phase-2-gate @ 122175d. Scope all done: P2-1a scaffold, P2-1b nav/theming/i18n, P2-1c Hilt/Room+FTS/DataStore/outbox, P2-2 MapLibre main screens (self-hosted tiles), P2-3 storyboard+video evidence, P2-4 auth UI (Ktor+AuthRepository+SessionScreen). Gate evidence per area (identical code per path at HEAD): backend-test + api-contract GREEN run 45530028415 @122175d (PG double-entry ledger verified on real Postgres); android-build + android-ui rider/driver GREEN run 45527631693 @841de18 (emulator shards, instrumented nav tests assert the REAL map/session screens); e2e-cross-actor GREEN run 45527631693; admin-web-test GREEN forced run 45525186273 @fd4cb63 (i18n matrix incl. 30-shot RTL/dark baselines, axe 0 violations on Arabic RTL); mesh-core-sim GREEN 45525186273. Gate budget honest: 3 CI iterations for backend-test (2 CI-only ledger bugs: uuid casts + wallet FK seeding; none reachable by in-memory tests), 1 for android-ui (ambiguous text node). DEFERRED to P2-5 (BACKLOG): android font-scale 1.3 + small/large-phone screenshot cells on CI (sandbox has no emulator; admin side already has the full RTL/dark matrix) |
+| Phase 2 (android shell) | GATE CLOSED 2026-11-25, tag phase-2-gate @ 122175d. Scope all done: P2-1a scaffold, P2-1b nav/theming/i18n, P2-1c Hilt/Room+FTS/DataStore/outbox, P2-2 MapLibre main screens (self-hosted tiles), P2-3 storyboard+video evidence, P2-4 auth UI (Ktor+AuthRepository+SessionScreen). Gate evidence per area (identical code per path at HEAD): backend-test + api-contract GREEN run 45530028415 @122175d (PG double-entry ledger verified on real Postgres); android-build + android-ui rider/driver GREEN run 45527631693 @841de18 (emulator shards, instrumented nav tests assert the REAL map/session screens); e2e-cross-actor GREEN run 45527631693; admin-web-test GREEN forced run 45525186273 @fd4cb63 (i18n matrix incl. 30-shot RTL/dark baselines, axe 0 violations on Arabic RTL); mesh-core-sim GREEN 45525186273. Gate budget honest: 3 CI iterations for backend-test (2 CI-only ledger bugs: uuid casts + wallet FK seeding; none reachable by in-memory tests), 1 for android-ui (ambiguous text node). DEFERRED to P2-5 (BACKLOG): android font-scale 1.3 + small/large-phone screenshot cells on CI - CLOSED: nightly 45592490175 all green (see BACKLOG P2-5) |
 | Mesh GATE 1-2 (Part C) | GATE 2 CLOSED AND CI-VERIFIED 2026-11-24 (run 45256630914, mesh-core-sim success): beacons (certified profiles, short MAC, adaptive pacing) + PRESENCE (backend-only seal) + GATEWAY_RELAY (opaque forward, internet shortcut) - scenarios 16-19 PASS on CI + locally |
 | Mesh GATE 3 (Stage 3) | DONE 2026-11-24: 15/15 scenarios + baseline gate green on CI (run 45245604015, mesh-sim-evidence artifact uploaded) + locally; suite now 19 scenarios (16-19 = GATE 2 close-out) |
 | Mesh GATE 4-7 (Part C) | pending (Stage 4 starts with Phase 2 android) |
-| Phases 1-11 (Part B) | in progress (P1-1..P1-4, P1-5a/a2, P1-6, P1B-1..5 done; P1-5, P1-4c next) |
+| Phases 1-11 (Part B) | in progress (P1-1..P1-4, P1-5a/a2, P1-6, P1B-1..5 done; P4-1/P4-2 in CI verify; P3-2 re-dispatched) |
 
 ## Environment status (A3 bootstrap audit, 2026-11-23)
 
@@ -43,18 +44,18 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Next 5 tasks
 
-1. Verify gate-round-10 runs: forced CI 45593853432 (e2e-offline-maps instrument fix) + nightly 45592490175 (small_phone cells); fix red, flip BACKLOG cells to done
-2. Phase 3 GATE: when both runs green - write gate report, tag phase-3-gate, start Phase 4 immediately (NON-STOP D74)
-3. Phase 4 rider booking happy path: P4-1 ride quotes API (fare estimate endpoint + estimator math, JVM-tested) + P4-2 booking flow UI (pickup/dropoff -> quote -> request) - see BACKLOG Phase 4 section (being written)
-4. P4-3 booking e2e: rider books from map UI against compose backend (cross-actor evidence lands Phase 5 when drivers exist)
-5. Extras: mesh long-mode scenario runner (nightly --scenario=long selection; BACKLOG)
+1. Verify round-11 push CI: api-contract (3 rides violations) + live-view.yml dispatch (web-view live: stack + viewer + 2 emulators + tunnel URL annotation); fix red, re-dispatch
+2. Re-dispatch the P3-2 e2e-offline-maps verification (workflow_dispatch; previous run cancelled by concurrency) - green flips P3-2 to done
+3. Phase 3 GATE: P3-2 green -> gate report, tag phase-3-gate, start Phase 4 remainder immediately (NON-STOP D74)
+4. P4-3 on-device estimator: FareMath port in android (same KAT vectors -> parity suite), fare-bundle fetch/cache (DataStore, expiry + stale flag), offline estimate (cached route -> straight-line x calibrated detour)
+5. P4-4 rider booking UI: pickup/dropoff pickers, ride-type chips, estimate card (range + permanent disclaimer + breakdown), book -> POST /v1/rides, trip screen with signed quote, cancel
 
-## Session environment (2026-11-25 recycle #3 recovery)
+## Session environment (2026-11-25 recycle #5 recovery)
 
-- repo re-cloned; gh CLI + JDK17 (17.0.21.1 Adoptium) + Android SDK (cmdline-tools 11076708, platform-34, build-tools 34.0.0) reinstalled under /home/z/my-project/tools/; gradle-home cache survived; restore script scripts/restore_toolchain.sh
-- Maven Central STILL 429 from sandbox: mirror init /home/z/my-project/tools/gradle-init-mirror.gradle (-I flag, session-local, not committed); Robolectric android-all runtime routed via robolectric.dependency.repo.url (set in core-data testOptions)
-- local.properties (sdk.dir) created in android/ - untracked, sandbox-only
-- Gradle needs --max-workers=1 in this 4GB sandbox: parallel KSP/Hilt workers OOM-killed the daemon twice (recorded; CI unaffected)
+- repo re-cloned clean at 19ffe9b (origin==local, zero drift); gh 2.63.2 + JDK 17.0.21.1 reinstalled under /home/z/my-project/tools/; gradle-home cache did NOT survive; android-sdk/platforms survived (platform-tools/adb NOT present locally)
+- Maven Central STILL 429 from sandbox: mirror init /home/z/my-project/tools/gradle-init-mirror.gradle (-I flag REQUIRED on every gradle invocation, session-local, not committed)
+- Gradle needs --max-workers=1 in this sandbox; JAVA_HOME must point to tools/jdk17 for every gradle shell
+- env helper: source /home/z/my-project/tools/env.sh (GH_TOKEN + PATH); git credential helper must be re-set per shell (see STATE phase-0 record)
 - System java is a JRE (no javac) - JAVA_HOME must point to tools/jdk17 for every gradle shell
 
 ## Phase 0 setup record (from repository bootstrap)

@@ -5,6 +5,7 @@ import com.ridehailing.backend.auth.AuthService
 import com.ridehailing.backend.auth.withUser
 import com.ridehailing.backend.rbac.Perm
 import com.ridehailing.backend.rbac.withPermission
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.call
@@ -92,6 +93,14 @@ private fun FareService.RideTypeEstimate.toDto() = RideTypeEstimateDto(
 )
 
 fun Route.fareRoutes(service: AuthService, fareService: FareService, config: com.ridehailing.backend.config.ConfigService) {
+    // GET /v1/rides/estimate is NOT a declared method (estimate is POST-only). Without
+    // this explicit handler the parameterized GET /v1/rides/{id} route shadows the path
+    // ("estimate" parsed as an id) and answers 401 before the ST204 405 catch-all can
+    // fire (round-11). Registered BEFORE the rides routes so it wins resolution order.
+    get("/v1/rides/estimate") {
+        call.response.headers.append(HttpHeaders.Allow, "POST")
+        call.respond(HttpStatusCode.MethodNotAllowed, err("method_not_allowed", "Allowed: POST"))
+    }
     post("/v1/rides/estimate") {
         call.withUser(service) { _ ->
             val req = call.receive<FareEstimateRequest>()
@@ -126,7 +135,32 @@ fun Route.fareRoutes(service: AuthService, fareService: FareService, config: com
     }
     patch("/v1/admin/config/fares") {
         call.withPermission(service, Perm.CONFIG_WRITE) { user ->
-            val req = call.receive<FareConfig>()
+            // D75 full-replace: the PATCH body must carry the WHOLE fares document.
+            // kotlinx.serialization treats default-valued fields as OPTIONAL, so a
+            // partial body used to decode successfully and silently RESET straightLine/
+            // quote to their defaults (round-11 ST201 caught exactly that: a body with
+            // only `cities` was accepted 200). Decode to a raw object first and demand
+            // every schema-required key at each present level; missing -> 400, never a
+            // silent default reset.
+            val raw = call.receive<kotlinx.serialization.json.JsonObject>()
+            val missing = missingRequiredFareKeys(raw)
+            if (missing.isNotEmpty()) {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    err("invalid_fares", "Missing required property: ${missing.first()}"),
+                )
+                return@withPermission
+            }
+            // Same decode policy as the app module (D46): unknown keys ignored; a body
+            // that does not FIT the document (wrong element types) is a client 400.
+            val req = try {
+                kotlinx.serialization.json.Json {
+                    ignoreUnknownKeys = true
+                }.decodeFromJsonElement(FareConfig.serializer(), raw)
+            } catch (_: kotlinx.serialization.SerializationException) {
+                call.respond(HttpStatusCode.BadRequest, err("invalid_fares", "Body does not match the fares document schema"))
+                return@withPermission
+            }
             when (val r = config.updateFares(user.id, req)) {
                 is com.ridehailing.backend.config.ConfigService.UpdateResult.Updated ->
                     call.respond(HttpStatusCode.OK, config.fares)
@@ -135,4 +169,42 @@ fun Route.fareRoutes(service: AuthService, fareService: FareService, config: com
             }
         }
     }
+}
+
+/**
+ * Schema-required keys (docs/api/openapi.yaml components) that must be present at
+ * every PRESENT level of the full-replace PATCH body. Optional properties (bookingFee,
+ * cancelFee, waitFeePerMinute, night, peak) stay optional; when an optional OBJECT is
+ * supplied its own required keys are enforced (full-replace never fills defaults in).
+ */
+private fun missingRequiredFareKeys(body: kotlinx.serialization.json.JsonObject): List<String> {
+    val out = mutableListOf<String>()
+    fun obj(element: kotlinx.serialization.json.JsonElement?): kotlinx.serialization.json.JsonObject? =
+        element as? kotlinx.serialization.json.JsonObject
+
+    for (k in listOf("cities", "straightLine", "quote")) if (k !in body) out += k
+    obj(body["straightLine"])?.let { sl ->
+        for (k in listOf("detourFactor", "assumedAvgSpeedKmh")) if (k !in sl) out += "straightLine.$k"
+    }
+    obj(body["quote"])?.let { q ->
+        for (k in listOf("validitySeconds", "mode", "meteredCapMultiplier")) if (k !in q) out += "quote.$k"
+    }
+    obj(body["cities"])?.forEach { (city, cityEl) ->
+        val c = obj(cityEl) ?: return@forEach
+        for (k in listOf("currency", "rideTypes")) if (k !in c) out += "cities.$city.$k"
+        obj(c["rideTypes"])?.forEach { (rt, rtEl) ->
+            val f = obj(rtEl) ?: return@forEach
+            for (k in listOf("base", "perKm", "perMinute", "minimumFare")) {
+                if (k !in f) out += "cities.$city.rideTypes.$rt.$k"
+            }
+            for (w in listOf("night", "peak")) {
+                obj(f[w])?.let { win ->
+                    for (k in listOf("multiplier", "startHourUtc", "endHourUtc")) {
+                        if (k !in win) out += "cities.$city.rideTypes.$rt.$w.$k"
+                    }
+                }
+            }
+        }
+    }
+    return out
 }

@@ -103,12 +103,27 @@ app.get("/stream/:serial", (req, res) => {
 });
 
 app.get("/api/serials", (req, res) => {
-  const p = spawn("adb", ["devices"]);
+  // adb may be absent (viewer used for REPLAY-only runs / non-Android hosts): an
+  // unhandled spawn 'error' event CRASHED the whole server here - the web view died
+  // instead of degrading (caught by the round-11 local smoke). Answer the empty list.
+  let p;
+  try {
+    p = spawn("adb", ["devices"]);
+  } catch (_) {
+    return res.json({ serials: [], replayDir: REPLAY_DIR || null });
+  }
   let out = "";
+  let answered = false;
+  const answer = (serials) => {
+    if (answered) return;
+    answered = true;
+    res.json({ serials, replayDir: REPLAY_DIR || null });
+  };
   p.stdout.on("data", (d) => (out += d));
+  p.on("error", () => answer([]));
   p.on("close", () => {
     const serials = out.split("\n").filter((l) => /device\s*$/.test(l)).map((l) => l.split("\t")[0]);
-    res.json({ serials, replayDir: REPLAY_DIR || null });
+    answer(serials);
   });
 });
 

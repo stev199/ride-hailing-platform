@@ -133,10 +133,20 @@ fun Route.rideRoutes(service: AuthService, rides: RideService, publicKeyHex: Str
     }
     get("/v1/rides") {
         call.withUser(service) { user ->
-            val limit = call.request.queryParameters["limit"]?.toIntOrNull() ?: 20
-            val offset = call.request.queryParameters["offset"]?.toIntOrNull() ?: 0
-            if (limit !in 1..100 || offset < 0) {
-                call.respond(HttpStatusCode.BadRequest, err("invalid_pagination", "limit must be in 1..100, offset >= 0"))
+            val limitRaw = call.request.queryParameters["limit"]
+            val offsetRaw = call.request.queryParameters["offset"]
+            val limit = limitRaw?.toIntOrNull() ?: 20
+            val offset = offsetRaw?.toIntOrNull() ?: 0
+            // ST201 (round-11 contract run): the schema declares limit/offset integers -
+            // a PRESENT-but-malformed value ("?offset=null") must be 400, not silently
+            // defaulted to the schema-violating 200 the fuzzer caught.
+            val malformed = (limitRaw != null && limitRaw.toIntOrNull() == null) ||
+                (offsetRaw != null && offsetRaw.toIntOrNull() == null)
+            if (malformed || limit !in 1..100 || offset < 0) {
+                call.respond(
+                    HttpStatusCode.BadRequest,
+                    err("invalid_pagination", "limit must be an integer in 1..100, offset must be an integer >= 0"),
+                )
                 return@withUser
             }
             val list = rides.listForRider(user.id, limit, offset).map { it.toDto(publicKeyHex) }

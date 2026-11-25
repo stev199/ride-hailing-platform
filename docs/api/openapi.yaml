@@ -1199,7 +1199,7 @@ components:
         Fares section of the signed device bundle. The admin PATCH body and the device bundle
         use THE SAME nested shape (zero drift by construction); amounts are in the city's major
         currency unit.
-      required: [cities, straightLine]
+      required: [cities, straightLine, quote]
       properties:
         cities:
           type: object
@@ -1211,6 +1211,24 @@ components:
             $ref: "#/components/schemas/CityFares"
         straightLine:
           $ref: "#/components/schemas/StraightLineCalibration"
+        quote:
+          $ref: "#/components/schemas/QuotePolicy"
+    QuotePolicy:
+      type: object
+      description: Final-quote policy (spec pricing) - validity window and upfront-locked vs metered-with-cap mode.
+      required: [validitySeconds, mode, meteredCapMultiplier]
+      properties:
+        validitySeconds:
+          type: integer
+          minimum: 30
+          maximum: 3600
+        mode:
+          type: string
+          enum: [upfront_locked, metered_capped]
+        meteredCapMultiplier:
+          type: number
+          minimum: 1
+          maximum: 3
     CityFares:
       type: object
       required: [currency, rideTypes]
@@ -1286,8 +1304,7 @@ components:
           maximum: 3
         assumedAvgSpeedKmh:
           type: number
-          minimum: 0
-          exclusiveMinimum: true
+          exclusiveMinimum: 0
           maximum: 200
     RideCreateRequest:
       type: object

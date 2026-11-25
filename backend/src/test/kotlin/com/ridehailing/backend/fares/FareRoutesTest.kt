@@ -60,6 +60,7 @@ class FareRoutesTest {
 
     private val patchBody = """
         {"straightLine":{"detourFactor":1.4,"assumedAvgSpeedKmh":24.0},
+         "quote":{"validitySeconds":90,"mode":"upfront_locked","meteredCapMultiplier":1.5},
          "cities":{"monaco":{"currency":"EUR","rideTypes":{
             "standard":{"base":2.5,"perKm":1.8,"perMinute":0.45,"minimumFare":8.0,
                         "bookingFee":1.5,"cancelFee":3.0,"waitFeePerMinute":0.5,
@@ -142,6 +143,35 @@ class FareRoutesTest {
         assertEquals(HttpStatusCode.BadRequest, badPatch.status)
         assertEquals("invalid_fares", badPatch.errCode())
         assertEquals(versionAfter, client.get("/v1/config").json()["version"]!!.jsonPrimitive.content.toLong())
+    }
+
+    @Test
+    fun `partial full-replace patches are 400 - defaults never silently fill in (round-11 ST201)`() = withApp { client, graph ->
+        createUserIn(graph, "33620000006", Role.ADMIN_OPS)
+        val opsToken = client.getToken("33620000006", "password-1")
+
+        // The exact fuzzer case: cities-only body missing straightLine+quote.
+        val citiesOnly = """{"cities":{"monaco":{"currency":"EUR","rideTypes":{
+            "standard":{"base":2.5,"perKm":1.8,"perMinute":0.45,"minimumFare":8.0}}}}}"""
+        val noQuote = """
+            {"straightLine":{"detourFactor":1.4,"assumedAvgSpeedKmh":24.0},
+             "cities":{"monaco":{"currency":"EUR","rideTypes":{
+                "standard":{"base":2.5,"perKm":1.8,"perMinute":0.45,"minimumFare":8.0}}}}}
+        """.trimIndent()
+        val partialSurge = """
+            {"straightLine":{"detourFactor":1.4,"assumedAvgSpeedKmh":24.0},
+             "quote":{"validitySeconds":90,"mode":"upfront_locked","meteredCapMultiplier":1.5},
+             "cities":{"monaco":{"currency":"EUR","rideTypes":{
+                "standard":{"base":2.5,"perKm":1.8,"perMinute":0.45,"minimumFare":8.0,
+                            "night":{"multiplier":1.25}}}}}}
+        """.trimIndent()
+        for (body in listOf(citiesOnly, noQuote, partialSurge)) {
+            val res = client.patchJson("/v1/admin/config/fares", body, opsToken)
+            assertEquals(HttpStatusCode.BadRequest, res.status, "body: $body -> ${res.bodyAsText()}")
+            assertEquals("invalid_fares", res.errCode())
+        }
+        // Full document still passes.
+        assertEquals(HttpStatusCode.OK, client.patchJson("/v1/admin/config/fares", patchBody, opsToken).status)
     }
 
     // ---------- helpers (file-local mirrors of the AdminRoutesTest ones) ----------
