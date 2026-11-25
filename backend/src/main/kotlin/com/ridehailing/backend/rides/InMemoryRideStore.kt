@@ -38,5 +38,33 @@ class InMemoryRideStore : RideStore {
             .take(limit)
     }
 
+    override fun available(limit: Int): List<Ride> = synchronized(lock) {
+        rides.values
+            .filter { it.status == RideStatus.REQUESTED }
+            .sortedWith(compareBy<Ride> { it.createdAtEpochSec }.thenBy { seq[it.id] ?: 0L })
+            .take(limit)
+    }
+
+    override fun claimForDriver(id: String, driverId: String, nowEpochSec: Long): Ride? = synchronized(lock) {
+        val current = rides[id] ?: return null
+        // Single-winner under the store lock: only a still-REQUESTED ride is claimable.
+        if (current.status != RideStatus.REQUESTED) return null
+        val claimed = current.copy(
+            status = RideStatus.ACCEPTED,
+            driverId = driverId,
+            updatedAtEpochSec = nowEpochSec,
+        )
+        rides[id] = claimed
+        claimed
+    }
+
+    override fun forDriver(driverId: String, limit: Int, offset: Int): List<Ride> = synchronized(lock) {
+        rides.values
+            .filter { it.driverId == driverId }
+            .sortedWith(compareByDescending<Ride> { it.createdAtEpochSec }.thenByDescending { seq[it.id] ?: 0L })
+            .drop(offset)
+            .take(limit)
+    }
+
     fun newId(): String = Ids.newId()
 }

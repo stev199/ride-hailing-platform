@@ -16,6 +16,7 @@ class PgRideStore(private val connect: () -> Connection) : RideStore {
     private fun ResultSet.toRide(): Ride = Ride(
         id = getString("id"),
         riderId = getString("rider_id"),
+        driverId = getString("driver_id"),
         city = getString("city"),
         rideType = getString("ride_type"),
         status = RideStatus.valueOf(getString("status")),
@@ -129,6 +130,48 @@ class PgRideStore(private val connect: () -> Connection) : RideStore {
             "SELECT * FROM rides WHERE rider_id = ?::uuid ORDER BY created_at DESC, id LIMIT ? OFFSET ?",
         ).use { ps ->
             ps.setString(1, riderId)
+            ps.setInt(2, limit)
+            ps.setInt(3, offset)
+            ps.executeQuery().use { rs ->
+                val out = mutableListOf<Ride>()
+                while (rs.next()) out.add(rs.toRide())
+                out
+            }
+        }
+    }
+
+    override fun available(limit: Int): List<Ride> = connect().use { c ->
+        c.prepareStatement(
+            "SELECT * FROM rides WHERE status = 'REQUESTED' ORDER BY created_at ASC, id LIMIT ?",
+        ).use { ps ->
+            ps.setInt(1, limit)
+            ps.executeQuery().use { rs ->
+                val out = mutableListOf<Ride>()
+                while (rs.next()) out.add(rs.toRide())
+                out
+            }
+        }
+    }
+
+    override fun claimForDriver(id: String, driverId: String, nowEpochSec: Long): Ride? = connect().use { c ->
+        // ATOMIC single-winner: the status guard is IN the UPDATE (row-locked); two
+        // concurrent claims yield exactly one RETURNING row (spec edge case list).
+        c.prepareStatement(
+            "UPDATE rides SET status = 'ACCEPTED', driver_id = ?::uuid, updated_at = to_timestamp(?) " +
+                "WHERE id = ?::uuid AND status = 'REQUESTED' RETURNING *",
+        ).use { ps ->
+            ps.setString(1, driverId)
+            ps.setLong(2, nowEpochSec)
+            ps.setString(3, id)
+            ps.executeQuery().use { rs -> if (rs.next()) rs.toRide() else null }
+        }
+    }
+
+    override fun forDriver(driverId: String, limit: Int, offset: Int): List<Ride> = connect().use { c ->
+        c.prepareStatement(
+            "SELECT * FROM rides WHERE driver_id = ?::uuid ORDER BY created_at DESC, id LIMIT ? OFFSET ?",
+        ).use { ps ->
+            ps.setString(1, driverId)
             ps.setInt(2, limit)
             ps.setInt(3, offset)
             ps.executeQuery().use { rs ->

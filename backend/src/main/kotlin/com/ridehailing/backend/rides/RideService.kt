@@ -164,6 +164,10 @@ class RideService(
     fun listForRider(riderId: String, limit: Int, offset: Int): List<Ride> =
         store.forRider(riderId, limit.coerceIn(1, 100), offset.coerceAtLeast(0))
 
+    /** P5: rides assigned to a driver, newest first (driver trip history). */
+    fun forDriver(driverId: String, limit: Int, offset: Int): List<Ride> =
+        store.forDriver(driverId, limit.coerceIn(1, 100), offset.coerceAtLeast(0))
+
     fun cancel(riderId: String, rideId: String): CancelResult {
         val ride = store.byId(rideId) ?: return CancelResult.Error(404, "ride_not_found")
         if (ride.riderId != riderId) return CancelResult.Error(404, "ride_not_found")
@@ -201,6 +205,128 @@ class RideService(
             ),
         )
         return CancelResult.Cancelled(cancelled)
+    }
+
+    // ---------- P5: driver duty + dispatch (spec delivery plan 5) ----------
+
+    /**
+     * Duty registry (online + last known position). HONEST SCOPE: per-process
+     * (restart clears it; drivers re-toggle) - persistence lands with the Phase 7
+     * store work; every transition is audited to the event chain either way.
+     */
+    data class DutyState(
+        val online: Boolean,
+        val lat: Double,
+        val lon: Double,
+        val updatedAtEpochSec: Long,
+    )
+
+    private val duty = java.util.concurrent.ConcurrentHashMap<String, DutyState>()
+
+    sealed class DutyResult {
+        data class Set(val state: DutyState) : DutyResult()
+        data class Error(val status: Int, val code: String) : DutyResult()
+    }
+
+    fun setDuty(driver: User, online: Boolean, lat: Double, lon: Double): DutyResult {
+        if (driver.role != Role.DRIVER) return DutyResult.Error(403, "driver_role_required")
+        if (!lat.isFinite() || !lon.isFinite() || kotlin.math.abs(lat) > 90.0 || kotlin.math.abs(lon) > 180.0) {
+            return DutyResult.Error(400, "invalid_coordinates")
+        }
+        val state = DutyState(online, lat, lon, clock().epochSecond)
+        if (online) duty[driver.id] = state else duty.remove(driver.id)
+        eventRecorder?.append(
+            "driver.duty",
+            mapOf(
+                "driverId" to driver.id,
+                "online" to online.toString(),
+                "lat" to lat.toString(),
+                "lon" to lon.toString(),
+            ),
+        )
+        return DutyResult.Set(state)
+    }
+
+    fun dutyOf(driverId: String): DutyState? = duty[driverId]
+
+    /** Dispatch candidate row: the ride + straight-line distance to the driver. */
+    data class AvailableRide(val ride: Ride, val distanceMeters: Double)
+
+    sealed class AvailableResult {
+        data class Ok(val rides: List<AvailableRide>) : AvailableResult()
+        data class Error(val status: Int, val code: String) : AvailableResult()
+    }
+
+    /** Nearby REQUESTED rides, closest first; duty must be ON (409 duty_offline). */
+    fun availableRides(driver: User, limit: Int = 20): AvailableResult {
+        if (driver.role != Role.DRIVER) return AvailableResult.Error(403, "driver_role_required")
+        val d = duty[driver.id] ?: return AvailableResult.Error(409, "duty_offline")
+        val rides = store.available(limit.coerceIn(1, 50))
+        val sorted = rides
+            .map { AvailableRide(it, FareMath.haversineMeters(d.lat, d.lon, it.pickupLat, it.pickupLon)) }
+            .sortedBy { it.distanceMeters }
+        return AvailableResult.Ok(sorted)
+    }
+
+    sealed class DriverActionResult {
+        data class Ok(val ride: Ride) : DriverActionResult()
+        data class Error(val status: Int, val code: String) : DriverActionResult()
+    }
+
+    /**
+     * ACCEPT: ATOMIC single-winner claim (REQUESTED -> ACCEPTED + driver). A ride past
+     * its quote validity is lazily EXPIRED first, so a stale board entry can never be
+     * claimed (409 ride_expired). Two racing drivers: exactly one wins (spec edge).
+     */
+    fun accept(driver: User, rideId: String): DriverActionResult {
+        if (driver.role != Role.DRIVER) return DriverActionResult.Error(403, "driver_role_required")
+        val ride = store.byId(rideId) ?: return DriverActionResult.Error(404, "ride_not_found")
+        val now = clock()
+        if (ride.status == RideStatus.REQUESTED && now.epochSecond > ride.quoteValidUntilEpochSec) {
+            ride.status.requireTransitionTo(RideStatus.EXPIRED)
+            store.updateStatus(rideId, RideStatus.EXPIRED, now.epochSecond)
+            eventRecorder?.append("ride.expired", mapOf("rideId" to rideId, "by" to "accept_raced_expiry"))
+            return DriverActionResult.Error(409, "ride_expired")
+        }
+        val claimed = store.claimForDriver(rideId, driver.id, now.epochSecond)
+            ?: return DriverActionResult.Error(409, "already_accepted")
+        eventRecorder?.append(
+            "ride.accepted",
+            mapOf("rideId" to rideId, "driverId" to driver.id, "riderId" to ride.riderId),
+        )
+        return DriverActionResult.Ok(claimed)
+    }
+
+    /**
+     * Driver-owned trip actions (arrive/start/complete): ONLY the assigned driver,
+     * ONLY legal machine transitions (in-code enforcement, P4-2 map). Completion is
+     * event-audited; the CASH settlement posts in Phase 7 (wallet holds + fees).
+     */
+    fun driverAction(driver: User, rideId: String, target: RideStatus): DriverActionResult {
+        if (driver.role != Role.DRIVER) return DriverActionResult.Error(403, "driver_role_required")
+        val ride = store.byId(rideId) ?: return DriverActionResult.Error(404, "ride_not_found")
+        if (ride.driverId != driver.id) {
+            // Unassigned rides stay invisible (404); another driver's ride is 403.
+            return if (ride.driverId == null) {
+                DriverActionResult.Error(404, "ride_not_found")
+            } else {
+                DriverActionResult.Error(403, "not_your_ride")
+            }
+        }
+        val now = clock()
+        try {
+            ride.status.requireTransitionTo(target)
+        } catch (_: IllegalArgumentException) {
+            // requireTransitionTo throws require() -> IllegalArgumentException (409).
+            return DriverActionResult.Error(409, "illegal_transition")
+        }
+        val updated = store.updateStatus(rideId, target, now.epochSecond)
+            ?: return DriverActionResult.Error(404, "ride_not_found")
+        eventRecorder?.append(
+            "ride.${target.name.lowercase()}",
+            mapOf("rideId" to rideId, "driverId" to driver.id, "riderId" to ride.riderId),
+        )
+        return DriverActionResult.Ok(updated)
     }
 
     companion object {

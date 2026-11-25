@@ -8,6 +8,8 @@ package com.ridehailing.backend.rides
 data class Ride(
     val id: String,
     val riderId: String,
+    /** Assigned driver (P5): null until a driver CLAIMS the ride (single-winner). */
+    val driverId: String? = null,
     val city: String,
     val rideType: String,
     val status: RideStatus,
@@ -48,4 +50,21 @@ interface RideStore {
 
     /** Newest first. */
     fun forRider(riderId: String, limit: Int, offset: Int): List<Ride>
+
+    /**
+     * Dispatch candidates (P5): REQUESTED rides, oldest first (fairness: the longest
+     * waiting ride shows first; distance sorting happens in the service, which knows
+     * the driver's position).
+     */
+    fun available(limit: Int = 50): List<Ride>
+
+    /**
+     * ATOMIC single-winner claim (P5): REQUESTED -> ACCEPTED + driverId. Returns null
+     * when the ride is not REQUESTED anymore (another driver won, or it expired) -
+     * two drivers racing MUST yield exactly one winner (spec edge case list).
+     */
+    fun claimForDriver(id: String, driverId: String, nowEpochSec: Long): Ride?
+
+    /** Rides assigned to a driver, newest first. */
+    fun forDriver(driverId: String, limit: Int, offset: Int): List<Ride>
 }

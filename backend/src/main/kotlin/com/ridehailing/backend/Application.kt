@@ -30,6 +30,7 @@ import com.ridehailing.backend.health.healthRoutes
 import com.ridehailing.backend.rides.RideService
 import com.ridehailing.backend.rides.InMemoryRideStore
 import com.ridehailing.backend.rides.rideRoutes
+import com.ridehailing.backend.rides.driverRoutes
 import com.ridehailing.backend.rbac.AdminService
 import com.ridehailing.backend.rbac.adminRoutes
 import com.ridehailing.backend.testprofile.testRoutes
@@ -305,6 +306,7 @@ fun Application.module(
         configRoutes(auth.config, auth.service)
         fareRoutes(auth.service, auth.fareService, auth.config)
         rideRoutes(auth.service, auth.rideService, auth.config.publicKeyHex())
+        driverRoutes(auth.service, auth.rideService)
         if (testProfile) testRoutes(eventChain, configBundle, auth.devInbox)
         // Catch-all (registered LAST - earlier routes win at equal resolution quality):
         // Ktor answers 404 for a KNOWN path hit with an undeclared method, but the
