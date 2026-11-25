@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import com.ridehailing.core.map.OfflineMapManager
 import com.ridehailing.core.map.R as MapR
 import com.ridehailing.core.screens.R as ScreensR
 import com.ridehailing.core.ui.R
@@ -32,8 +33,14 @@ import org.junit.runner.RunWith
  *    for the gallery. MapLibre serves the style + tiles for the SAME style URL from the
  *    offline database, so the map renders with zero network.
  *
- * The tests are skipped (empty pass) when the tile server is unreachable so plain
- * android-ui runs (no geo stack) stay green - the CI job gates on the geo container.
+ * Skip semantics (run 45539682110 lesson - the render test originally hard-FAILED the
+ * plain android-ui shard because only the download test had a guard):
+ * - `downloadRegionOffline` skips when the tile server is unreachable (no geo stack).
+ * - `mapRendersFromOfflineRegion` skips when the offline store is EMPTY. In a plain
+ *   android-ui run the download never happened (skipped), so the store is empty -> the
+ *   render test empty-passes too. In the e2e job the DOWNLOAD step's own "region listed"
+ *   assertion already guarantees a non-empty store before airplane mode, so a skip here
+ *   can never mask a real e2e failure - empty-store-in-e2e fails the download step first.
  */
 @RunWith(AndroidJUnit4::class)
 class OfflineMapsInstrumentedTest {
@@ -106,6 +113,20 @@ class OfflineMapsInstrumentedTest {
         // AIRPLANE MODE: the CI job enables it between the two gradle invocations.
         // The storyboard screenshot on the home map screen IS the visual evidence
         // (real pixels from the offline store - the gallery renders them).
+
+        // Precondition (see class KDoc skip semantics): the offline store must hold a
+        // region - in the e2e job the download step just created one; in a plain
+        // android-ui run (no geo stack, download skipped) the store is empty and this
+        // test MUST empty-pass instead of failing the shard (run 45539682110).
+        storyboard.step("Precondition: offline region exists in the store") {
+            val regions = runBlocking {
+                OfflineMapManager(composeRule.activity.applicationContext).listRegions()
+            }
+            org.junit.Assume.assumeTrue(
+                "offline store empty - download phase did not run in this context (plain android-ui): skip",
+                regions.isNotEmpty(),
+            )
+        }
 
         storyboard.step("App boots offline: rider shell shows") {
             composeRule.waitForIdle()

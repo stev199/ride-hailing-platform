@@ -1,0 +1,42 @@
+// Sandbox-only Gradle init script - NEVER used by CI (CI resolves from real
+// Maven Central / Plugin Portal; this sandbox gets 429-limited by both).
+//
+// Usage: ./gradlew --max-workers=1 -I ../scripts/dev/gradle-init-mirror.gradle <tasks>
+//
+// Rewrites every Maven Central URL to Google's official central mirror and every
+// Plugin Portal URL to the same mirror (the portal proxies central for artifacts;
+// plugin MARKERS not present on central still resolve from the Gradle cache or the
+// portal itself when it is intermittently reachable - recorded 2026-11-25).
+// Project-level repositories are rewritten in place (NOT cleared) so PREFER_PROJECT
+// settings stay compatible: backend/mesh-core/android each declare their own
+// mavenCentral(), which would otherwise win and 429 (P1-5 lesson).
+
+def rewrite(RepositoryHandler repos) {
+    def googleCentral = 'https://maven-central.storage-download.googleapis.com/maven2/'
+    repos.all { repo ->
+        if (repo instanceof MavenArtifactRepository) {
+            def url = repo.url.toString()
+            if (url.contains('repo.maven.apache.org/maven2') || url.contains('repo1.maven.org/maven2')) {
+                repo.url = googleCentral
+            } else if (url.contains('plugins.gradle.org/m2')) {
+                repo.url = googleCentral
+            }
+        }
+    }
+}
+
+allprojects {
+    buildscript {
+        rewrite(repositories)
+    }
+    rewrite(repositories)
+}
+
+settingsEvaluated { settings ->
+    if (settings.pluginManagement != null) {
+        rewrite(settings.pluginManagement.repositories)
+    }
+    if (settings.dependencyResolutionManagement != null) {
+        rewrite(settings.dependencyResolutionManagement.repositories)
+    }
+}
