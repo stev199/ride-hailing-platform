@@ -33,16 +33,19 @@ class PgLedgerStoreTest {
 
         DriverManager.getConnection(url, user, password).use { c ->
             c.autoCommit = false
-            // wallet.owner_id FKs to app_user(id): seed ONE real user and hang both
-            // fixture wallets off it (the trigger proof only needs balanced legs).
-            val ownerId = java.util.UUID.randomUUID().toString()
+            // wallet.owner_id FKs to app_user(id) AND wallet has UNIQUE (owner_id,
+            // currency): seed TWO users, one per fixture wallet.
+            val owners = listOf(java.util.UUID.randomUUID().toString(), java.util.UUID.randomUUID().toString())
             c.prepareStatement(
                 "INSERT INTO app_user (id, display_name, role, status, locale) " +
                     "VALUES (?::uuid, 'ledger-trigger-seed', 'RIDER', 'ACTIVE', 'en') " +
                     "ON CONFLICT (id) DO NOTHING",
             ).use { ps ->
-                ps.setString(1, ownerId)
-                ps.executeUpdate()
+                owners.forEach { id ->
+                    ps.setString(1, id)
+                    ps.addBatch()
+                }
+                ps.executeBatch()
             }
             val txId: String
             c.prepareStatement("INSERT INTO ledger_transaction (reason) VALUES ('trigger proof') RETURNING id")
@@ -52,8 +55,8 @@ class PgLedgerStoreTest {
             c.prepareStatement(
                 "INSERT INTO wallet (id, owner_id, currency, balance, allow_negative) VALUES (?::uuid, ?::uuid, 'POINTS', 0, FALSE)",
             ).use { ps ->
-                listOf(walletA, walletB).forEach { id ->
-                    ps.setString(1, id)
+                listOf(walletA to owners[0], walletB to owners[1]).forEach { (walletId, ownerId) ->
+                    ps.setString(1, walletId)
                     ps.setString(2, ownerId)
                     ps.addBatch()
                 }

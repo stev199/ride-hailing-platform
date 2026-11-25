@@ -176,12 +176,21 @@ class PgLedgerStore(private val connect: () -> Connection) : LedgerStore {
         }
     }
 
-    private fun walletById(id: String): Wallet? = connect().use { c ->
-        c.prepareStatement("SELECT id, owner_id, currency, balance, allow_negative FROM wallet WHERE id = ?::uuid")
-            .use { ps ->
-                ps.setString(1, id)
-                ps.executeQuery().use { rs -> if (rs.next()) rs.toWallet() else null }
-            }
+    private fun walletById(id: String): Wallet? {
+        // Non-UUID ids are simply unknown wallets (same contract as the in-memory store:
+        // typed UnbalancedLedgerTransactionException, never a raw SQL cast error).
+        try {
+            java.util.UUID.fromString(id)
+        } catch (_: IllegalArgumentException) {
+            return null
+        }
+        return connect().use { c ->
+            c.prepareStatement("SELECT id, owner_id, currency, balance, allow_negative FROM wallet WHERE id = ?::uuid")
+                .use { ps ->
+                    ps.setString(1, id)
+                    ps.executeQuery().use { rs -> if (rs.next()) rs.toWallet() else null }
+                }
+        }
     }
 
     companion object {
