@@ -1,9 +1,9 @@
 # STATE - ride-hailing-platform
 
-Last updated: 2026-11-24
+Last updated: 2026-11-25
 Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
 Current phase: 2 (android shell) - P2-1a scaffold, P2-1b navigation/theming/i18n, P2-3 storyboard+video evidence DONE AND CI-VERIFIED (run 45507128835: 6 real-UI storyboard step screenshots + 2 screen recordings on the gallery); Phase 1 closed earlier (P1-CONTRACT rounds 1-5)
-Current task: P0-C CLOSED (formal, CI-verified run 45507128835); CI green at HEAD b1c54eb (run 45509270766). NOW: P2-1c (Hilt DI + Room+FTS + DataStore + outbox v1) - started 2026-11-25 session. Next: P2-2 MapLibre (needs P2-1c), P1-4c admin i18n, P1-5 ledger schema.
+Current task: P2-1c (182babe) + P2-2 MapLibre (12e77ae) DONE - 30 unit tests green local task tier, apps+androidTest APKs assemble, build exit 0; batch push + CI verification in flight. NOW: P1-5 ledger/wallet schema (backend). Next: P1-4c admin i18n, P1-4b backend? done already - P1-5 -> P1-4c -> P2-4 auth UI (needs P2-1c: done).
 Last completed task: P2-3 evidence chain - 15 CI iterations, 8 distinct root causes (3 pre-existing bugs found on the way: gallery media never shipped; e2e-cross-actor ran hollow-green for its whole history; guest screenrecord dead on ATD), all fixed with log evidence - see PROGRESS_LOG 2026-11-24 entries
 
 ## Gate status table
@@ -14,7 +14,7 @@ Last completed task: P2-3 evidence chain - 15 CI iterations, 8 distinct root cau
 | Mesh GATE 1-2 (Part C) | GATE 2 CLOSED AND CI-VERIFIED 2026-11-24 (run 45256630914, mesh-core-sim success): beacons (certified profiles, short MAC, adaptive pacing) + PRESENCE (backend-only seal) + GATEWAY_RELAY (opaque forward, internet shortcut) - scenarios 16-19 PASS on CI + locally |
 | Mesh GATE 3 (Stage 3) | DONE 2026-11-24: 15/15 scenarios + baseline gate green on CI (run 45245604015, mesh-sim-evidence artifact uploaded) + locally; suite now 19 scenarios (16-19 = GATE 2 close-out) |
 | Mesh GATE 4-7 (Part C) | pending (Stage 4 starts with Phase 2 android) |
-| Phases 1-11 (Part B) | in progress (P1-1..P1-4, P1-6 done; P1-5a, P1-4b, P1-5 next) |
+| Phases 1-11 (Part B) | in progress (P1-1..P1-4, P1-5a/a2, P1-6, P1B-1..5 done; P1-5, P1-4c next) |
 
 ## Environment status (A3 bootstrap audit, 2026-11-23)
 
@@ -40,11 +40,19 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Next 5 tasks
 
-1. P2-1c Hilt DI, Room+FTS, DataStore, outbox v1
-2. P2-2 MapLibre main screen vs self-hosted tiles (needs P2-1c)
-3. P1-4c admin i18n EN/FR/AR-RTL + screenshot baselines (gate-tier visual work)
+1. P1-5 ledger/wallet schema + double-entry invariant tests (backend)
+2. P1-4c admin i18n EN/FR/AR-RTL + light/dark screenshot baselines
+3. P2-4 auth UI against Phase 1 backend (P2-1c done)
 4. P2-3 follow-up: re-expand the android-ui shard matrix when a suite exceeds 1-2 tests/shard
 5. Extras: mesh long-mode scenario runner (nightly --scenario=long selection; BACKLOG)
+
+## Session environment (2026-11-25 recycle #3 recovery)
+
+- repo re-cloned; gh CLI + JDK17 (17.0.21.1 Adoptium) + Android SDK (cmdline-tools 11076708, platform-34, build-tools 34.0.0) reinstalled under /home/z/my-project/tools/; gradle-home cache survived; restore script scripts/restore_toolchain.sh
+- Maven Central STILL 429 from sandbox: mirror init /home/z/my-project/tools/gradle-init-mirror.gradle (-I flag, session-local, not committed); Robolectric android-all runtime routed via robolectric.dependency.repo.url (set in core-data testOptions)
+- local.properties (sdk.dir) created in android/ - untracked, sandbox-only
+- Gradle needs --max-workers=1 in this 4GB sandbox: parallel KSP/Hilt workers OOM-killed the daemon twice (recorded; CI unaffected)
+- System java is a JRE (no javac) - JAVA_HOME must point to tools/jdk17 for every gradle shell
 
 ## Phase 0 setup record (from repository bootstrap)
 
