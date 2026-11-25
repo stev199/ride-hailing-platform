@@ -56,6 +56,16 @@ Ordered granular tasks. Each is finishable and verifiable in one work session. D
 | P3-3 | Visited places: visited/saved list UI from PlaceDao (sources exist since P2-2), save-place action from search results; visited marking from completed rides lands when rides exist (Phase 4+) | P2-1c, P2-2 | done | commit 5738206: PlacesCardViewModel (buckets by source from PlaceDao, @ClockMs qualifier) + PlacesCard (saved/recent/visited buckets, save/unsave, delete, add-at-map-center v1) in the settings extraCard slot; visited bucket honestly empty until rides exist (Phase 4); i18n en/fr/ar; PlacesCardViewModelTest 3/3; 44 unit tests green local |
 | P3-P11 | per Part B delivery plan | - | tracked as phases land; P0/P1 features in FEATURES.md | |
 
+## Phase 4 (rider booking happy path + on-device price estimator) - per spec §delivery plan 4 + §pricing
+
+| ID | Task | Depends | Status | Evidence |
+|---|---|---|---|---|
+| P4-1 | Fare engine (backend): FareConfig section in the signed config bundle (per city+ride type: base, per-km, per-minute, minimum, booking/cancel/wait fees, night/peak multipliers, surge); pure-Kotlin FareCalculator (range low/high from the SAME math the device uses, fee breakdown, surge indication); POST /v1/rides/estimate using OSRM distance/time (graceful straight-line x detour fallback + degraded flag when OSRM down); KAT vectors committed as JSON (shared with the device parity test, P4-3); openapi + backend tests | P1-5a | todo | |
+| P4-2 | Backend rides API: V5 migration (rides + ride_stops, FK riders), trip state machine enum (REQUESTED->...->COMPLETED/CANCELLED_*) enforced in-code + tested; POST /v1/rides creates trip + server-SIGNED final quote (validity window + upfront-locked vs metered-with-cap policy from config, §pricing); GET /v1/rides/{id} rider-owned; POST /v1/rides/{id}/cancel (pre-accept rules from config, cancel fee into ledger schema); rider RBAC + banned-user refusal; event-store entries for state changes; quote-expiry edge tested; openapi | P4-1 | todo | |
+| P4-3 | On-device estimator: FareMath port in android (pure JVM, SAME math + same KAT vectors -> parity test suite, tolerance stated in code+docs); fare-bundle fetch/cache (DataStore, expiry + stale-config flag per §pricing); offline estimate: cached route -> else straight-line x calibrated detour factor; ride-type estimate ranges + fees breakdown + surge-when-known | P4-1 | todo | |
+| P4-4 | Rider booking UI: pickup/dropoff pickers (search + recents + saved), route preview, ride-type chips, estimate card (range + permanent disclaimer note + breakdown), payment method (cash v1; wallet/points listed disabled until Phase 7), notes, book -> POST /v1/rides (core-data network + rides Room table + outbox enqueue), trip screen (state + final quote vs estimate delta + confirm/decline for metered policy v1: upfront-locked only), cancel; quote-expiry handling; i18n en/fr/ar | P4-2, P4-3 | todo | |
+| P4-5 | Booking e2e + verification evidence: instrumented booking flow against the compose backend (book -> trip REQUESTED -> cancel), quote-expiry edge, storyboard screenshots (2 sizes + font-scale via the nightly cells), Phase 4 gate evidence cited | P4-4 | todo | driver-accept/dispatch matching lands Phase 5 (auto-dispatch config there); offline mesh booking = Phase 10 |
+
 ## Deferred / blocked
 
 | ID | Item | Reason | Revisit |
