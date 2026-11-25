@@ -33,7 +33,11 @@ android {
         buildConfigField(
             "String",
             "MAP_STYLE_URL",
-            "\"${project.findProperty("map.styleUrl") as? String ?: "http://10.0.2.2:8081/styles/basic/style.json"}\"",
+            // Round-13: default MUST match MapConfig.EMULATOR_STYLE_URL ("basic-preview" is
+            // the only style tileserver-gl v4.6.2 bundles). The stale /styles/basic default
+            // made every non-overridden build (android-ui shards, e2e-offline, nightly)
+            // target a 404-forever style -> offline download Failed + graceful-offline UI.
+            "\"${project.findProperty("map.styleUrl") as? String ?: "http://10.0.2.2:8081/styles/basic-preview/style.json"}\"",
         )
     }
 

@@ -85,6 +85,10 @@ class OfflineMapsInstrumentedTest {
 
         storyboard.step("Wait for the offline-ready status") {
             val ready = composeRule.activity.getString(MapR.string.offline_done)
+            val failedPrefix = composeRule.activity.getString(MapR.string.offline_failed)
+                .substringBefore("%1\$s").trim()
+            val progressPrefix = composeRule.activity.getString(MapR.string.offline_progress)
+                .substringBefore("%1\$d").trim()
             fun statusText(): String =
                 composeRule.onAllNodesWithTag("offline_status", useUnmergedTree = true)
                     .fetchSemanticsNodes()
@@ -93,9 +97,36 @@ class OfflineMapsInstrumentedTest {
                     ?.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Text)
                     ?.joinToString("")
                     ?: ""
-            // Monaco extract (zoom 0-14) over localhost downloads in well under a minute;
-            // 5 min is generous for slower CI runners.
-            composeRule.waitUntil(timeoutMillis = 300_000) { statusText().contains(ready) }
+            // Round-13 fail-fast: run 45687150042 burned the whole 300s waitUntil on a
+            // status that could never become ready (stale /styles/basic BuildConfig
+            // default -> MapLibre onError -> Failed forever). Poll manually instead:
+            // done -> pass; Failed -> fail IMMEDIATELY with the reason; still no status
+            // node after 90s -> fail (download flow never started - wiring bug).
+            val startMs = System.currentTimeMillis()
+            val timeoutMs = 300_000L // Monaco extract (zoom 0-14) over localhost: minutes at worst
+            var last = ""
+            var sawProgress = false
+            while (System.currentTimeMillis() - startMs < timeoutMs) {
+                last = statusText()
+                when {
+                    last.contains(ready) -> break
+                    last.startsWith(failedPrefix) ->
+                        org.junit.Assert.fail("offline download failed: '$last'")
+                    last.contains(progressPrefix) -> sawProgress = true
+                }
+                if (!sawProgress && last.isEmpty() && System.currentTimeMillis() - startMs > 90_000) {
+                    org.junit.Assert.fail(
+                        "offline status node stayed empty for 90s - download flow never started",
+                    )
+                }
+                Thread.sleep(1_000)
+            }
+            if (!last.contains(ready)) {
+                org.junit.Assert.fail(
+                    "offline status never reached ready after ${timeoutMs / 1000}s; " +
+                        "last status: '$last' (progress seen: $sawProgress)",
+                )
+            }
             composeRule.onNodeWithTag("offline_status", useUnmergedTree = true).assertIsDisplayed()
         }
 
