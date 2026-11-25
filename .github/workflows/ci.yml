@@ -217,6 +217,11 @@ jobs:
         with:
           name: mesh-sim-evidence
           path: docs/evidence/mesh-sim/
+      - uses: actions/upload-artifact@v4
+        if: ${{ always() && hashFiles('mesh-core/**/*.kt') != '' }}
+        with:
+          name: mesh-test-results
+          path: mesh-core/build/test-results/test/
 
   # ---------- 6. android build (once, artifacts reused) ----------
   android-build:
