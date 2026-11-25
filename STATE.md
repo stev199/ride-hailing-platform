@@ -1,6 +1,6 @@
 # STATE - ride-hailing-platform
 
-Last updated: 2026-11-25 (gate round 13: e2e-offline-maps ROOT CAUSE fixed - stale /styles/basic BuildConfig default in BOTH apps (round-12 missed the BuildConfig layer) -> push 3a61784 CI-VERIFIED run 45710987474 attempt 2 ALL GREEN -> PHASE 3 GATE CLOSED, tag phase-3-gate @ 3a61784; same batch: P4-3 on-device estimator + P4-4 booking UI + P4-5 booking e2e cell - code complete, local suites green (KAT parity 3/3, cache 5/5, estimator 12/12, rides repo 6/6), CI verification = this push)
+Last updated: 2026-11-25 (gate round 14: Phase 4 code complete + PHASE 5 COMPLETE - backend dispatch (single-winner claim, duty registry, driver routes, 160/160 backend tests) + driver app flow (repository/VM/cards/i18n, 72/72 android unit tests); HONESTY NOTE: the round-13 phase-4-gate tag was DELETED - the CI run it cited was hollow (ci.yml-only commit -> path filters skipped every component job; the real round-13 run was cancelled by push concurrency, the round-12 hollow-green lesson repeated) - re-tag AFTER a genuinely full green run on a code commit; e2e-booking cell now also exercises the new driver endpoints indirectly (board stays empty without drivers - rider booking flow unaffected)
 
 Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
 Current phase: 4 (rider booking happy path) - P4-1 fare engine + P4-2 rides API committed (178e400, b3fcabc); round-11 contract run caught 3 violations (offset=null accepted, GET estimate 404-not-405 via {id} shadowing, partial fare PATCH silently default-resetting straightLine/quote) - ALL FIXED this batch, CI verification in flight. Phase 3 code complete; P3-2 offline-map e2e verification re-dispatched (previous run 45593853432 CANCELLED by concurrency before any job ran).
@@ -55,11 +55,11 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Next 5 tasks
 
-1. Verify round-13 push CI: android-build + unit suites (new core-data/pricing + rides tests), e2e-booking cell (new), android-ui shards; fix red, re-dispatch
-2. P4 GATE: e2e-booking green + api-contract green -> Phase 4 gate report, tag phase-4-gate, start Phase 5 immediately (NON-STOP D74)
-3. Phase 5 (driver app + dispatch): D-state via config, driver duty toggle -> backend beacon/dispatch (auto-dispatch config), offer/accept flow, driver trip actions
-4. Phase 6 (ratings + history polish) per PROJECT_SPEC Part B order - re-check the spec section before starting
-5. Re-dispatch live-view (workflow_dispatch) after the Phase 5 driver-side changes land - user directive: live-view must keep working (currently GREEN #11 @ 4c3c27a)
+1. Verify round-14 push CI (FULL run expected: android+backend paths touched -> every job runs): api-contract over the NEW driver endpoints, e2e-booking, dispatch tests, unit suites; fix red, re-dispatch
+2. Phase 4 + Phase 5 gates: after the full green run - tag phase-4-gate (cites the run id), gate report rows, start Phase 6 immediately (NON-STOP D74)
+3. Phase 6 (admin center): verification center, users (exists), live map, trips admin views, fares editor UI - per spec delivery plan 6
+4. Re-dispatch live-view (workflow_dispatch) after driver-side changes - user directive: live-view must keep working (last GREEN #11 @ 4c3c27a)
+5. Driver-side instrumented e2e cell (duty -> board -> accept -> trip actions) as the Phase 5 evidence appendix if the run above leaves any gap
 
 ## Session environment (2026-11-25 recycle #5 recovery)
 
