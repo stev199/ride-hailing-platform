@@ -411,7 +411,7 @@ jobs:
           ls -la infra/data/
       - name: Start the self-hosted tile server (standalone; host port 8081 -> emulator 10.0.2.2:8081)
         run: |
-          docker run -d --name tileserver -p 8081:8081 -v "$PWD/infra/data:/data" maplibre/tileserver-gl:v4.6.2 --mbtiles /data/city.mbtiles -p 8081
+          docker run -d --name tileserver -p 8081:8081 -v "$PWD/infra/data:/data" maptiler/tileserver-gl:v4.6.2 --mbtiles /data/city.mbtiles -p 8081
           for i in $(seq 1 30); do
             if curl -fsSI "http://localhost:8081/styles/basic/style.json" | head -1 | grep -q "200"; then echo "tile server up (attempt $i/30)"; break; fi
             echo "waiting for tile server (attempt $i/30)"

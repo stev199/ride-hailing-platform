@@ -49,7 +49,7 @@ services:
   tileserver:
     # Self-hosted vector tiles from a small city extract built with Planetiler
     # (infra/fetch-map-data.sh). No tile.openstreetmap.org usage anywhere.
-    image: maplibre/tileserver-gl:v4.6.2
+    image: maptiler/tileserver-gl:v4.6.2
     profiles: [geo]
     command: ["--mbtiles", "/data/city.mbtiles", "-p", "8081"]
     ports: ["8081:8081"]
