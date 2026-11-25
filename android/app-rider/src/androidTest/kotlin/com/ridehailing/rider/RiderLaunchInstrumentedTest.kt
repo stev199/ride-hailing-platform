@@ -51,8 +51,9 @@ class RiderLaunchInstrumentedTest {
                 .performClick()
             composeRule.waitForIdle()
             // P2-4: the Settings tab is the SessionScreen now; signed-out it shows the
-            // login card. Emulator runs carry no session, so the login title shows.
-            composeRule.onNodeWithText(activity.getString(ScreensR.string.auth_title))
+            // login card. Emulator runs carry no session -> the login SUBTITLE shows
+            // (unique node: auth_title "Sign in" also matches the submit button).
+            composeRule.onNodeWithText(activity.getString(ScreensR.string.auth_subtitle))
                 .assertIsDisplayed()
         }
 

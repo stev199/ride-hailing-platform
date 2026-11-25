@@ -1,5 +1,6 @@
 package com.ridehailing.backend.ledger
 
+import com.ridehailing.backend.db.PgLedgerStore as PgStore
 import java.sql.DriverManager
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -36,14 +37,55 @@ class LedgerStoreContractTest {
                 .locations("classpath:db/migration")
                 .load()
                 .migrate()
-            list.add("postgres" to com.ridehailing.backend.db.PgLedgerStore(
-                { DriverManager.getConnection(pgUrl, pgUser, pgPassword) },
-            ))
+            list.add("postgres" to UserSeedingPgStore { DriverManager.getConnection(pgUrl, pgUser, pgPassword) })
         }
         return list
     }
 
-    private fun uid(prefix: String): String = "$prefix-${java.util.UUID.randomUUID()}"
+    /**
+     * wallet.owner_id carries a FK to app_user(id) (V1) - production wallets always
+     * belong to real users. The contract scenarios generate owner ids freely, so the
+     * PG test double seeds a minimal app_user row before every ensureWallet. Owner ids
+     * are UUIDs so they can serve as app_user.id directly.
+     */
+    private class UserSeedingPgStore(private val connect: () -> java.sql.Connection) : LedgerStore {
+        private val delegate = PgStore(connect)
+
+        private fun seedUser(ownerId: String) {
+            connect().use { c ->
+                c.prepareStatement(
+                    "INSERT INTO app_user (id, display_name, role, status, locale) " +
+                        "VALUES (?::uuid, 'ledger-contract-seed', 'RIDER', 'ACTIVE', 'en') " +
+                        "ON CONFLICT (id) DO NOTHING",
+                ).use { ps ->
+                    ps.setString(1, ownerId)
+                    ps.executeUpdate()
+                }
+            }
+        }
+
+        override fun ensureWallet(ownerId: String, currency: String, allowNegative: Boolean): Wallet {
+            seedUser(ownerId)
+            return delegate.ensureWallet(ownerId, currency, allowNegative)
+        }
+
+        override fun walletFor(ownerId: String, currency: String): Wallet? =
+            delegate.walletFor(ownerId, currency)
+
+        override fun balance(walletId: String): Long = delegate.balance(walletId)
+
+        override fun postTransaction(
+            legs: List<LedgerLeg>,
+            refType: String?,
+            refId: String?,
+            reason: String,
+        ): LedgerTransaction = delegate.postTransaction(legs, refType, refId, reason)
+
+        override fun entriesFor(walletId: String, limit: Int): List<LedgerEntry> =
+            delegate.entriesFor(walletId, limit)
+    }
+
+    private fun uid(prefix: String): String = java.util.UUID.randomUUID().toString()
 
     /** Seed a wallet by issuing value out of the treasury (treasury may go negative). */
     private fun seed(store: LedgerStore, wallet: Wallet, amount: Long) {

@@ -35,7 +35,7 @@ class PgLedgerStore(private val connect: () -> Connection) : LedgerStore {
     override fun ensureWallet(ownerId: String, currency: String, allowNegative: Boolean): Wallet =
         connect().use { c ->
             c.prepareStatement(
-                "INSERT INTO wallet (owner_id, currency, balance, allow_negative) VALUES (?, ?, 0, ?) " +
+                "INSERT INTO wallet (owner_id, currency, balance, allow_negative) VALUES (?::uuid, ?, 0, ?) " +
                     "ON CONFLICT (owner_id, currency) DO UPDATE " +
                     "SET allow_negative = wallet.allow_negative OR EXCLUDED.allow_negative " +
                     "RETURNING id, owner_id, currency, balance, allow_negative",
