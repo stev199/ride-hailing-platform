@@ -86,6 +86,13 @@ jobs:
           VIEWER_TOKEN="$TOKEN" node server.js > /tmp/viewer.log 2>&1 &
           sleep 2
           curl -fsS "http://localhost:7070/api/state?token=$TOKEN" >/dev/null
+       - name: Install Android emulator + system image
+        run: |
+          SDKM=$(ls $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager | head -n1)
+          yes | $SDKM --licenses >/dev/null || true
+          $SDKM --install "emulator" "platform-tools" "system-images;android-34;google_apis;x86_64"
+          echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
       - name: Boot emulators + install apps
         run: ./scripts/start-emulators.sh 2
       - name: Tunnel (cloudflared quick tunnel, pinned)
