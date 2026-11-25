@@ -3,7 +3,7 @@
 Last updated: 2026-11-25 (Phase 3 started: P3-1 done, P3-2/P3-3 next)
 Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
 Current phase: 3 (offline maps and visited places) - STARTED 2026-11-25 right after the Phase 2 gate (NON-STOP RULE D74). Phase 2 closed with tag phase-2-gate.
-Current task: P2-1c + P2-2 + P1-5 (479cae6) + P1-4c (0c44e0f) DONE; CI round 17 fix (dcbd055) pushed after run 45518041434 red (instrumented nav tests still asserted the P2-1b Home placeholder -> updated to map-screen elements, tile-independent). NOW: P2-4 auth UI. Next: gate check, P2-3 follow-up, Extras.
+Phase 2 GATE CLOSED (tag phase-2-gate @ 122175d, report in gate table + PROGRESS_LOG). Phase 3 in progress: P3-1 done (8333005), P3-3 done (5738206), NOW: P3-2 offline e2e cell (geo compose + instrumented airplane-mode verification). CI verification of P3-1/P3-3 in flight (run for 5738206).
 Last completed task: P3-1 offline maps (8333005): OfflineMapManager + OfflineMapCard outside the auth gate + JVM-tested codec/progress; 41 unit tests green; build exit 0
 
 ## Gate status table
