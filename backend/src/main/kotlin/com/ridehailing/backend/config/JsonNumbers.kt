@@ -53,3 +53,30 @@ object ZeroFractionIntSerializer : KSerializer<Int?> {
         if (value == null) encoder.encodeNull() else encoder.encodeInt(value)
     }
 }
+
+/**
+ * Non-null twin of [ZeroFractionIntSerializer] for REQUIRED integer fields
+ * (P4-1 fare config hour windows): JSON null and integral floats in Int32
+ * range parse per JSON Schema "integer" semantics, everything else fails the
+ * body parser (400 invalid_body, documented).
+ */
+object ZeroFractionIntRequiredSerializer : KSerializer<Int> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("ZeroFractionIntRequired", PrimitiveKind.INT)
+
+    override fun deserialize(decoder: Decoder): Int =
+        when (val el = (decoder as? JsonDecoder)?.decodeJsonElement()) {
+            is JsonNull -> throw SerializationException("integer field must be a number")
+            is JsonPrimitive -> {
+                if (el.isString) throw SerializationException("integer field must be a number")
+                el.intOrNull
+                    ?: el.doubleOrNull
+                        ?.takeIf { it == floor(it) && it >= Int.MIN_VALUE && it <= Int.MAX_VALUE }
+                        ?.toInt()
+                    ?: throw SerializationException("integer field must be an Int32 number")
+            }
+            else -> throw SerializationException("integer field must be a number")
+        }
+
+    override fun serialize(encoder: Encoder, value: Int) = encoder.encodeInt(value)
+}

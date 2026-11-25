@@ -236,4 +236,67 @@ class ContractAlignmentTest {
         val keys = names["enum"] as List<*>
         assertEquals(setOf("SMS", "TELEGRAM", "EMAIL", "WHATSAPP"), keys.toSet())
     }
+
+    // ---------- P4-1 fare engine contract alignment ----------
+
+    private fun numberOf(p: Map<String, Any>, field: String, schema: String): Double {
+        val v = p[field] ?: fail("$schema.$field missing")
+        return when (v) {
+            is Int -> v.toDouble()
+            is Long -> v.toDouble()
+            is Double -> v
+            else -> fail("$schema.$field must be a number, got $v")
+        }
+    }
+
+    private fun numberBounds(schema: String, field: String): Pair<Double, Double> {
+        val p = prop(schema, field)
+        return numberOf(p, "minimum", schema) to numberOf(p, "maximum", schema)
+    }
+
+    @Test
+    fun `fare estimate request mirrors the server coordinate and key validation`() {
+        for (f in listOf("pickupLat", "pickupLon", "dropoffLat", "dropoffLon")) {
+            val (min, max) = numberBounds("FareEstimateRequest", f)
+            assertEquals(-180.0, min, "$f lower bound (server accepts +/-180 on both axes)")
+            assertEquals(180.0, max, "$f upper bound")
+        }
+        val city = pattern("FareEstimateRequest", "city").pattern
+        assertEquals(city, pattern("FareEstimateRequest", "rideType").pattern, "city and rideType share the kebab key shape")
+        assertEquals(Regex(city).matches("monaco"), true)
+        assertEquals(false, Regex(city).matches("Nice"), "uppercase keys are rejected (FareConfig CITY_KEY_RE)")
+    }
+
+    @Test
+    fun `fare config schema mirrors FareConfig validation limits`() {
+        // Map cardinality + key shapes (server: MAX_CITIES / MAX_RIDE_TYPES_PER_CITY / CITY_KEY_RE).
+        @Suppress("UNCHECKED_CAST")
+        val cities = (schemas["FareConfig"] as? Map<String, Any>)?.get("properties")?.let { it as Map<String, Any> }?.get("cities") as? Map<String, Any>
+            ?: fail("FareConfig.cities missing")
+        assertEquals(1, cities["minProperties"], "empty fares section is 400 invalid_fares (at least one city)")
+        assertEquals(16, cities["maxProperties"], "device-cached bundle size guard (MAX_CITIES)")
+        @Suppress("UNCHECKED_CAST")
+        val names = cities["propertyNames"] as? Map<String, Any> ?: fail("city keys constrained via propertyNames")
+        val cityRe = (names["pattern"] as? String) ?: fail("city key pattern missing")
+        assertEquals(Regex(cityRe).matches("abc-12"), true)
+        assertEquals(Regex(cityRe).matches("UPPER"), false)
+
+        // Surge windows (server: multiplier in 1.0..5.0, hours 0..23, start==end disables).
+        val (multMin, multMax) = numberBounds("SurgeWindow", "multiplier")
+        assertEquals(1.0, multMin)
+        assertEquals(5.0, multMax)
+        for (h in listOf("startHourUtc", "endHourUtc")) {
+            val (hmin, hmax) = numberBounds("SurgeWindow", h)
+            assertEquals(0.0, hmin, "$h lower bound")
+            assertEquals(23.0, hmax, "$h upper bound")
+        }
+
+        // Straight-line calibration (server: detour in 1.0..3.0, speed in (0..200]).
+        val (detMin, detMax) = numberBounds("StraightLineCalibration", "detourFactor")
+        assertEquals(1.0, detMin); assertEquals(3.0, detMax)
+        @Suppress("UNCHECKED_CAST")
+        val speed = prop("StraightLineCalibration", "assumedAvgSpeedKmh")
+        assertEquals(true, speed["exclusiveMinimum"] == true, "speed 0 is invalid (division guard)")
+        assertEquals(200.0, (speed["maximum"] as? Int)?.toDouble() ?: (speed["maximum"] as? Double) ?: fail("speed maximum missing"))
+    }
 }

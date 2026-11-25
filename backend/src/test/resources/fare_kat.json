@@ -1,0 +1,524 @@
+{
+  "generator": "scripts/gen_fare_kat.py (independent Python implementation of FareMath)",
+  "haversineRadiusMeters": 6371008.8,
+  "rounding": "floor(x*100+0.5)/100",
+  "vectors": [
+    {
+      "expect": {
+        "high": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 9.42,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.0,
+          "timeCost": 5.4,
+          "total": 18.82
+        },
+        "low": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 9.42,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.0,
+          "timeCost": 5.4,
+          "total": 18.82
+        },
+        "maxSurge": 1.0,
+        "surgeMultiplier": 1.0,
+        "surgeReason": null
+      },
+      "fares": {
+        "base": 2.5,
+        "bookingFee": 1.5,
+        "cancelFee": 3.0,
+        "minimumFare": 8.0,
+        "nightEndHourUtc": 0,
+        "nightMultiplier": 1.0,
+        "nightStartHourUtc": 0,
+        "peakEndHourUtc": 0,
+        "peakMultiplier": 1.0,
+        "peakStartHourUtc": 0,
+        "perKm": 1.8,
+        "perMinute": 0.45,
+        "waitFeePerMinute": 0.5
+      },
+      "hourUtc": 12,
+      "name": "standard_no_surge",
+      "note": "plain urban trip, no surge windows configured",
+      "route": {
+        "distanceMeters": 5234.5,
+        "durationSeconds": 720.0
+      }
+    },
+    {
+      "expect": {
+        "high": {
+          "base": 1.0,
+          "bookingFee": 0.35,
+          "distanceCost": 0.32,
+          "minimumApplied": true,
+          "surgeMultiplier": 1.0,
+          "timeCost": 0.3,
+          "total": 10.1
+        },
+        "low": {
+          "base": 1.0,
+          "bookingFee": 0.35,
+          "distanceCost": 0.32,
+          "minimumApplied": true,
+          "surgeMultiplier": 1.0,
+          "timeCost": 0.3,
+          "total": 10.1
+        },
+        "maxSurge": 1.0,
+        "surgeMultiplier": 1.0,
+        "surgeReason": null
+      },
+      "fares": {
+        "base": 1.0,
+        "bookingFee": 0.35,
+        "cancelFee": 3.0,
+        "minimumFare": 9.75,
+        "nightEndHourUtc": 0,
+        "nightMultiplier": 1.0,
+        "nightStartHourUtc": 0,
+        "peakEndHourUtc": 0,
+        "peakMultiplier": 1.0,
+        "peakStartHourUtc": 0,
+        "perKm": 0.4,
+        "perMinute": 0.1,
+        "waitFeePerMinute": 0.5
+      },
+      "hourUtc": 12,
+      "name": "minimum_fare_applied",
+      "note": "subtotal below minimum -> minimum wins before booking fee",
+      "route": {
+        "distanceMeters": 800.0,
+        "durationSeconds": 180.0
+      }
+    },
+    {
+      "expect": {
+        "high": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 16.2,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.25,
+          "timeCost": 11.25,
+          "total": 38.31
+        },
+        "low": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 16.2,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.0,
+          "timeCost": 11.25,
+          "total": 31.45
+        },
+        "maxSurge": 1.25,
+        "surgeMultiplier": 1.25,
+        "surgeReason": "night"
+      },
+      "fares": {
+        "base": 2.5,
+        "bookingFee": 1.5,
+        "cancelFee": 3.0,
+        "minimumFare": 8.0,
+        "nightEndHourUtc": 6,
+        "nightMultiplier": 1.25,
+        "nightStartHourUtc": 22,
+        "peakEndHourUtc": 0,
+        "peakMultiplier": 1.0,
+        "peakStartHourUtc": 0,
+        "perKm": 1.8,
+        "perMinute": 0.45,
+        "waitFeePerMinute": 0.5
+      },
+      "hourUtc": 23,
+      "name": "night_window_active",
+      "note": "night multiplier 1.25 inside 22..6",
+      "route": {
+        "distanceMeters": 9000.0,
+        "durationSeconds": 1500.0
+      }
+    },
+    {
+      "expect": {
+        "high": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 10.8,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.25,
+          "timeCost": 6.75,
+          "total": 25.94
+        },
+        "low": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 10.8,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.0,
+          "timeCost": 6.75,
+          "total": 21.55
+        },
+        "maxSurge": 1.25,
+        "surgeMultiplier": 1.25,
+        "surgeReason": "night"
+      },
+      "fares": {
+        "base": 2.5,
+        "bookingFee": 1.5,
+        "cancelFee": 3.0,
+        "minimumFare": 8.0,
+        "nightEndHourUtc": 6,
+        "nightMultiplier": 1.25,
+        "nightStartHourUtc": 22,
+        "peakEndHourUtc": 0,
+        "peakMultiplier": 1.0,
+        "peakStartHourUtc": 0,
+        "perKm": 1.8,
+        "perMinute": 0.45,
+        "waitFeePerMinute": 0.5
+      },
+      "hourUtc": 3,
+      "name": "night_window_wraps_midnight",
+      "note": "hour 3 inside 22..6 wrap-around",
+      "route": {
+        "distanceMeters": 6000.0,
+        "durationSeconds": 900.0
+      }
+    },
+    {
+      "expect": {
+        "high": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 7.56,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.4,
+          "timeCost": 4.95,
+          "total": 21.51
+        },
+        "low": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 7.56,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.0,
+          "timeCost": 4.95,
+          "total": 16.51
+        },
+        "maxSurge": 1.4,
+        "surgeMultiplier": 1.4,
+        "surgeReason": "peak"
+      },
+      "fares": {
+        "base": 2.5,
+        "bookingFee": 1.5,
+        "cancelFee": 3.0,
+        "minimumFare": 8.0,
+        "nightEndHourUtc": 0,
+        "nightMultiplier": 1.0,
+        "nightStartHourUtc": 0,
+        "peakEndHourUtc": 10,
+        "peakMultiplier": 1.4,
+        "peakStartHourUtc": 8,
+        "perKm": 1.8,
+        "perMinute": 0.45,
+        "waitFeePerMinute": 0.5
+      },
+      "hourUtc": 9,
+      "name": "peak_window_active",
+      "note": "peak multiplier 1.4 inside 8..10",
+      "route": {
+        "distanceMeters": 4200.0,
+        "durationSeconds": 660.0
+      }
+    },
+    {
+      "expect": {
+        "high": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 7.56,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.4,
+          "timeCost": 4.95,
+          "total": 21.51
+        },
+        "low": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 7.56,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.0,
+          "timeCost": 4.95,
+          "total": 16.51
+        },
+        "maxSurge": 1.4,
+        "surgeMultiplier": 1.0,
+        "surgeReason": null
+      },
+      "fares": {
+        "base": 2.5,
+        "bookingFee": 1.5,
+        "cancelFee": 3.0,
+        "minimumFare": 8.0,
+        "nightEndHourUtc": 0,
+        "nightMultiplier": 1.0,
+        "nightStartHourUtc": 0,
+        "peakEndHourUtc": 10,
+        "peakMultiplier": 1.4,
+        "peakStartHourUtc": 8,
+        "perKm": 1.8,
+        "perMinute": 0.45,
+        "waitFeePerMinute": 0.5
+      },
+      "hourUtc": 10,
+      "name": "peak_excludes_boundary",
+      "note": "window is [8,10) - hour 10 is OFF-peak",
+      "route": {
+        "distanceMeters": 4200.0,
+        "durationSeconds": 660.0
+      }
+    },
+    {
+      "expect": {
+        "high": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 12.6,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.4,
+          "timeCost": 8.25,
+          "total": 33.19
+        },
+        "low": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 12.6,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.0,
+          "timeCost": 8.25,
+          "total": 24.85
+        },
+        "maxSurge": 1.4,
+        "surgeMultiplier": 1.25,
+        "surgeReason": "night"
+      },
+      "fares": {
+        "base": 2.5,
+        "bookingFee": 1.5,
+        "cancelFee": 3.0,
+        "minimumFare": 8.0,
+        "nightEndHourUtc": 6,
+        "nightMultiplier": 1.25,
+        "nightStartHourUtc": 22,
+        "peakEndHourUtc": 5,
+        "peakMultiplier": 1.4,
+        "peakStartHourUtc": 23,
+        "perKm": 1.8,
+        "perMinute": 0.45,
+        "waitFeePerMinute": 0.5
+      },
+      "hourUtc": 2,
+      "name": "night_beats_peak_on_overlap",
+      "note": "both windows cover hour 2 -> night reason wins",
+      "route": {
+        "distanceMeters": 7000.0,
+        "durationSeconds": 1100.0
+      }
+    },
+    {
+      "expect": {
+        "high": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 0.0,
+          "minimumApplied": true,
+          "surgeMultiplier": 1.0,
+          "timeCost": 0.0,
+          "total": 9.5
+        },
+        "low": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 0.0,
+          "minimumApplied": true,
+          "surgeMultiplier": 1.0,
+          "timeCost": 0.0,
+          "total": 9.5
+        },
+        "maxSurge": 1.0,
+        "surgeMultiplier": 1.0,
+        "surgeReason": null
+      },
+      "fares": {
+        "base": 2.5,
+        "bookingFee": 1.5,
+        "cancelFee": 3.0,
+        "minimumFare": 8.0,
+        "nightEndHourUtc": 0,
+        "nightMultiplier": 1.0,
+        "nightStartHourUtc": 0,
+        "peakEndHourUtc": 0,
+        "peakMultiplier": 1.0,
+        "peakStartHourUtc": 0,
+        "perKm": 1.8,
+        "perMinute": 0.45,
+        "waitFeePerMinute": 0.5
+      },
+      "hourUtc": 12,
+      "name": "same_point_zero_distance",
+      "note": "identical coords -> base only, minimum applies",
+      "route": {
+        "distanceMeters": 0.0,
+        "durationSeconds": 0.0
+      }
+    },
+    {
+      "expect": {
+        "high": {
+          "base": 2.5,
+          "bookingFee": 0.37,
+          "distanceCost": 6.32,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.0,
+          "timeCost": 3.53,
+          "total": 12.71
+        },
+        "low": {
+          "base": 2.5,
+          "bookingFee": 0.37,
+          "distanceCost": 6.32,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.0,
+          "timeCost": 3.53,
+          "total": 12.71
+        },
+        "maxSurge": 1.0,
+        "surgeMultiplier": 1.0,
+        "surgeReason": null
+      },
+      "fares": {
+        "base": 2.5,
+        "bookingFee": 0.37,
+        "cancelFee": 3.0,
+        "minimumFare": 8.0,
+        "nightEndHourUtc": 0,
+        "nightMultiplier": 1.0,
+        "nightStartHourUtc": 0,
+        "peakEndHourUtc": 0,
+        "peakMultiplier": 1.0,
+        "peakStartHourUtc": 0,
+        "perKm": 1.8,
+        "perMinute": 0.45,
+        "waitFeePerMinute": 0.5
+      },
+      "hourUtc": 12,
+      "name": "rounding_half_up",
+      "note": "fractional booking fee exercises floor(x*100+0.5)",
+      "route": {
+        "distanceMeters": 3511.0,
+        "durationSeconds": 470.0
+      }
+    },
+    {
+      "expect": {
+        "high": {
+          "base": 1.0,
+          "bookingFee": 0.35,
+          "distanceCost": 4.8,
+          "minimumApplied": true,
+          "surgeMultiplier": 1.0,
+          "timeCost": 3.0,
+          "total": 10.1
+        },
+        "low": {
+          "base": 1.0,
+          "bookingFee": 0.35,
+          "distanceCost": 4.8,
+          "minimumApplied": true,
+          "surgeMultiplier": 1.0,
+          "timeCost": 3.0,
+          "total": 10.1
+        },
+        "maxSurge": 1.0,
+        "surgeMultiplier": 1.0,
+        "surgeReason": null
+      },
+      "fares": {
+        "base": 1.0,
+        "bookingFee": 0.35,
+        "cancelFee": 3.0,
+        "minimumFare": 9.75,
+        "nightEndHourUtc": 0,
+        "nightMultiplier": 1.0,
+        "nightStartHourUtc": 0,
+        "peakEndHourUtc": 0,
+        "peakMultiplier": 1.0,
+        "peakStartHourUtc": 0,
+        "perKm": 0.4,
+        "perMinute": 0.1,
+        "waitFeePerMinute": 0.5
+      },
+      "hourUtc": 3,
+      "name": "surge_causes_minimum_release",
+      "note": "no-surge subtotal below minimum, surged subtotal above it",
+      "route": {
+        "distanceMeters": 12000.0,
+        "durationSeconds": 1800.0
+      }
+    },
+    {
+      "expect": {
+        "high": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 4.32,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.0,
+          "timeCost": 2.94,
+          "total": 11.26
+        },
+        "low": {
+          "base": 2.5,
+          "bookingFee": 1.5,
+          "distanceCost": 4.32,
+          "minimumApplied": false,
+          "surgeMultiplier": 1.0,
+          "timeCost": 2.94,
+          "total": 11.26
+        },
+        "maxSurge": 1.0,
+        "surgeMultiplier": 1.0,
+        "surgeReason": null
+      },
+      "fares": {
+        "base": 2.5,
+        "bookingFee": 1.5,
+        "cancelFee": 3.0,
+        "minimumFare": 8.0,
+        "nightEndHourUtc": 0,
+        "nightMultiplier": 1.0,
+        "nightStartHourUtc": 0,
+        "peakEndHourUtc": 0,
+        "peakMultiplier": 1.0,
+        "peakStartHourUtc": 0,
+        "perKm": 1.8,
+        "perMinute": 0.45,
+        "waitFeePerMinute": 0.5
+      },
+      "hourUtc": 12,
+      "name": "straight_line_fallback",
+      "note": "offline fallback: haversine x detourFactor, duration from assumed speed",
+      "route": {
+        "distanceMeters": 2399.5149498406136,
+        "durationSeconds": 392.6479008830095
+      }
+    }
+  ]
+}

@@ -315,6 +315,41 @@ def before_call(ctx, case, **kwargs):
         if pair:
             request_id, code = pair
             case.body = {**body, "requestId": request_id, "code": code}
+    elif path == "/v1/rides/estimate" and "pickupLat" in body and "city" in body:
+        # P4-1 (round-11 hooks): the city/rideType keys are DATA (configured in the
+        # live bundle), not static schema enums - a pattern-valid but unconfigured
+        # key ("abc") is a designed 400 unknown_city/unknown_ride_type, which the
+        # D49 positive-acceptance phase cannot know about. Positive/coverage modes
+        # estimate the BOOTSTRAP city (monaco) with all its ride types (rideType
+        # null); negative mode keeps schema-derived values so the 400s stay covered.
+        mode = getattr(getattr(getattr(case, "meta", None), "generation", None), "mode", None)
+        if getattr(mode, "name", "") != "NEGATIVE":
+            case.body = {**body, "city": "monaco", "rideType": None}
+    elif path == "/v1/admin/config/fares" and "cities" in body:
+        # P4-1 (D75 full-replace): positive-mode documents must satisfy the whole
+        # nested validation (propertyNames patterns, ISO currency, hour windows).
+        # Nested propertyNames-pattern generation is not reliable across schemathesis
+        # versions - pin the bootstrap-valid document for positive/coverage modes;
+        # negative mode keeps the mutated bodies (server 400s are designed).
+        mode = getattr(getattr(getattr(case, "meta", None), "generation", None), "mode", None)
+        if getattr(mode, "name", "") != "NEGATIVE":
+            case.body = {
+                "straightLine": {"detourFactor": 1.3, "assumedAvgSpeedKmh": 22.0},
+                "cities": {
+                    "monaco": {
+                        "currency": "EUR",
+                        "rideTypes": {
+                            "standard": {
+                                "base": 2.5, "perKm": 1.8, "perMinute": 0.45,
+                                "minimumFare": 8.0, "bookingFee": 1.5,
+                                "cancelFee": 3.0, "waitFeePerMinute": 0.5,
+                                "night": {"multiplier": 1.25, "startHourUtc": 22, "endHourUtc": 6},
+                                "peak": {"multiplier": 1.0, "startHourUtc": 0, "endHourUtc": 0},
+                            }
+                        },
+                    }
+                },
+            }
 
 
 @schemathesis.hook

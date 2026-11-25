@@ -3,6 +3,7 @@ package com.ridehailing.backend.config
 import com.ridehailing.backend.auth.LoginMethodsConfig
 import com.ridehailing.backend.auth.OtpChannel
 import com.ridehailing.backend.events.EventChain
+import com.ridehailing.backend.fares.FareConfig
 import kotlinx.serialization.Serializable
 
 /**
@@ -49,6 +50,8 @@ class ConfigService(
     }
 
     @Volatile private var currentMethods: LoginMethodsConfig = LoginMethodsConfig()
+    /** P4-1: fares section of the device-visible bundle (D75 full-replace admin edits). */
+    @Volatile private var currentFares: FareConfig = defaultFares()
     @Volatile private var currentVersion: Long = 0L
     @Volatile private var currentSigned: SignedConfigBundle.SignedConfig? = null
     private val history = mutableListOf<VersionEntry>()
@@ -56,6 +59,10 @@ class ConfigService(
     /** Live snapshot for auth consumers (pulled per call through the provider lambda). */
     val loginMethods: LoginMethodsConfig
         get() = currentMethods
+
+    /** P4-1: live fares for the FareService provider lambda. */
+    val fares: FareConfig
+        get() = currentFares
 
     fun publicKeyHex(): String = bundle.publicKeyBytes.toHex()
 
@@ -134,8 +141,8 @@ class ConfigService(
         }
     }
 
-    /** Canonical signed payload: login methods only for v0 scope (device-visible config). */
-    private fun configCanonicalJson(m: LoginMethodsConfig): String =
+    /** Canonical signed payload: login methods + fares (device-visible config). */
+    private fun configCanonicalJson(m: LoginMethodsConfig, f: FareConfig): String =
         EventChain.canonicalJson(
             mapOf(
                 "loginMethods" to mapOf(
@@ -149,13 +156,37 @@ class ConfigService(
                         )
                     },
                 ),
+                "fares" to faresToCanonicalMap(f),
             ),
         )
+
+    /**
+     * P4-1: replace the fares section (D75 full-replace semantics: the admin UI
+     * sends the edited document; the server validates it completely). Invalid
+     * configs never touch the live state and never burn a version.
+     */
+    fun updateFares(actorId: String, fares: FareConfig): UpdateResult {
+        val errs = fares.validationErrors()
+        if (errs.isNotEmpty()) return UpdateResult.Invalid("fares", errs.joinToString("; "))
+        synchronized(this) {
+            currentFares = fares
+            val entry = publishLocked(actorId, "fares_updated")
+            eventRecorder?.append(
+                "config.fares.updated",
+                mapOf(
+                    "actorId" to actorId,
+                    "version" to entry.version.toString(),
+                    "cities" to fares.cities.keys.sorted().joinToString(","),
+                ),
+            )
+            return UpdateResult.Updated(entry)
+        }
+    }
 
     private fun publishLocked(actorId: String, change: String): VersionEntry {
         val version = currentVersion + 1
         val issuedAt = clock().epochSecond
-        val canonical = configCanonicalJson(currentMethods)
+        val canonical = configCanonicalJson(currentMethods, currentFares)
         val signed = bundle.sign(canonical, version, issuedAt)
             ?: throw IllegalStateException("config bundle has no private key (read-only bundle?)")
         currentVersion = version
@@ -180,7 +211,60 @@ class ConfigService(
             )
         }
     }
+
+    /** Fares section of the canonical JSON - IDENTICAL shape to the admin PATCH body (zero drift by construction). */
+    private fun faresToCanonicalMap(f: FareConfig): Map<String, Any?> = mapOf(
+        "straightLine" to mapOf(
+            "detourFactor" to f.straightLine.detourFactor,
+            "assumedAvgSpeedKmh" to f.straightLine.assumedAvgSpeedKmh,
+        ),
+        "cities" to f.cities.entries.associate { (city, c) ->
+            city to mapOf(
+                "currency" to c.currency,
+                "rideTypes" to c.rideTypes.entries.associate { (name, rt) ->
+                    name to mapOf(
+                        "base" to rt.base,
+                        "perKm" to rt.perKm,
+                        "perMinute" to rt.perMinute,
+                        "minimumFare" to rt.minimumFare,
+                        "bookingFee" to rt.bookingFee,
+                        "cancelFee" to rt.cancelFee,
+                        "waitFeePerMinute" to rt.waitFeePerMinute,
+                        "night" to mapOf(
+                            "multiplier" to rt.night.multiplier,
+                            "startHourUtc" to rt.night.startHourUtc,
+                            "endHourUtc" to rt.night.endHourUtc,
+                        ),
+                        "peak" to mapOf(
+                            "multiplier" to rt.peak.multiplier,
+                            "startHourUtc" to rt.peak.startHourUtc,
+                            "endHourUtc" to rt.peak.endHourUtc,
+                        ),
+                    )
+                },
+            )
+        },
+    )
 }
+
+/**
+ * Bootstrap fares (P4-1): the geo stack ships a Monaco extract, so the seeded
+ * city is "monaco" with one standard ride type - a fresh deployment estimates
+ * without admin action; operators replace the section via PATCH (D75).
+ */
+fun defaultFares(): FareConfig = FareConfig(
+    cities = mapOf(
+        "monaco" to com.ridehailing.backend.fares.CityFares(
+            currency = "EUR",
+            rideTypes = mapOf(
+                "standard" to com.ridehailing.backend.fares.RideTypeFares(
+                    base = 2.5, perKm = 1.8, perMinute = 0.45, minimumFare = 8.0,
+                    bookingFee = 1.5, cancelFee = 3.0, waitFeePerMinute = 0.5,
+                ),
+            ),
+        ),
+    ),
+)
 
 /** Admin patch body (mirrored in docs/api/openapi.yaml). Absent fields are no-ops. */
 @Serializable
