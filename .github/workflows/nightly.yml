@@ -99,8 +99,61 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
             adb shell settings put system system_locales ${{ matrix.locale }}
-            # uiautomator locale/theme/font-scale variant capture (E2) - wired Phase 2
+            # uiautomator locale/theme variant capture (E2); font-scale 1.3 capture is
+            # the dedicated android-screenshot-cells matrix (P2-5), not this matrix.
             ./scripts/run-ui-tests.sh all 0 1
+
+  # P2-5 (Phase 2 gate deferral closed): font-scale + small/large-phone screenshot
+  # cells. The locale/theme matrix above keeps the accent coverage; this job proves
+  # LAYOUT robustness: system font_scale 1.3 (large-font accessibility) and two AVD
+  # skins (nexus_4 768x1280 small vs pixel_5 1080x2340 large). Storyboard screenshots
+  # land as run artifacts per cell (nightly evidence; gallery cross-publish stays an
+  # E6 follow-up - recorded in the BACKLOG row).
+  android-screenshot-cells:
+    name: android-screenshot-cells
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { font-scale: '1.0', profile: nexus_4 }
+          - { font-scale: '1.0', profile: pixel_5 }
+          - { font-scale: '1.3', profile: nexus_4 }
+          - { font-scale: '1.3', profile: pixel_5 }
+    steps:
+      - uses: actions/checkout@v4
+      - id: guard
+        run: |
+          if [ -d android ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "::notice::android absent (Phase 2)"; fi
+      - name: Enable KVM (D4)
+        if: steps.guard.outputs.present == 'true'
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm || { echo "KVM missing"; exit 1; }
+      - uses: actions/setup-java@v4
+        if: steps.guard.outputs.present == 'true'
+        with: { distribution: temurin, java-version: '17' }
+      - if: steps.guard.outputs.present == 'true'
+        run: make up-test && ./scripts/wait-for-health.sh && ./scripts/seed-test.sh shots-${{ matrix.profile }}-${{ matrix.font-scale }}
+      - uses: reactivecircus/android-emulator-runner@v2
+        if: steps.guard.outputs.present == 'true'
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: ${{ matrix.profile }}
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: |
+            adb shell settings put system font_scale ${{ matrix.font-scale }}
+            ./scripts/run-ui-tests.sh all 0 1
+      - uses: actions/upload-artifact@v4
+        if: always() && steps.guard.outputs.present == 'true'
+        with:
+          name: shots-${{ matrix.profile }}-font${{ matrix.font-scale }}
+          path: artifacts/**
 
   backend-nightly:
     name: backend-nightly
@@ -114,7 +167,7 @@ jobs:
 
   nightly-summary:
     name: nightly-summary
-    needs: [security-nightly, mesh-long-sim, android-nightly, backend-nightly]
+    needs: [security-nightly, mesh-long-sim, android-nightly, android-screenshot-cells, backend-nightly]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 5

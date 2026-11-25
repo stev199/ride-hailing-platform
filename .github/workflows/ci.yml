@@ -469,7 +469,7 @@ jobs:
         run: |
           adb shell am instrument -w -e class com.ridehailing.rider.OfflineMapsInstrumentedTest#downloadRegionOffline \
             -e viewerUrl http://127.0.0.1:7070 \
-            com.ridehailing.rider/test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-offline-download.log
+            com.ridehailing.rider.test/test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-offline-download.log
           grep -q "INSTRUMENTATION_STATUS_CODE: 0" artifacts-offline-download.log
       - name: AIRPLANE MODE (svc wifi/data disable; no root needed on google_apis)
         run: |
@@ -481,7 +481,7 @@ jobs:
         run: |
           adb shell am instrument -w -e class com.ridehailing.rider.OfflineMapsInstrumentedTest#mapRendersFromOfflineRegion \
             -e viewerUrl http://127.0.0.1:7070 \
-            com.ridehailing.rider/test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-offline-render.log
+            com.ridehailing.rider.test/test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-offline-render.log
           grep -q "INSTRUMENTATION_STATUS_CODE: 0" artifacts-offline-render.log
       - name: Restore connectivity + stop the collector (job hygiene)
         if: always()
