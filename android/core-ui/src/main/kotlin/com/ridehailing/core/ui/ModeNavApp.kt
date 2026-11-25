@@ -29,9 +29,10 @@ import androidx.navigation.compose.rememberNavController
 
 /**
  * Shared two-tab app (P2-1b): Home + Settings over Compose Navigation. Both actor apps
- * wire this with their own AppMode; heavier destinations (map, booking, duty) replace
- * the placeholder bodies in P2-2/P2-4. Tab selection follows the back stack entry and
- * every label/icon is resource-resolved (en/fr/ar + RTL transparent).
+ * wire this with their own AppMode; destination bodies are SLOTS since P2-2 (defaults keep
+ * the placeholder TabBody) so core-ui stays independent of core-map/core-data. Tab
+ * selection follows the back stack entry and every label/icon is resource-resolved
+ * (en/fr/ar + RTL transparent).
  */
 object TabRoutes {
     const val HOME: String = "home"
@@ -40,7 +41,15 @@ object TabRoutes {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ModeNavApp(mode: AppMode) {
+fun ModeNavApp(
+    mode: AppMode,
+    homeBody: @Composable () -> Unit = {
+        TabBody(text = stringResource(R.string.core_body_home))
+    },
+    settingsBody: @Composable () -> Unit = {
+        TabBody(text = stringResource(R.string.core_body_settings))
+    },
+) {
     val titleRes = when (mode) {
         AppMode.RIDER -> R.string.core_title_rider
         AppMode.DRIVER -> R.string.core_title_driver
@@ -82,10 +91,10 @@ fun ModeNavApp(mode: AppMode) {
                 startDestination = TabRoutes.HOME,
             ) {
                 composable(TabRoutes.HOME) {
-                    TabBody(text = stringResource(R.string.core_body_home))
+                    homeBody()
                 }
                 composable(TabRoutes.SETTINGS) {
-                    TabBody(text = stringResource(R.string.core_body_settings))
+                    settingsBody()
                 }
             }
         }

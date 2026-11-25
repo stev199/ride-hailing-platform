@@ -23,6 +23,17 @@ android {
             (project.findProperty("android.testInstrumentationRunnerArguments.$key") as? String)
                 ?.let { testInstrumentationRunnerArguments[key] = it }
         }
+        // P2-2: self-hosted tiles only. Emulator default reaches the compose geo profile
+        // (10.0.2.2 = host loopback); CI/dev override with -Pmap.styleUrl=<url>.
+        buildConfigField(
+            "String",
+            "MAP_STYLE_URL",
+            "\"${project.findProperty("map.styleUrl") as? String ?: "http://10.0.2.2:8081/styles/basic/style.json"}\"",
+        )
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
@@ -44,6 +55,7 @@ android {
 dependencies {
     implementation(project(":core-ui"))
     implementation(project(":core-data"))
+    implementation(project(":core-map"))
 
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.google.dagger:hilt-android:2.52")

@@ -9,9 +9,12 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.lifecycleScope
 import com.ridehailing.core.data.outbox.OutboxRepository
 import com.ridehailing.core.data.prefs.ThemeStore
+import com.ridehailing.core.map.DriverMapScreen
+import com.ridehailing.core.map.MapConfig
 import com.ridehailing.core.ui.AppMode
 import com.ridehailing.core.ui.ModeNavApp
 import com.ridehailing.core.ui.RideHailingTheme
+import com.ridehailing.driver.BuildConfig
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import kotlinx.coroutines.launch
@@ -45,7 +48,14 @@ class MainActivity : ComponentActivity() {
                 else -> systemDark
             }
             RideHailingTheme(mode = AppMode.DRIVER, darkTheme = darkTheme) {
-                ModeNavApp(mode = AppMode.DRIVER)
+                ModeNavApp(
+                    mode = AppMode.DRIVER,
+                    homeBody = {
+                        DriverMapScreen(
+                            config = MapConfig(styleUrl = BuildConfig.MAP_STYLE_URL),
+                        )
+                    },
+                )
             }
         }
     }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="map_search_hint">Rechercher un lieu</string>
+    <string name="map_recent_places">Lieux récents</string>
+    <string name="map_recent_empty">Aucun lieu récent</string>
+    <string name="map_ride_standard">Standard</string>
+    <string name="map_ride_van">Van</string>
+    <string name="map_ride_lux">Lux</string>
+    <string name="map_booking_placeholder">Les tarifs et la réservation arrivent avec le service de course (Phase 5).</string>
+    <string name="map_duty_online">En ligne — réception des courses</string>
+    <string name="map_duty_offline">Hors ligne — synchro de service avec la Phase 5</string>
+    <string name="map_duty_placeholder">Passer en ligne activera la balise et le matching des courses.</string>
+</resources>

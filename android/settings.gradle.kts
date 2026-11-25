@@ -21,6 +21,7 @@ rootProject.name = "ride-hailing-android"
 
 include(":core-ui")
 include(":core-data")
+include(":core-map")
 include(":storyboard")
 include(":app-rider")
 include(":app-driver")

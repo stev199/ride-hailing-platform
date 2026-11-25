@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="map_search_hint">ابحث عن مكان</string>
+    <string name="map_recent_places">الأماكن الأخيرة</string>
+    <string name="map_recent_empty">لا توجد أماكن أخيرة بعد</string>
+    <string name="map_ride_standard">عادي</string>
+    <string name="map_ride_van">حافلة صغيرة</string>
+    <string name="map_ride_lux">فاخر</string>
+    <string name="map_booking_placeholder">الأسعار والحجز يصلان مع خدمة الرحلات (المرحلة 5).</string>
+    <string name="map_duty_online">متصل — استقبال الرحلات</string>
+    <string name="map_duty_offline">غير متصل — مزامنة الخدمة مع المرحلة 5</string>
+    <string name="map_duty_placeholder">عند الاتصال بالإنترنت ستبدأ البث ومطابقة الرحلات.</string>
+</resources>

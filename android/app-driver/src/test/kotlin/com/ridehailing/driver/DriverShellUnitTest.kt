@@ -4,6 +4,7 @@ import com.ridehailing.core.ui.AppMode
 import com.ridehailing.core.ui.ThemeVersion
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -25,5 +26,19 @@ class DriverShellUnitTest {
     @Test
     fun driverAndRider_areDistinctModes() {
         assertFalse(AppMode.DRIVER == AppMode.RIDER)
+    }
+
+    @Test
+    fun mapStyle_isSelfHosted_only() {
+        // Spec hard rule: tiles must come from OUR tile server, never a public/paid host.
+        // The emulator default points at the compose geo profile via host loopback.
+        val url = BuildConfig.MAP_STYLE_URL
+        assertTrue(url.isNotBlank())
+        assertTrue(
+            "tile style must be plain http(s) to our own server",
+            url.startsWith("http://10.0.2.2:8081/") ||
+                url.startsWith("http://localhost:8081/") ||
+                url.startsWith("http://127.0.0.1:8081/"),
+        )
     }
 }

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="map_search_hint">Search a place</string>
+    <string name="map_recent_places">Recent places</string>
+    <string name="map_recent_empty">No recent places yet</string>
+    <string name="map_ride_standard">Standard</string>
+    <string name="map_ride_van">Van</string>
+    <string name="map_ride_lux">Lux</string>
+    <string name="map_booking_placeholder">Fares and booking land with the ride service (Phase 5).</string>
+    <string name="map_duty_online">Online — receiving trips</string>
+    <string name="map_duty_offline">Offline — duty sync lands with Phase 5</string>
+    <string name="map_duty_placeholder">Going online will start beaconing and trip matching.</string>
+</resources>

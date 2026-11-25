@@ -18,6 +18,11 @@ import dagger.hilt.components.SingletonComponent
 import java.time.Clock
 import javax.inject.Singleton
 
+/** Injectable no-arg clock lambda for ViewModel constructor injection (tests pin time). */
+@javax.inject.Qualifier
+@Retention(AnnotationRetention.RUNTIME)
+annotation class ClockMs
+
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
@@ -31,10 +36,19 @@ object DatabaseModule {
     @Provides
     fun outboxDao(db: AppDatabase): OutboxDao = db.outboxDao()
 
+    @Provides
+    fun placeDao(db: AppDatabase): com.ridehailing.core.data.db.PlaceDao = db.placeDao()
+
     /** Injectable clock: tests pin time, production gets UTC. */
     @Provides
     @Singleton
     fun clock(): Clock = Clock.systemUTC()
+
+    /** Same clock as a lambda for ViewModel constructor injection (e.g. PlacesViewModel). */
+    @Provides
+    @Singleton
+    @ClockMs
+    fun clockMs(clock: Clock): () -> Long = { clock.millis() }
 }
 
 @Module
