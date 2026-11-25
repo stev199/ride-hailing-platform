@@ -245,6 +245,7 @@ jobs:
           gradle --no-daemon :app-rider:assembleDebug :app-driver:assembleDebug \
             :app-rider:assembleDebugAndroidTest :app-driver:assembleDebugAndroidTest \
             :app-rider:testDebugUnitTest :app-driver:testDebugUnitTest \
+            :core-data:testDebugUnitTest :core-map:testDebugUnitTest \
             :storyboard:testDebugUnitTest
       - uses: actions/upload-artifact@v4
         if: ${{ always() && hashFiles('android/**/build.gradle.kts') != '' }}
