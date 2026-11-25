@@ -70,4 +70,23 @@
     <string name="trip_cancel">Cancel ride</string>
     <string name="trip_cancelled">Ride cancelled</string>
     <string name="trip_cancel_error">Cancellation refused: %1$s</string>
+
+    <string name="driver_offers_title">Available rides (closest first)</string>
+    <string name="driver_no_offers">No requested rides right now.</string>
+    <string name="driver_offer_pickup">Pickup: %1$s</string>
+    <string name="driver_offer_meta">%1$s · %2$s · %3$s</string>
+    <string name="driver_offer_accept">Tap to accept</string>
+    <string name="driver_offers_error">Board refresh failed: %1$s</string>
+    <string name="driver_trip_title">Current trip</string>
+    <string name="driver_trip_pickup">Pickup: %1$s</string>
+    <string name="driver_trip_dropoff">Drop-off: %1$s</string>
+    <string name="driver_trip_fare">Fare: %1$s (%2$s)</string>
+    <string name="driver_trip_note">Note: %1$s</string>
+    <string name="driver_arrive">I have arrived</string>
+    <string name="driver_start">Start the trip</string>
+    <string name="driver_complete">Complete the trip</string>
+    <string name="driver_completed">Trip completed</string>
+    <string name="driver_action_error">Action refused: %1$s</string>
+    <string name="driver_duty_error">Duty change refused: %1$s</string>
+    <string name="driver_signin_hint">Sign in from Settings to go online (drivers only).</string>
 </resources>

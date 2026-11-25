@@ -70,4 +70,23 @@
     <string name="trip_cancel">Annuler la course</string>
     <string name="trip_cancelled">Course annulée</string>
     <string name="trip_cancel_error">Annulation refusée : %1$s</string>
+
+    <string name="driver_offers_title">Courses disponibles (les plus proches d’abord)</string>
+    <string name="driver_no_offers">Aucune course demandée pour le moment.</string>
+    <string name="driver_offer_pickup">Départ : %1$s</string>
+    <string name="driver_offer_meta">%1$s · %2$s · %3$s</string>
+    <string name="driver_offer_accept">Toucher pour accepter</string>
+    <string name="driver_offers_error">Échec du rafraîchissement : %1$s</string>
+    <string name="driver_trip_title">Course en cours</string>
+    <string name="driver_trip_pickup">Départ : %1$s</string>
+    <string name="driver_trip_dropoff">Destination : %1$s</string>
+    <string name="driver_trip_fare">Tarif : %1$s (%2$s)</string>
+    <string name="driver_trip_note">Note : %1$s</string>
+    <string name="driver_arrive">Je suis arrivé</string>
+    <string name="driver_start">Démarrer la course</string>
+    <string name="driver_complete">Terminer la course</string>
+    <string name="driver_completed">Course terminée</string>
+    <string name="driver_action_error">Action refusée : %1$s</string>
+    <string name="driver_duty_error">Changement de service refusé : %1$s</string>
+    <string name="driver_signin_hint">Connectez-vous depuis Réglages pour passer en ligne (chauffeurs uniquement).</string>
 </resources>

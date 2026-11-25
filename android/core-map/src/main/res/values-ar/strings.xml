@@ -70,4 +70,23 @@
     <string name="trip_cancel">إلغاء الرحلة</string>
     <string name="trip_cancelled">أُلغيت الرحلة</string>
     <string name="trip_cancel_error">رُفض الإلغاء: %1$s</string>
+
+    <string name="driver_offers_title">الرحلات المتاحة (الأقرب أولاً)</string>
+    <string name="driver_no_offers">لا توجد رحلات مطلوبة الآن.</string>
+    <string name="driver_offer_pickup">الانطلاق: %1$s</string>
+    <string name="driver_offer_meta">%1$s · %2$s · %3$s</string>
+    <string name="driver_offer_accept">المس للقبول</string>
+    <string name="driver_offers_error">فشل تحديث اللوحة: %1$s</string>
+    <string name="driver_trip_title">الرحلة الحالية</string>
+    <string name="driver_trip_pickup">الانطلاق: %1$s</string>
+    <string name="driver_trip_dropoff">الوصول: %1$s</string>
+    <string name="driver_trip_fare">الأجرة: %1$s (%2$s)</string>
+    <string name="driver_trip_note">ملاحظة: %1$s</string>
+    <string name="driver_arrive">لقد وصلت</string>
+    <string name="driver_start">ابدأ الرحلة</string>
+    <string name="driver_complete">أنهِ الرحلة</string>
+    <string name="driver_completed">اكتملت الرحلة</string>
+    <string name="driver_action_error">رُفض الإجراء: %1$s</string>
+    <string name="driver_duty_error">رُفض تغيير الخدمة: %1$s</string>
+    <string name="driver_signin_hint">سجّل الدخول من الإعدادات للاتصال بالخدمة (للسائقين فقط).</string>
 </resources>
