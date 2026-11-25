@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="auth_title">Se connecter</string>
+    <string name="auth_subtitle">Utilisez votre compte opérateur (téléphone ou e-mail + mot de passe). Les erreurs s’affichent telles que le serveur les rapporte.</string>
+    <string name="auth_identifier">Téléphone ou e-mail</string>
+    <string name="auth_password">Mot de passe</string>
+    <string name="auth_signIn">Se connecter</string>
+    <string name="auth_signingIn">Connexion…</string>
+    <string name="auth_session_title">Session</string>
+    <string name="auth_signedInAs">Connecté en tant que %1$s</string>
+    <string name="auth_logOut">Se déconnecter</string>
+    <string name="auth_theme">Thème</string>
+    <string name="auth_themeSystem">Suivre le système</string>
+    <string name="auth_themeLight">Clair</string>
+    <string name="auth_themeDark">Sombre</string>
+    <string name="auth_language">Langue</string>
+    <string name="auth_languageEn">English</string>
+    <string name="auth_languageFr">Français</string>
+    <string name="auth_languageAr">العربية</string>
+    <string name="auth_languageNote">Mémorisé maintenant ; appliqué à toute l’app avec les langues par application (jalonnage Phase 2).</string>
+</resources>

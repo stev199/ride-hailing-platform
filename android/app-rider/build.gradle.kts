@@ -27,6 +27,11 @@ android {
         // (10.0.2.2 = host loopback); CI/dev override with -Pmap.styleUrl=<url>.
         buildConfigField(
             "String",
+            "API_BASE_URL",
+            "\"${project.findProperty("api.baseUrl") as? String ?: "http://10.0.2.2:8080"}\"",
+        )
+        buildConfigField(
+            "String",
             "MAP_STYLE_URL",
             "\"${project.findProperty("map.styleUrl") as? String ?: "http://10.0.2.2:8081/styles/basic/style.json"}\"",
         )
@@ -56,6 +61,7 @@ dependencies {
     implementation(project(":core-ui"))
     implementation(project(":core-data"))
     implementation(project(":core-map"))
+    implementation(project(":core-screens"))
 
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("com.google.dagger:hilt-android:2.52")

@@ -35,4 +35,18 @@ class RiderShellUnitTest {
         assertTrue(url.isNotBlank())
         assertTrue("tile style must be plain http(s) to our own server", url.startsWith("http://10.0.2.2:8081/") || url.startsWith("http://localhost:8081/") || url.startsWith("http://127.0.0.1:8081/"))
     }
+
+    @Test
+    fun apiBase_isSelfHosted_only() {
+        // P2-4: the API client talks to OUR backend only (self-hosted compose stack or
+        // dev machine) - never a third-party service. Same contract as the tile test.
+        val url = BuildConfig.API_BASE_URL
+        assertTrue(url.isNotBlank())
+        assertTrue(
+            "api base must be plain http(s) to our own server",
+            url.startsWith("http://10.0.2.2:8080") ||
+                url.startsWith("http://localhost:8080") ||
+                url.startsWith("http://127.0.0.1:8080"),
+        )
+    }
 }

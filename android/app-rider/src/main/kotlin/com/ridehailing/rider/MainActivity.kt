@@ -11,6 +11,7 @@ import com.ridehailing.core.data.outbox.OutboxRepository
 import com.ridehailing.core.data.prefs.ThemeStore
 import com.ridehailing.core.map.MapConfig
 import com.ridehailing.core.map.RiderMapScreen
+import com.ridehailing.core.screens.SessionScreen
 import com.ridehailing.core.ui.AppMode
 import com.ridehailing.core.ui.ModeNavApp
 import com.ridehailing.core.ui.RideHailingTheme
@@ -42,6 +43,7 @@ class MainActivity : ComponentActivity() {
             // exists (P2-4) nothing writes a non-null value, so behavior is unchanged.
             val themePref by themeStore.themePreference
                 .collectAsState(initial = ThemeStore.THEME_SYSTEM)
+            val languagePref by themeStore.language.collectAsState(initial = null)
             val darkTheme = when (themePref) {
                 ThemeStore.THEME_DARK -> true
                 ThemeStore.THEME_LIGHT -> false
@@ -53,6 +55,18 @@ class MainActivity : ComponentActivity() {
                     homeBody = {
                         RiderMapScreen(
                             config = MapConfig(styleUrl = BuildConfig.MAP_STYLE_URL),
+                        )
+                    },
+                    settingsBody = {
+                        SessionScreen(
+                            currentTheme = themePref,
+                            currentLanguage = languagePref,
+                            onThemeChange = { value ->
+                                lifecycleScope.launch { themeStore.setTheme(value) }
+                            },
+                            onLanguageChange = { value ->
+                                lifecycleScope.launch { themeStore.setLanguage(value) }
+                            },
                         )
                     },
                 )

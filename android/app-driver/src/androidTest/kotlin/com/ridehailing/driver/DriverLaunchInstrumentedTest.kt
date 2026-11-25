@@ -6,6 +6,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ridehailing.core.map.R as MapR
+import com.ridehailing.core.screens.R as ScreensR
 import com.ridehailing.core.ui.R
 import com.ridehailing.test.storyboard.StoryboardRule
 import org.junit.Rule
@@ -45,11 +46,13 @@ class DriverLaunchInstrumentedTest {
     fun navigationSwitchesToSettings_andBack() {
         val activity = composeRule.activity
 
-        storyboard.step("Switch to the Settings tab") {
+        storyboard.step("Switch to the Settings tab - session screen (P2-4)") {
             composeRule.onNodeWithText(activity.getString(R.string.core_nav_settings))
                 .performClick()
             composeRule.waitForIdle()
-            composeRule.onNodeWithText(activity.getString(R.string.core_body_settings))
+            // P2-4: the Settings tab is the SessionScreen now; signed-out it shows the
+            // login card. Emulator runs carry no session, so the login title shows.
+            composeRule.onNodeWithText(activity.getString(ScreensR.string.auth_title))
                 .assertIsDisplayed()
         }
 

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="auth_title">Sign in</string>
+    <string name="auth_subtitle">Use your operator account (phone or email + password). Errors are shown exactly as the server reports them.</string>
+    <string name="auth_identifier">Phone or email</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_signIn">Sign in</string>
+    <string name="auth_signingIn">Signing in…</string>
+    <string name="auth_session_title">Session</string>
+    <string name="auth_signedInAs">Signed in as %1$s</string>
+    <string name="auth_logOut">Log out</string>
+    <string name="auth_theme">Theme</string>
+    <string name="auth_themeSystem">Follow system</string>
+    <string name="auth_themeLight">Light</string>
+    <string name="auth_themeDark">Dark</string>
+    <string name="auth_language">Language</string>
+    <string name="auth_languageEn">English</string>
+    <string name="auth_languageFr">Français</string>
+    <string name="auth_languageAr">العربية</string>
+    <string name="auth_languageNote">Stored now; applied app-wide when per-app locales land (Phase 2 gate).</string>
+</resources>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="auth_title">تسجيل الدخول</string>
+    <string name="auth_subtitle">استخدم حساب المشغل (هاتف أو بريد إلكتروني + كلمة المرور). تظهر الأخطاء تماماً كما يبلغ عنها الخادم.</string>
+    <string name="auth_identifier">الهاتف أو البريد الإلكتروني</string>
+    <string name="auth_password">كلمة المرور</string>
+    <string name="auth_signIn">تسجيل الدخول</string>
+    <string name="auth_signingIn">جارٍ تسجيل الدخول…</string>
+    <string name="auth_session_title">الجلسة</string>
+    <string name="auth_signedInAs">تم تسجيل الدخول باسم %1$s</string>
+    <string name="auth_logOut">تسجيل الخروج</string>
+    <string name="auth_theme">السمة</string>
+    <string name="auth_themeSystem">اتبع النظام</string>
+    <string name="auth_themeLight">فاتح</string>
+    <string name="auth_themeDark">داكن</string>
+    <string name="auth_language">اللغة</string>
+    <string name="auth_languageEn">الإنجليزية</string>
+    <string name="auth_languageFr">الفرنسية</string>
+    <string name="auth_languageAr">العربية</string>
+    <string name="auth_languageNote">يُخزَّن الآن؛ ويُطبَّق على التطبيق كله عند إضافة اللغات لكل تطبيق (بوابة المرحلة 2).</string>
+</resources>
