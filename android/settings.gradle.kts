@@ -20,6 +20,7 @@ dependencyResolutionManagement {
 rootProject.name = "ride-hailing-android"
 
 include(":core-ui")
+include(":core-data")
 include(":storyboard")
 include(":app-rider")
 include(":app-driver")
