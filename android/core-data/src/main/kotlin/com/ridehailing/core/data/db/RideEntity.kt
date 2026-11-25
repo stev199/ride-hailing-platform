@@ -12,11 +12,16 @@ import androidx.room.PrimaryKey
  */
 @Entity(
     tableName = "rides",
-    indices = [Index("riderId"), Index("status"), Index("createdAtMs")],
+    indices = [Index("riderId"), Index("status"), Index("createdAtMs"), Index("serverId")],
 )
 data class RideEntity(
     // Client-minted UUID: minted at creation time so an offline booking already has its key.
     @PrimaryKey val rideId: String,
+    /**
+     * Backend's canonical id (P4-4): null until the outbox drain POST /v1/rides is
+     * Accepted; all server round-trips (GET/cancel) address the ride by it.
+     */
+    val serverId: String?,
     val riderId: String,
     val driverId: String?,
     val status: RideStatus,
@@ -41,6 +46,22 @@ enum class RideStatus {
     IN_PROGRESS,
     COMPLETED,
     CANCELLED,
+}
+
+/**
+ * Server status string (backend RideStatus, P4-2) -> local enum. The local model keeps
+ * the rider-facing bucket set only: ARRIVED shows as ACCEPTED (pre-start), the three
+ * CANCELLED_* variants and EXPIRED all land in CANCELLED (the quote/cancel-fee details
+ * stay server-side; spec: dispatch internals stay server-side).
+ */
+fun statusFromServer(raw: String): RideStatus = when (raw) {
+    "REQUESTED" -> RideStatus.REQUESTED
+    "OFFERED" -> RideStatus.OFFERED
+    "ACCEPTED", "ARRIVED" -> RideStatus.ACCEPTED
+    "IN_PROGRESS" -> RideStatus.IN_PROGRESS
+    "COMPLETED" -> RideStatus.COMPLETED
+    "CANCELLED_BY_RIDER", "CANCELLED_BY_DRIVER", "CANCELLED_TIMEOUT", "EXPIRED" -> RideStatus.CANCELLED
+    else -> RideStatus.REQUESTED
 }
 
 /**

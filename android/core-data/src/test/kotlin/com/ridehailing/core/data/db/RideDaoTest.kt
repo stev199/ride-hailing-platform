@@ -47,6 +47,7 @@ class RideDaoTest {
         status: RideStatus = RideStatus.REQUESTED,
     ) = RideEntity(
         rideId = id,
+        serverId = null,
         riderId = "rider-1",
         driverId = null,
         status = status,

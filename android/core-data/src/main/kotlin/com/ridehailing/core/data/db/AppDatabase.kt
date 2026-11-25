@@ -14,7 +14,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         com.ridehailing.core.data.outbox.OutboxEntity::class,
         PlaceEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -43,9 +43,17 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v3 (P4-4): rides.serverId - the backend's canonical id, backfilled by the outbox drain. */
+        val MIGRATION_2_3: Migration = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `rides` ADD COLUMN `serverId` TEXT")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_rides_serverId` ON `rides` (`serverId`)")
+            }
+        }
+
         fun build(context: Context): AppDatabase =
             Room.databaseBuilder(context, AppDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
     }
 }

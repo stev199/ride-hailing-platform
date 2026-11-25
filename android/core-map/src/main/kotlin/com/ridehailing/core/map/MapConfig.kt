@@ -23,6 +23,13 @@ data class MapConfig(
         const val DEFAULT_ZOOM: Double = 12.5
 
         /**
+         * City key sent with estimates/booking (P4-3/P4-4). v1 dev/CI stack seeds and
+         * tiles exactly this city (infra compose + fetch-map-data.sh Monaco extract);
+         * multi-city selection arrives with the config-driven UI (Phase 5+).
+         */
+        const val DEFAULT_CITY: String = "monaco"
+
+        /**
          * Emulator -> host loopback: the compose geo profile serves tiles on :8081.
          * Style id "basic-preview" (round-12): tileserver-gl v4.6.2 bundles
          * tileserver-gl-styles@2.0.0, which ships ONLY "basic-preview" - the previously

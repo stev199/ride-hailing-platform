@@ -30,6 +30,9 @@ interface RideDao {
     @Query("SELECT * FROM rides WHERE rideId = :rideId")
     suspend fun byId(rideId: String): RideEntity?
 
+    @Query("SELECT * FROM rides WHERE serverId = :serverId LIMIT 1")
+    suspend fun byServerId(serverId: String): RideEntity?
+
     @Query("SELECT * FROM rides WHERE rideId = :rideId")
     fun observeById(rideId: String): Flow<RideEntity?>
 

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -101,6 +102,29 @@ class PlaceDaoTest {
             assertEquals(0, cursor.getInt(0))
         }
         v2.close()
+    }
+
+    @Test
+    fun migration2To3_rideDataSurvives_serverIdAvailable() {
+        val helper = MigrationTestHelper(
+            InstrumentationRegistry.getInstrumentation(),
+            AppDatabase::class.java,
+        )
+        helper.createDatabase(DB_NAME, 2).use { v2 ->
+            v2.execSQL(
+                "INSERT INTO rides (rideId, riderId, driverId, status, pickupLabel, pickupLat, " +
+                    "pickupLng, dropoffLabel, dropoffLat, dropoffLng, fareMinor, currency, " +
+                    "createdAtMs, updatedAtMs) VALUES ('r1', 'rider', NULL, 'REQUESTED', 'Old Market', " +
+                    "43.73, 7.42, 'Airport', 43.74, 7.43, 1882, 'EUR', 100, 100)",
+            )
+        }
+        val v3 = helper.runMigrationsAndValidate(DB_NAME, 3, true, AppDatabase.MIGRATION_2_3)
+        v3.query("SELECT rideId, serverId FROM rides").use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            assertEquals("r1", cursor.getString(0))
+            assertNull("serverId starts NULL (backfilled by the outbox drain)", cursor.getString(1))
+        }
+        v3.close()
     }
 
     companion object {
