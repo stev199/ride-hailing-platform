@@ -217,6 +217,57 @@ def _own_session_family_id() -> str | None:
 
 _RANDOM_UUID = "00000000-0000-0000-0000-000000000000"
 
+# P4-2: rider-owned ride priming for the /v1/rides/{id} rewrites (same pattern as
+# the session familyId above). GET never transitions; CANCEL does - so cancel
+# cases always get a FRESH ride (a cached id would be terminal after the first
+# cancel -> 409 -> positive failure), while GET reuses the cached one.
+_own_ride_cache = {"ride_id": None}
+
+
+def _create_ride(token: str) -> str | None:
+    """Book a CASH/monaco/standard ride for the rider; returns the id or None."""
+    try:
+        r = requests.post(
+            f"{BACKEND_URL}/v1/rides",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "pickupLat": 43.7384, "pickupLon": 7.4246,
+                "dropoffLat": 43.7543, "dropoffLon": 7.4312,
+                "city": "monaco", "rideType": "standard", "paymentMethod": "CASH",
+            },
+            timeout=10,
+        )
+        if r.status_code == 201:
+            return r.json().get("id")
+    except Exception:
+        pass
+    return None
+
+
+def _own_ride_id_for_get() -> str | None:
+    """Cached rider-owned ride id for GET /v1/rides/{id} (GET only expires, never cancels)."""
+    with _lock:
+        cached = _own_ride_cache["ride_id"]
+        token = _access["rider"]
+    if cached:
+        return cached
+    if not token:
+        return None
+    rid = _create_ride(token)
+    if rid:
+        with _lock:
+            _own_ride_cache["ride_id"] = rid
+    return rid
+
+
+def _fresh_ride_id_for_cancel() -> str | None:
+    """A FRESH REQUESTED ride id per positive cancel case (a terminal ride would 409)."""
+    with _lock:
+        token = _access["rider"]
+    if not token:
+        return None
+    return _create_ride(token)
+
 
 @schemathesis.auth(cache_by_key=lambda case, ctx: "admin" if case.operation.path.startswith("/v1/admin") else "rider")
 class ContractAuth:
@@ -272,6 +323,23 @@ def before_call(ctx, case, **kwargs):
                 # transport applies the cached token; the residual auth-health
                 # warning on this op is a probe artifact (deep-diagnosed in
                 # round 6), not a server defect.
+    # P4-2 path-parameter rewrites (rider-owned ride priming; see the helpers above).
+    # These are BODYLESS operations (GET /v1/rides/{id}, POST /v1/rides/{id}/cancel) -
+    # they MUST run before the body-None early return below (familyId lesson).
+    # GET reuses a cached ride (GET only expires, never transitions to terminal);
+    # CANCEL gets a FRESH ride per positive case (cancel is NOT repeatable-safe,
+    # unlike the familyId revoke above).
+    ride_params = case.path_parameters or {}
+    ride_mode = getattr(getattr(getattr(case, "meta", None), "generation", None), "mode", None)
+    ride_negative = getattr(ride_mode, "name", "") == "NEGATIVE"
+    if path == "/v1/rides/{id}" and "id" in ride_params and not ride_negative:
+        rid = _own_ride_id_for_get()
+        if rid:
+            case.path_parameters = {**ride_params, "id": rid}
+    elif path == "/v1/rides/{id}/cancel" and "id" in ride_params and not ride_negative:
+        rid = _fresh_ride_id_for_cancel()
+        if rid:
+            case.path_parameters = {**ride_params, "id": rid}
     if body is None:
         return
     # Self-targeted mutation rewrites (designed 400 refusals are unit-tested; see _admin_self_id).
@@ -350,6 +418,16 @@ def before_call(ctx, case, **kwargs):
                     }
                 },
             }
+    elif path == "/v1/rides" and "pickupLat" in body:
+        # P4-2 (D49 positive-acceptance): city/rideType are DATA (configured), not
+        # static enums - pattern-valid unconfigured keys are designed 400s. Positive/
+        # coverage modes book the bootstrap city/rideType with CASH (the only Phase-4
+        # payment method; the schema pins the enum anyway). Negative mode keeps the
+        # generated body so the designed 400s stay covered.
+        mode = getattr(getattr(getattr(case, "meta", None), "generation", None), "mode", None)
+        if getattr(mode, "name", "") != "NEGATIVE":
+            case.body = {**body, "city": "monaco", "rideType": "standard", "paymentMethod": "CASH"}
+
 
 
 @schemathesis.hook

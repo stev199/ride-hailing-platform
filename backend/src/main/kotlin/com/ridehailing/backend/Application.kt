@@ -27,6 +27,9 @@ import com.ridehailing.backend.fares.OsrmClient
 import com.ridehailing.backend.fares.fareRoutes
 import com.ridehailing.backend.events.EventChain
 import com.ridehailing.backend.health.healthRoutes
+import com.ridehailing.backend.rides.RideService
+import com.ridehailing.backend.rides.InMemoryRideStore
+import com.ridehailing.backend.rides.rideRoutes
 import com.ridehailing.backend.rbac.AdminService
 import com.ridehailing.backend.rbac.adminRoutes
 import com.ridehailing.backend.testprofile.testRoutes
@@ -65,6 +68,9 @@ private val ROUTE_METHODS: Map<String, String> = mapOf(
     "/v1/admin/config/login-methods" to "GET, PATCH",
     "/v1/admin/config/fares" to "GET, PATCH",
     "/v1/rides/estimate" to "POST",
+    "/v1/rides" to "GET, POST",
+    "/v1/rides/{id}" to "GET",
+    "/v1/rides/{id}/cancel" to "POST",
     "/v1/admin/users" to "GET, POST",
     "/v1/admin/users/{id}" to "GET, PATCH",
     "/v1/admin/users/{id}/reset-password" to "POST",
@@ -82,6 +88,9 @@ private fun allowFor(path: String): String = when {
     path.startsWith("/v1/admin/users/") && path.endsWith("/force-logout") -> "POST"
     path.startsWith("/v1/admin/users/") -> "GET, PATCH"
     path.startsWith("/v1/admin/config/fares") -> "GET, PATCH"
+    path.startsWith("/v1/rides/") && path.endsWith("/cancel") -> "POST"
+    path.startsWith("/v1/rides/") -> "GET"
+    path == "/v1/rides" -> "GET, POST"
     path.startsWith("/v1/admin/audit") -> "GET"
     else -> "GET, POST"
 }
@@ -94,6 +103,9 @@ class AuthGraph(
     val devInbox: DevInboxOtpProvider = DevInboxOtpProvider(),
     val devices: DeviceStore = InMemoryDeviceStore(),
     val eventChain: EventChain = EventChain(),
+    // P4-2: rides + ledger (in-memory default, PG in defaultGraph - CI double-verifies).
+    val rideStore: com.ridehailing.backend.rides.RideStore = com.ridehailing.backend.rides.InMemoryRideStore(),
+    val ledger: com.ridehailing.backend.ledger.LedgerStore = com.ridehailing.backend.ledger.InMemoryLedgerStore(),
 ) {
     private val recorder = AuthService.EventChainRecorder { type, payload -> eventChain.append(type, payload) }
 
@@ -128,6 +140,15 @@ class AuthGraph(
         ?: OsrmClient("http://localhost:5000")
 
     val fareService = FareService(fares = { config.fares }, osrm = osrm)
+
+    val rideService = RideService(
+        store = rideStore,
+        fares = { config.fares },
+        bundle = config.quoteSigningBundle,
+        ledger = ledger,
+        osrm = osrm,
+        eventRecorder = { type, payload -> eventChain.append(type, payload) },
+    )
 
     /**
      * Bootstrap admin (P1-3): when AUTH_BOOTSTRAP_ADMIN_PHONE + AUTH_BOOTSTRAP_ADMIN_PASSWORD
@@ -192,6 +213,8 @@ fun defaultGraph(): AuthGraph {
         users = com.ridehailing.backend.db.PgUserStore(connect),
         devices = com.ridehailing.backend.db.PgDeviceStore(connect),
         eventChain = events,
+        ledger = com.ridehailing.backend.db.PgLedgerStore(connect),
+        rideStore = com.ridehailing.backend.db.PgRideStore(connect),
     )
 }
 
@@ -260,6 +283,7 @@ fun Application.module(
         adminRoutes(auth.service, auth.admin, auth.eventChain)
         configRoutes(auth.config, auth.service)
         fareRoutes(auth.service, auth.fareService, auth.config)
+        rideRoutes(auth.service, auth.rideService, auth.config.publicKeyHex())
         if (testProfile) testRoutes(eventChain, configBundle, auth.devInbox)
     }
 }

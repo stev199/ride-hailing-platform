@@ -299,4 +299,35 @@ class ContractAlignmentTest {
         assertEquals(true, speed["exclusiveMinimum"] == true, "speed 0 is invalid (division guard)")
         assertEquals(200.0, (speed["maximum"] as? Int)?.toDouble() ?: (speed["maximum"] as? Double) ?: fail("speed maximum missing"))
     }
+
+    @Test
+    fun `ride booking request mirrors the server validation (P4-2)`() {
+        // Coordinates: same +/-180 bounds as the estimate endpoint (server: invalid_coordinates).
+        for (f in listOf("pickupLat", "pickupLon", "dropoffLat", "dropoffLon")) {
+            val (min, max) = numberBounds("RideCreateRequest", f)
+            assertEquals(-180.0, min, "$f lower bound")
+            assertEquals(180.0, max, "$f upper bound")
+        }
+        assertEquals(
+            pattern("FareEstimateRequest", "city").pattern,
+            pattern("RideCreateRequest", "city").pattern,
+            "booking and estimate share the city key shape",
+        )
+        // Payment method: CASH-only enum (server: payment_method_unavailable otherwise).
+        @Suppress("UNCHECKED_CAST")
+        val pm = prop("RideCreateRequest", "paymentMethod")["enum"] as List<*>
+        assertEquals(listOf("CASH"), pm)
+        // Note length limit (server: note_too_long at >500).
+        val note = prop("RideCreateRequest", "note")
+        assertEquals(500, (note["maxLength"] as? Int) ?: (note["maxLength"] as? Long)?.toInt() ?: fail("note.maxLength missing"))
+    }
+
+    @Test
+    fun `ride list pagination mirrors the server bounds (P4-2)`() {
+        val (lmin, lmax) = numberBounds("RideListDto", "limit")
+        assertEquals(1.0, lmin, "server: limit in 1..100 (invalid_pagination)")
+        assertEquals(100.0, lmax)
+        val omin = prop("RideListDto", "offset")["minimum"] as? Int ?: fail("offset.minimum missing")
+        assertEquals(0, omin, "server: offset >= 0")
+    }
 }

@@ -30,6 +30,7 @@ import kotlinx.serialization.Serializable
 data class FareConfig(
     val cities: Map<String, CityFares> = emptyMap(),
     val straightLine: StraightLineCalibration = StraightLineCalibration(),
+    val quote: QuotePolicy = QuotePolicy(),
 ) {
     /** Guard for map sizes: config bundles are device-cached; a hostile patch must not ship a 10MB bundle. */
     fun validationErrors(): List<String> {
@@ -60,6 +61,13 @@ data class FareConfig(
         }
         if (straightLine.assumedAvgSpeedKmh <= 0.0 || straightLine.assumedAvgSpeedKmh > MAX_SPEED_KMH) {
             errs += "straightLine.assumedAvgSpeedKmh: must be in (0..$MAX_SPEED_KMH]"
+        }
+        if (quote.validitySeconds !in 30..3600) errs += "quote.validitySeconds: must be in 30..3600"
+        if (quote.mode !in setOf("upfront_locked", "metered_capped")) {
+            errs += "quote.mode: must be upfront_locked or metered_capped"
+        }
+        if (quote.meteredCapMultiplier < 1.0 || quote.meteredCapMultiplier > 3.0) {
+            errs += "quote.meteredCapMultiplier: must be in 1.0..3.0"
         }
         return errs
     }
@@ -135,4 +143,18 @@ data class SurgeWindow(
 data class StraightLineCalibration(
     val detourFactor: Double = 1.3,
     val assumedAvgSpeedKmh: Double = 22.0,
+)
+
+/**
+ * P4-2 final-quote policy (spec §pricing: "an admin-configurable validity window and
+ * policy (upfront-locked or metered with cap)"). upfront_locked = the rider books at
+ * the quoted amount; metered_capped = the final metered price is capped at
+ * meteredCapMultiplier x the quoted projection (cap enforcement lands with the wallet
+ * holds in Phase 7 - the quote document carries the cap either way).
+ */
+@Serializable
+data class QuotePolicy(
+    val validitySeconds: Int = 90,
+    val mode: String = "upfront_locked",
+    val meteredCapMultiplier: Double = 1.5,
 )

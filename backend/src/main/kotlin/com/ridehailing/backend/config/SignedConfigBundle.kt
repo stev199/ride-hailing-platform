@@ -57,6 +57,35 @@ class SignedConfigBundle private constructor(
         }
     }
 
+    /**
+     * P4-2: generic payload signature (domain-separated from config bundles) for the
+     * server-SIGNED final ride quote (spec §pricing: "Final quote ... always computed
+     * by the server, signed"). Same Ed25519 key as config bundles - devices already
+     * pin that public key. Returns null when this bundle is read-only (no private key).
+     */
+    fun signPayload(domain: String, payloadCanonicalJson: String): ByteArray? {
+        val priv = privateKeyBytes ?: return null
+        val content = "$domain|$payloadCanonicalJson"
+        return try {
+            val sig = Signature.getInstance("Ed25519")
+            sig.initSign(restorePrivateKey(priv))
+            sig.update(content.toByteArray(Charsets.UTF_8))
+            sig.sign()
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Verify a [signPayload] signature with this bundle's public key. */
+    fun verifyPayload(domain: String, payloadCanonicalJson: String, signature: ByteArray): Boolean = try {
+        val sig = Signature.getInstance("Ed25519")
+        sig.initVerify(restorePublicKey(publicKeyBytes))
+        sig.update("$domain|$payloadCanonicalJson".toByteArray(Charsets.UTF_8))
+        sig.verify(signature)
+    } catch (_: Exception) {
+        false
+    }
+
     companion object {
         fun fromKeys(publicKeyBytes: ByteArray, privateKeyBytes: ByteArray?): SignedConfigBundle =
             SignedConfigBundle(publicKeyBytes, privateKeyBytes)

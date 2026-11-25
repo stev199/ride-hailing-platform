@@ -66,6 +66,10 @@ class ConfigService(
 
     fun publicKeyHex(): String = bundle.publicKeyBytes.toHex()
 
+    /** P4-2: the Ed25519 bundle for ride-quote signing (same key the devices pin). */
+    val quoteSigningBundle: SignedConfigBundle
+        get() = bundle
+
     /**
      * The current signed bundle. Version 1 is published lazily on first read
      * (bootstrap entry, actor "system") so a fresh deployment serves a valid bundle
@@ -217,6 +221,11 @@ class ConfigService(
         "straightLine" to mapOf(
             "detourFactor" to f.straightLine.detourFactor,
             "assumedAvgSpeedKmh" to f.straightLine.assumedAvgSpeedKmh,
+        ),
+        "quote" to mapOf(
+            "validitySeconds" to f.quote.validitySeconds,
+            "mode" to f.quote.mode,
+            "meteredCapMultiplier" to f.quote.meteredCapMultiplier,
         ),
         "cities" to f.cities.entries.associate { (city, c) ->
             city to mapOf(
