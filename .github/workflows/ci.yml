@@ -383,6 +383,83 @@ jobs:
           name: e2e-cross-actor
           path: artifacts/**
 
+  # ---------- 9b. offline maps e2e (P3-2: geo stack + airplane-mode render proof) ----------
+  e2e-offline-maps:
+    name: e2e-offline-maps
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    needs: [changes, android-build]
+    if: ${{ (needs.changes.outputs.android == 'true' || needs.changes.outputs.infra == 'true' || github.event_name == 'workflow_dispatch') && needs.android-build.result == 'success' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enable KVM (D4)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+          test -e /dev/kvm || { echo "KVM missing"; exit 1; }
+      - uses: actions/download-artifact@v4
+        with: { name: android-apks }
+      - name: Build the city extract (Planetiler -> MBTiles, self-hosted tiles only)
+        run: |
+          mkdir -p infra/data
+          if [ ! -f infra/data/city.mbtiles ]; then
+            curl -fsSL -o infra/data/city.osm.pbf "https://download.geofabrik.de/europe/monaco-latest.osm.pbf"
+            docker run --rm -u "$(id -u):$(id -g)" -v "$PWD/infra/data:/data" ghcr.io/onthegomap/planetiler:latest --area=monaco --download=false --mbtiles=/data/city.mbtiles /data/city.osm.pbf
+          fi
+          ls -la infra/data/
+      - name: Start the self-hosted tile server (standalone; host port 8081 -> emulator 10.0.2.2:8081)
+        run: |
+          docker run -d --name tileserver -p 8081:8081 -v "$PWD/infra/data:/data" maplibre/tileserver-gl:v4.6.2 --mbtiles /data/city.mbtiles -p 8081
+          for i in $(seq 1 30); do
+            if curl -fsSI "http://localhost:8081/styles/basic/style.json" | head -1 | grep -q "200"; then echo "tile server up"; break; fi
+            sleep 2
+          done
+          curl -fsSI "http://localhost:8081/styles/basic/style.json" | head -1
+      - name: Install emulator + system image
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "emulator" "platform-tools" "system-images;android-34;google_apis;x86_64" > /dev/null
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
+          echo "$ANDROID_HOME/emulator" >> "$GITHUB_PATH"
+      - name: Create AVD + boot one emulator
+        run: |
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export ANDROID_AVD_HOME="$HOME/.android/avd"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | "$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager" create avd -n offline_api34 -k "system-images;android-34;google_apis;x86_64" -d pixel_5
+          echo "ANDROID_AVD_HOME=$ANDROID_AVD_HOME" >> "$GITHUB_ENV"
+          ./scripts/start-emulators.sh 1
+      - name: Install rider + androidTest APKs
+        run: |
+          adb install -r app-rider-debug.apk
+          adb install -r app-rider-debug-androidTest.apk
+      - name: ONLINE - download the offline region (instrumented)
+        run: |
+          adb shell am instrument -w -e class com.ridehailing.rider.OfflineMapsInstrumentedTest#downloadRegionOffline             com.ridehailing.rider/test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-offline-download.log
+          grep -q "INSTRUMENTATION_STATUS_CODE: 0" artifacts-offline-download.log
+      - name: AIRPLANE MODE (svc wifi/data disable; no root needed on google_apis)
+        run: |
+          adb shell svc wifi disable
+          adb shell svc data disable
+          sleep 5
+          adb shell settings get global airplane_mode_on || true
+      - name: OFFLINE - app boots + region persists (instrumented; storyboard screenshots = gallery evidence)
+        run: |
+          adb shell am instrument -w -e class com.ridehailing.rider.OfflineMapsInstrumentedTest#mapRendersFromOfflineRegion             com.ridehailing.rider/test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-offline-render.log
+          grep -q "INSTRUMENTATION_STATUS_CODE: 0" artifacts-offline-render.log
+      - name: Restore connectivity (job hygiene)
+        if: always()
+        run: |
+          adb shell svc wifi enable || true
+          adb shell svc data enable || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-offline-maps
+          path: artifacts-offline-*.log
+
   # ---------- 10. security scans (always) ----------
   security:
     name: security
