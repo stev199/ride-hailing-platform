@@ -467,9 +467,16 @@ jobs:
           adb install -r app-rider/build/outputs/apk/androidTest/debug/app-rider-debug-androidTest.apk
       - name: ONLINE - download the offline region (instrumented)
         run: |
+          # Preflight: prove the instrumentation is visible to the system before the
+          # instrument call (self-diagnosing if the APK pairing ever drifts again).
+          adb shell pm list instrumentation | grep com.ridehailing.rider.test || { echo "::error::rider androidTest instrumentation not installed"; exit 1; }
+          # Runner spec = <testPackage>/<runnerClass> - ComponentName.unflattenFromString
+          # splits at the FIRST '/'; round 10 fix: the old "pkg.test/test/runner" had a
+          # literal 'test/' middle segment -> className never resolved -> AMS returned
+          # false -> INSTRUMENTATION_FAILED in ~600ms (rounds 8-9 both had it).
           adb shell am instrument -w -e class com.ridehailing.rider.OfflineMapsInstrumentedTest#downloadRegionOffline \
             -e viewerUrl http://127.0.0.1:7070 \
-            com.ridehailing.rider.test/test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-offline-download.log
+            com.ridehailing.rider.test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-offline-download.log
           grep -q "INSTRUMENTATION_STATUS_CODE: 0" artifacts-offline-download.log
       - name: AIRPLANE MODE (svc wifi/data disable; no root needed on google_apis)
         run: |
@@ -481,7 +488,7 @@ jobs:
         run: |
           adb shell am instrument -w -e class com.ridehailing.rider.OfflineMapsInstrumentedTest#mapRendersFromOfflineRegion \
             -e viewerUrl http://127.0.0.1:7070 \
-            com.ridehailing.rider.test/test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-offline-render.log
+            com.ridehailing.rider.test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-offline-render.log
           grep -q "INSTRUMENTATION_STATUS_CODE: 0" artifacts-offline-render.log
       - name: Restore connectivity + stop the collector (job hygiene)
         if: always()
