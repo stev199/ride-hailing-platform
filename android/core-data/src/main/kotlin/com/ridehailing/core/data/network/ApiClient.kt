@@ -5,6 +5,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -69,6 +70,14 @@ suspend inline fun <reified T> HttpClient.postTyped(
     contentType(ContentType.Application.Json)
     setBody(body)
 }.let { response ->
+    if (response.status.isSuccess()) response.body<T>()
+    else throw ApiRequestException(apiErrorFrom(response))
+}
+
+/** Get + typed error mapping (P4-3 config bundle; P4-4 rides endpoints). */
+suspend inline fun <reified T> HttpClient.getTyped(
+    path: String,
+): T = get(path).let { response ->
     if (response.status.isSuccess()) response.body<T>()
     else throw ApiRequestException(apiErrorFrom(response))
 }

@@ -18,6 +18,10 @@ annotation class SessionDataStore
 @Retention(AnnotationRetention.RUNTIME)
 annotation class SettingsDataStore
 
+@javax.inject.Qualifier
+@Retention(AnnotationRetention.RUNTIME)
+annotation class FareDataStore
+
 data class Session(
     val accessToken: String?,
     val refreshToken: String?,

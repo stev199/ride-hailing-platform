@@ -8,6 +8,7 @@ import androidx.datastore.preferences.preferencesDataStoreFile
 import com.ridehailing.core.data.db.AppDatabase
 import com.ridehailing.core.data.db.RideDao
 import com.ridehailing.core.data.outbox.OutboxDao
+import com.ridehailing.core.data.prefs.FareDataStore
 import com.ridehailing.core.data.prefs.SessionDataStore
 import com.ridehailing.core.data.prefs.SettingsDataStore
 import dagger.Module
@@ -65,4 +66,10 @@ object DataStoreModule {
     @SettingsDataStore
     fun settingsDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
         PreferenceDataStoreFactory.create { context.preferencesDataStoreFile("settings") }
+
+    @Provides
+    @Singleton
+    @FareDataStore
+    fun fareDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
+        PreferenceDataStoreFactory.create { context.preferencesDataStoreFile("farebundle") }
 }
