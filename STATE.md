@@ -1,10 +1,12 @@
 # STATE - ride-hailing-platform
 
-Last updated: 2026-11-25 (Phase 3 started: P3-1 done, P3-2/P3-3 next)
+Last updated: 2026-11-25 (gate round 10: nexus_4 SDK removal + am instrument /test/ segment both root-caused and fixed; verification runs in flight; Phase 4 planning started)
 Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
-Current phase: 3 (offline maps and visited places) - STARTED 2026-11-25 right after the Phase 2 gate (NON-STOP RULE D74). Phase 2 closed with tag phase-2-gate.
-Phase 2 GATE CLOSED (tag phase-2-gate @ 122175d, report in gate table + PROGRESS_LOG). Phase 3 in progress: P3-1 done (8333005), P3-3 done (5738206), NOW: P3-2 offline e2e cell (geo compose + instrumented airplane-mode verification). CI verification of P3-1/P3-3 in flight (run for 5738206).
-Last completed task: P3-1 offline maps (8333005): OfflineMapManager + OfflineMapCard outside the auth gate + JVM-tested codec/progress; 41 unit tests green; build exit 0
+Current phase: 3 (offline maps and visited places) - code COMPLETE (P3-1 8333005, P3-3 5738206, P3-2 cell wired b28fc38 + gate rounds 5-10); gate closure pending the two in-flight verification runs (below). Phase 2 closed with tag phase-2-gate; P2-5 screenshot cells now wired (the deferral closes).
+Gate round 10 (2026-11-25, session recycle #4): recovered toolchain (gh 2.63.2 at tools/bin/gh; JDK17/SDK wiped - see Environment status). Two red findings on HEAD 52846b1, both root-caused with source-level evidence and fixed:
+1. Nightly nexus_4 cells: Google REMOVED the Nexus 4 device profile from the SDK (verified by extracting com/android/sdklib/devices/nexus.xml from the current sdklib.core.jar - Nexus list starts at Nexus 7). Fix ada776b: small_phone (generic 720x1280@320dpi, same ~360x640dp footprint). Verify: nightly run 45592490175.
+2. e2e-offline-maps INSTRUMENTATION_FAILED-in-600ms (rounds 8+9 shared the same signature with different specs): the runner spec 'com.ridehailing.rider.test/test/androidx.test.runner.AndroidJUnitRunner' has a literal 'test/' middle segment; ComponentName.unflattenFromString splits at the FIRST '/' so the className never resolves and AMS.startInstrumentation returns false (AOSP Instrument.java android-14.0.0_r2 line 535 + AMS startInstrumentation false paths enumerated; APK ground truth from the failed run's android-apks artifact: package/testpkg/targetPackage/runner all correct). Fix ec8b474: spec = pkg.test/androidx.test.runner.AndroidJUnitRunner + pm-list-instrumentation preflight. Verify: forced run 45593853432.
+Last completed task: gate round 10 fixes (ada776b nightly matrix, ec8b474 e2e instrument spec) + batch bookkeeping (BACKLOG P2-5/P3-2 -> CI verify in flight, P3-3 -> done)
 
 ## Gate status table
 
@@ -41,10 +43,10 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Next 5 tasks
 
-1. P3-3 visited places UI (list + save-place from PlaceDao; marking-from-rides waits for Phase 4 rides)
-2. P3-2 offline e2e cell: geo compose profile + instrumented airplane-mode verification (Phase 3 gate evidence)
-3. P2-5 android font-scale/size screenshot cells on CI (Phase 2 gate deferral, BACKLOG)
-4. P2-3 follow-up: re-expand the android-ui shard matrix when a suite exceeds 1-2 tests/shard
+1. Verify gate-round-10 runs: forced CI 45593853432 (e2e-offline-maps instrument fix) + nightly 45592490175 (small_phone cells); fix red, flip BACKLOG cells to done
+2. Phase 3 GATE: when both runs green - write gate report, tag phase-3-gate, start Phase 4 immediately (NON-STOP D74)
+3. Phase 4 rider booking happy path: P4-1 ride quotes API (fare estimate endpoint + estimator math, JVM-tested) + P4-2 booking flow UI (pickup/dropoff -> quote -> request) - see BACKLOG Phase 4 section (being written)
+4. P4-3 booking e2e: rider books from map UI against compose backend (cross-actor evidence lands Phase 5 when drivers exist)
 5. Extras: mesh long-mode scenario runner (nightly --scenario=long selection; BACKLOG)
 
 ## Session environment (2026-11-25 recycle #3 recovery)
