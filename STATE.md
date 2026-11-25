@@ -1,16 +1,17 @@
 # STATE - ride-hailing-platform
 
-Last updated: 2026-11-25 (batch 2: P1-5, P1-4c, CI round 17)
+Last updated: 2026-11-25 (Phase 2 gate closed, tag phase-2-gate)
 Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
-Current phase: 2 (android shell) - P2-1a scaffold, P2-1b navigation/theming/i18n, P2-3 storyboard+video evidence DONE AND CI-VERIFIED (run 45507128835: 6 real-UI storyboard step screenshots + 2 screen recordings on the gallery); Phase 1 closed earlier (P1-CONTRACT rounds 1-5)
+Current phase: 3 (offline maps and visited places) - STARTED 2026-11-25 right after the Phase 2 gate (NON-STOP RULE D74). Phase 2 closed with tag phase-2-gate.
 Current task: P2-1c + P2-2 + P1-5 (479cae6) + P1-4c (0c44e0f) DONE; CI round 17 fix (dcbd055) pushed after run 45518041434 red (instrumented nav tests still asserted the P2-1b Home placeholder -> updated to map-screen elements, tile-independent). NOW: P2-4 auth UI. Next: gate check, P2-3 follow-up, Extras.
-Last completed task: P2-3 evidence chain - 15 CI iterations, 8 distinct root causes (3 pre-existing bugs found on the way: gallery media never shipped; e2e-cross-actor ran hollow-green for its whole history; guest screenrecord dead on ATD), all fixed with log evidence - see PROGRESS_LOG 2026-11-24 entries
+Last completed task: Phase 2 gate (tag phase-2-gate @ 122175d; 4 CI iterations total across rounds 17-19: android-ui assertion + 2 CI-only ledger bugs + admin untouched-green)
 
 ## Gate status table
 
 | Gate | Status |
 |---|---|
 | Phase 0 (Part B delivery plan) | CLOSED 2026-11-24: D11.9 first-green pipeline + report gallery with storyboard screenshots and video, formally CI-verified (run 45507128835, all jobs green, media served from Pages: 6 filmstrip PNGs + 2 mp4 recordings, real UI pixels) |
+| Phase 2 (android shell) | GATE CLOSED 2026-11-25, tag phase-2-gate @ 122175d. Scope all done: P2-1a scaffold, P2-1b nav/theming/i18n, P2-1c Hilt/Room+FTS/DataStore/outbox, P2-2 MapLibre main screens (self-hosted tiles), P2-3 storyboard+video evidence, P2-4 auth UI (Ktor+AuthRepository+SessionScreen). Gate evidence per area (identical code per path at HEAD): backend-test + api-contract GREEN run 45530028415 @122175d (PG double-entry ledger verified on real Postgres); android-build + android-ui rider/driver GREEN run 45527631693 @841de18 (emulator shards, instrumented nav tests assert the REAL map/session screens); e2e-cross-actor GREEN run 45527631693; admin-web-test GREEN forced run 45525186273 @fd4cb63 (i18n matrix incl. 30-shot RTL/dark baselines, axe 0 violations on Arabic RTL); mesh-core-sim GREEN 45525186273. Gate budget honest: 3 CI iterations for backend-test (2 CI-only ledger bugs: uuid casts + wallet FK seeding; none reachable by in-memory tests), 1 for android-ui (ambiguous text node). DEFERRED to P2-5 (BACKLOG): android font-scale 1.3 + small/large-phone screenshot cells on CI (sandbox has no emulator; admin side already has the full RTL/dark matrix) |
 | Mesh GATE 1-2 (Part C) | GATE 2 CLOSED AND CI-VERIFIED 2026-11-24 (run 45256630914, mesh-core-sim success): beacons (certified profiles, short MAC, adaptive pacing) + PRESENCE (backend-only seal) + GATEWAY_RELAY (opaque forward, internet shortcut) - scenarios 16-19 PASS on CI + locally |
 | Mesh GATE 3 (Stage 3) | DONE 2026-11-24: 15/15 scenarios + baseline gate green on CI (run 45245604015, mesh-sim-evidence artifact uploaded) + locally; suite now 19 scenarios (16-19 = GATE 2 close-out) |
 | Mesh GATE 4-7 (Part C) | pending (Stage 4 starts with Phase 2 android) |
