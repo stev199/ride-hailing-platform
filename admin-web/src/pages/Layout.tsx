@@ -1,20 +1,22 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../auth/AuthContext';
+import { applyLang, i18n, LANGS } from '../i18n';
 import { can, permissionsOf, Perm } from '../rbac/permissions';
 
 /** Sidebar entries; each gated by the backend permission that guards its API. */
 interface NavItem {
   to: string;
-  label: string;
+  labelKey: string;
   perm: Perm;
 }
 
 const NAV: NavItem[] = [
-  { to: '/', label: 'Overview', perm: Perm.USERS_READ }, // any admin perm grants shell access; overview itself is account info
-  { to: '/users', label: 'Users', perm: Perm.USERS_READ },
-  { to: '/audit', label: 'Audit log', perm: Perm.AUDIT_READ },
-  { to: '/config', label: 'Config center', perm: Perm.CONFIG_READ },
+  { to: '/', labelKey: 'nav.overview', perm: Perm.USERS_READ }, // any admin perm grants shell access
+  { to: '/users', labelKey: 'nav.users', perm: Perm.USERS_READ },
+  { to: '/audit', labelKey: 'nav.audit', perm: Perm.AUDIT_READ },
+  { to: '/config', labelKey: 'nav.config', perm: Perm.CONFIG_READ },
 ];
 
 export function useTheme(): [string, () => void] {
@@ -30,6 +32,8 @@ export default function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [theme, toggleTheme] = useTheme();
+  const { t } = useTranslation();
+  const currentLang = i18n.language;
 
   if (!user) return null; // RequireAuth wrapper guarantees a user; type-narrowing guard.
 
@@ -39,8 +43,8 @@ export default function Layout() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <div className="brand">Ride-hailing Admin</div>
-        <nav aria-label="Admin sections">
+        <div className="brand">{t('brand')}</div>
+        <nav aria-label={t('nav.sectionsAria')}>
           {visibleNav.map((item) => (
             <NavLink
               key={item.to}
@@ -48,7 +52,7 @@ export default function Layout() {
               end={item.to === '/'}
               className={({ isActive }) => (isActive ? 'active' : undefined)}
             >
-              {item.label}
+              {t(item.labelKey)}
             </NavLink>
           ))}
         </nav>
@@ -56,9 +60,24 @@ export default function Layout() {
       </aside>
       <div className="main">
         <header className="topbar">
-          <button onClick={toggleTheme} aria-label="Toggle color theme" data-testid="theme-toggle">
-            {theme === 'dark' ? 'Light' : 'Dark'} mode
+          <button onClick={toggleTheme} aria-label={t('theme.ariaToggle')} data-testid="theme-toggle">
+            {theme === 'dark' ? t('theme.toLight') : t('theme.toDark')}
           </button>
+          <select
+            aria-label={t('lang.aria')}
+            value={currentLang}
+            onChange={(e) => {
+              applyLang(e.target.value);
+              void i18n.changeLanguage(e.target.value);
+            }}
+            data-testid="lang-select"
+          >
+            {LANGS.map((l) => (
+              <option key={l} value={l}>
+                {t(`lang.${l}`)}
+              </option>
+            ))}
+          </select>
           <div className="who">
             <span data-testid="display-name">{user.displayName}</span>
             <span className="badge role" data-testid="role-badge">{user.role}</span>
@@ -69,7 +88,7 @@ export default function Layout() {
               }}
               data-testid="logout"
             >
-              Log out
+              {t('auth.logout')}
             </button>
           </div>
         </header>

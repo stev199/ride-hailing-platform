@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../auth/AuthContext';
 import type { AdminUser, AdminUserList, ApiError, User } from '../api/types';
 import { can, Perm } from '../rbac/permissions';
@@ -23,15 +24,16 @@ interface ActionState {
   presetStatus?: string;
 }
 
-const ACTION_LABEL: Record<ActionKind, string> = {
-  create: 'Create user',
-  edit: 'Edit user',
-  'reset-password': 'Reset password',
-  'force-logout': 'Force logout',
+const ACTION_LABEL_KEY: Record<ActionKind, string> = {
+  create: 'users.action.create',
+  edit: 'users.action.edit',
+  'reset-password': 'users.action.resetPassword',
+  'force-logout': 'users.action.forceLogout',
 };
 
 export default function UsersPage() {
   const { user: me, api } = useAuth();
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
@@ -79,7 +81,7 @@ export default function UsersPage() {
 
   return (
     <div>
-      <h1 className="page-title">Users</h1>
+      <h1 className="page-title">{t('users.title')}</h1>
       {notice && (
         <div className="ok-banner" role="status" data-testid="user-action-notice">
           {notice}
@@ -88,8 +90,8 @@ export default function UsersPage() {
       <div className="search-row">
         <input
           type="search"
-          aria-label="Search users"
-          placeholder="Search by phone, email or display name"
+          aria-label={t('users.searchAria')}
+          placeholder={t('users.searchPlaceholder')}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -98,7 +100,7 @@ export default function UsersPage() {
           data-testid="user-search"
         />
         <button className="primary" onClick={() => void load(query)} disabled={busy} data-testid="user-search-go">
-          Search
+          {t('users.search')}
         </button>
         {canWrite && (
           <button
@@ -106,7 +108,7 @@ export default function UsersPage() {
             onClick={() => setAction({ kind: 'create', target: null })}
             data-testid="user-create"
           >
-            Create user
+            {t('users.create')}
           </button>
         )}
       </div>
@@ -126,19 +128,19 @@ export default function UsersPage() {
         />
       )}
       {error && <div className="error-banner" role="alert">{error.code}: {error.message}</div>}
-      {!users && !error && <p className="muted">Loading…</p>}
-      {users && users.length === 0 && <div className="info-banner">No users match this query.</div>}
+      {!users && !error && <p className="muted">{t('users.loading')}</p>}
+      {users && users.length === 0 && <div className="info-banner">{t('users.empty')}</div>}
       {users && users.length > 0 && (
-        <table className="data" aria-label="Users list" data-testid="users-table">
+        <table className="data" aria-label={t('users.tableAria')} data-testid="users-table">
           <thead>
             <tr>
-              <th>Display name</th>
-              <th>Phone</th>
-              <th>Email</th>
-              <th>Role</th>
-              <th>Status</th>
-              <th>Created</th>
-              <th>Actions</th>
+              <th>{t('users.displayName')}</th>
+              <th>{t('users.phone')}</th>
+              <th>{t('users.email')}</th>
+              <th>{t('users.role')}</th>
+              <th>{t('users.status')}</th>
+              <th>{t('users.created')}</th>
+              <th>{t('users.actions')}</th>
             </tr>
           </thead>
           <tbody>
@@ -157,7 +159,7 @@ export default function UsersPage() {
                         onClick={() => setAction({ kind: 'edit', target: u })}
                         data-testid={`user-edit-${u.id}`}
                       >
-                        Edit
+                        {t('users.edit')}
                       </button>
                     )}
                     {canBan && u.status === 'ACTIVE' && (
@@ -165,7 +167,7 @@ export default function UsersPage() {
                         onClick={() => setAction({ kind: 'edit', target: u, presetStatus: 'BANNED_TEMP' })}
                         data-testid={`user-ban-${u.id}`}
                       >
-                        Ban
+                        {t('users.ban')}
                       </button>
                     )}
                     {canReset && (
@@ -173,7 +175,7 @@ export default function UsersPage() {
                         onClick={() => setAction({ kind: 'reset-password', target: u })}
                         data-testid={`user-reset-${u.id}`}
                       >
-                        Reset pw
+                        {t('users.resetPw')}
                       </button>
                     )}
                     {canSessions && (
@@ -181,10 +183,10 @@ export default function UsersPage() {
                         onClick={() => setAction({ kind: 'force-logout', target: u })}
                         data-testid={`user-logout-${u.id}`}
                       >
-                        Force logout
+                        {t('users.forceLogout')}
                       </button>
                     )}
-                    {!canWrite && !canBan && !canReset && !canSessions && <span className="muted">read-only role</span>}
+                    {!canWrite && !canBan && !canReset && !canSessions && <span className="muted">{t('users.readOnlyRole')}</span>}
                   </div>
                 </td>
               </tr>
@@ -213,6 +215,7 @@ function UserActionPanel({
   onDone: (notice: string) => void | Promise<void>;
 }) {
   const { kind, target } = action;
+  const { t } = useTranslation();
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
   const [displayName, setDisplayName] = useState(target?.displayName ?? '');
@@ -244,7 +247,7 @@ function UserActionPanel({
             displayName, role, phone: phone || null, email: email || null,
             password: password || null, locale: locale || null,
           });
-          return `User "${displayName}" created`;
+          return t('users.notice.created', { name: displayName });
         });
       case 'edit':
         if (!target) return;
@@ -252,19 +255,19 @@ function UserActionPanel({
           await api.patch(`/v1/admin/users/${target.id}`, {
             displayName, locale, status, role,
           });
-          return `User "${displayName}" updated`;
+          return t('users.notice.updated', { name: displayName });
         });
       case 'reset-password':
         if (!target) return;
         return run(async () => {
           await api.post(`/v1/admin/users/${target.id}/reset-password`, { newPassword: password });
-          return `Password reset for "${target.displayName}" (all sessions revoked)`;
+          return t('users.notice.reset', { name: target.displayName });
         });
       case 'force-logout':
         if (!target) return;
         return run(async () => {
           const res = await api.post<{ revokedSessions: number }>(`/v1/admin/users/${target.id}/force-logout`);
-          return `Force logout "${target.displayName}": ${res.revokedSessions} session(s) revoked`;
+          return t('users.notice.forceLogout', { name: target.displayName, count: res.revokedSessions });
         });
     }
   };
@@ -272,43 +275,41 @@ function UserActionPanel({
   const selfActions = target && target.id === me.id;
 
   return (
-    <div className="card" role="dialog" aria-modal="true" aria-label={ACTION_LABEL[kind]} data-testid="user-action-panel">
+    <div className="card" role="dialog" aria-modal="true" aria-label={t(ACTION_LABEL_KEY[kind])} data-testid="user-action-panel">
       <h2 style={{ marginTop: 0, fontSize: 14 }}>
-        {ACTION_LABEL[kind]}
+        {t(ACTION_LABEL_KEY[kind])}
         {target ? ` — ${target.displayName}` : ''}
       </h2>
       {error && <div className="error-banner" role="alert" data-testid="user-action-error">{error.code}: {error.message}</div>}
       {kind === 'force-logout' ? (
-        <p>
-          Revoke every live session of <strong>{target?.displayName}</strong>? They must sign in again.
-        </p>
+        <p>{t('users.forceLogoutConfirm', { name: target?.displayName ?? '' })}</p>
       ) : (
         <>
           {(kind === 'create' || kind === 'edit') && (
             <div className="form-grid">
-              <label htmlFor="ua-display-name">Display name</label>
+              <label htmlFor="ua-display-name">{t('users.displayName')}</label>
               <input id="ua-display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} data-testid="ua-display-name" />
               {kind === 'create' && (
                 <>
-                  <label htmlFor="ua-phone">Phone</label>
-                  <input id="ua-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="optional" data-testid="ua-phone" />
-                  <label htmlFor="ua-email">Email</label>
-                  <input id="ua-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="optional" data-testid="ua-email" />
+                  <label htmlFor="ua-phone">{t('users.phone')}</label>
+                  <input id="ua-phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t('users.optional')} data-testid="ua-phone" />
+                  <label htmlFor="ua-email">{t('users.email')}</label>
+                  <input id="ua-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('users.optional')} data-testid="ua-email" />
                 </>
               )}
               {(kind === 'create' || canBan) && (
                 <>
-                  <label htmlFor="ua-role">Role</label>
+                  <label htmlFor="ua-role">{t('users.role')}</label>
                   <select id="ua-role" value={role} onChange={(e) => setRole(e.target.value)} data-testid="ua-role">
                     {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
                   </select>
-                  <label htmlFor="ua-status">Status</label>
+                  <label htmlFor="ua-status">{t('users.status')}</label>
                   <select id="ua-status" value={status} onChange={(e) => setStatus(e.target.value)} data-testid="ua-status">
                     {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </>
               )}
-              <label htmlFor="ua-locale">Locale</label>
+              <label htmlFor="ua-locale">{t('users.locale')}</label>
               <select id="ua-locale" value={locale} onChange={(e) => setLocale(e.target.value)} data-testid="ua-locale">
                 {['en', 'fr', 'ar'].map((l) => <option key={l} value={l}>{l}</option>)}
               </select>
@@ -316,42 +317,43 @@ function UserActionPanel({
           )}
           {kind === 'create' && (
             <div className="form-grid">
-              <label htmlFor="ua-password">Password</label>
+              <label htmlFor="ua-password">{t('users.password')}</label>
               <input
                 id="ua-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="min 10 chars" autoComplete="new-password" data-testid="ua-password"
+                placeholder={t('users.minChars')} autoComplete="new-password" data-testid="ua-password"
               />
             </div>
           )}
           {kind === 'reset-password' && (
             <div className="form-grid">
-              <label htmlFor="ua-new-password">New password</label>
+              <label htmlFor="ua-new-password">{t('users.newPassword')}</label>
               <input
                 id="ua-new-password" type="password" value={password} onChange={(e) => setPassword(e.target.value)}
-                placeholder="min 10 chars" autoComplete="new-password" data-testid="ua-new-password"
+                placeholder={t('users.minChars')} autoComplete="new-password" data-testid="ua-new-password"
               />
-              <p className="muted">Reseting also revokes every live session of the user (B-04).</p>
+              <p className="muted">{t('users.resetNote')}</p>
             </div>
           )}
           {(kind === 'edit' || kind === 'create') && selfActions && (
-            <p className="muted">You cannot change your own role/status (server-enforced, D62).</p>
+            <p className="muted">{t('users.selfActionsNote')}</p>
           )}
         </>
       )}
       <div className="search-row">
         <button className="primary" onClick={() => void submit()} disabled={busy} data-testid="user-action-submit">
-          {kind === 'force-logout' ? 'Confirm force logout' : 'Submit'}
+          {kind === 'force-logout' ? t('users.confirmForceLogout') : t('users.submit')}
         </button>
-        <button onClick={onClose} data-testid="user-action-cancel">Cancel</button>
+        <button onClick={onClose} data-testid="user-action-cancel">{t('users.cancel')}</button>
       </div>
     </div>
   );
 }
 
 export function ForbiddenPerm({ perm }: { perm: string }) {
+  const { t } = useTranslation();
   return (
     <div className="error-banner" role="alert" data-testid="forbidden-perm">
-      Missing permission <strong>{perm}</strong> — this screen requires a role that carries it.
+      {t('users.forbidden', { perm })}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../auth/AuthContext';
 import type { ApiError, AuditTail } from '../api/types';
 import { can, Perm } from '../rbac/permissions';
@@ -7,6 +8,7 @@ import { ForbiddenPerm } from './UsersPage';
 /** Audit tail viewer: GET /v1/admin/audit?limit (AUDIT_READ); verifyOk = whole-chain recompute. */
 export default function AuditPage() {
   const { user: me, api } = useAuth();
+  const { t } = useTranslation();
   const [tail, setTail] = useState<AuditTail | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
@@ -35,26 +37,24 @@ export default function AuditPage() {
 
   return (
     <div>
-      <h1 className="page-title">Audit log (last {tail?.events.length ?? 0} events)</h1>
+      <h1 className="page-title">{t('audit.title', { count: tail?.events.length ?? 0 })}</h1>
       {tail && (
         <div className={tail.verifyOk ? 'ok-banner' : 'error-banner'} data-testid="verify-banner">
-          {tail.verifyOk
-            ? 'Hash chain verified: every link recomputes (tamper-evident).'
-            : 'CHAIN BROKEN: the stored hashes do not recompute - possible tampering.'}
+          {tail.verifyOk ? t('audit.chainOk') : t('audit.chainBroken')}
         </div>
       )}
       {error && <div className="error-banner" role="alert">{error.code}: {error.message}</div>}
-      {!tail && !error && <p className="muted">{busy ? 'Loading…' : ''}</p>}
-      {tail && tail.events.length === 0 && <div className="info-banner">No audit events yet.</div>}
+      {!tail && !error && <p className="muted">{busy ? t('audit.loading') : ''}</p>}
+      {tail && tail.events.length === 0 && <div className="info-banner">{t('audit.empty')}</div>}
       {tail && tail.events.length > 0 && (
-        <table className="data" aria-label="Audit tail" data-testid="audit-table">
+        <table className="data" aria-label={t('audit.tableAria')} data-testid="audit-table">
           <thead>
             <tr>
-              <th>Seq</th>
-              <th>Type</th>
-              <th>Occurred at</th>
-              <th>Payload</th>
-              <th>Hash</th>
+              <th>{t('audit.seq')}</th>
+              <th>{t('audit.type')}</th>
+              <th>{t('audit.occurredAt')}</th>
+              <th>{t('audit.payload')}</th>
+              <th>{t('audit.hash')}</th>
             </tr>
           </thead>
           <tbody>

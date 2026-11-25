@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../auth/AuthContext';
 import type { AdminConfig, ApiError, ChannelPatch, LoginMethodsPatch, LoginMethodsState } from '../api/types';
 import { can, Perm } from '../rbac/permissions';
@@ -54,6 +55,7 @@ function buildPatch(lm: LoginMethodsState, edit: EditState): LoginMethodsPatch {
 
 export default function ConfigPage() {
   const { user: me, api } = useAuth();
+  const { t } = useTranslation();
   const [config, setConfig] = useState<AdminConfig | null>(null);
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
@@ -89,7 +91,7 @@ export default function ConfigPage() {
 
   return (
     <div>
-      <h1 className="page-title">Config center</h1>
+      <h1 className="page-title">{t('config.title')}</h1>
       {notice && (
         <div className="ok-banner" role="status" data-testid="config-action-notice">
           {notice}
@@ -108,7 +110,7 @@ export default function ConfigPage() {
           {canWrite && !editing && (
             <div className="search-row">
               <button className="primary" onClick={() => { setError(null); setEditing(true); }} data-testid="config-edit">
-                Edit login methods
+                {t('config.edit')}
               </button>
             </div>
           )}
@@ -127,32 +129,32 @@ export default function ConfigPage() {
             />
           )}
           <div className="card" data-testid="config-login-methods">
-            <h2 style={{ marginTop: 0, fontSize: 14 }}>Login methods (live)</h2>
-            <table className="data" aria-label="Login methods" data-testid="config-methods-table">
+            <h2 style={{ marginTop: 0, fontSize: 14 }}>{t('config.loginMethodsLive')}</h2>
+            <table className="data" aria-label={t('config.loginMethods')} data-testid="config-methods-table">
               <thead>
                 <tr>
-                  <th>Method / channel</th>
-                  <th>Enabled</th>
-                  <th>Priority</th>
-                  <th>Notes</th>
+                  <th>{t('config.methodChannel')}</th>
+                  <th>{t('config.enabled')}</th>
+                  <th>{t('config.priority')}</th>
+                  <th>{t('config.notes')}</th>
                 </tr>
               </thead>
               <tbody>
                 <tr data-testid="config-row-password">
-                  <td>Password login</td>
+                  <td>{t('config.passwordLogin')}</td>
                   <td>{lm.passwordLoginEnabled ? 'yes' : 'no'}</td>
                   <td>-</td>
                   <td>POST /v1/auth/login/password</td>
                 </tr>
                 <tr data-testid="config-row-autoregister">
-                  <td>OTP auto-register</td>
+                  <td>{t('config.otpAutoRegister')}</td>
                   <td>{lm.otpAutoRegister ? 'yes' : 'no'}</td>
                   <td>-</td>
-                  <td>unknown identifier + verified OTP creates a RIDER</td>
+                  <td>{t('config.devOnlyNote')}</td>
                 </tr>
                 {channels.map(([name, ch]) => (
                   <tr key={name} data-testid={`config-row-${name}`}>
-                    <td>OTP via {name}</td>
+                    <td>{t('config.otpVia', { name })}</td>
                     <td>{ch.enabled ? 'yes' : 'no'}</td>
                     <td>{ch.priority}</td>
                     <td>{ch.devOnly ? 'devOnly: disabled in production runtimes' : ''}</td>
@@ -162,14 +164,14 @@ export default function ConfigPage() {
             </table>
           </div>
           <div className="card" data-testid="config-history">
-            <h2 style={{ marginTop: 0, fontSize: 14 }}>Signed bundle history</h2>
-            <table className="data" aria-label="Config version history" data-testid="config-history-table">
+            <h2 style={{ marginTop: 0, fontSize: 14 }}>{t('config.bundleHistory')}</h2>
+            <table className="data" aria-label={t('config.versionHistory')} data-testid="config-history-table">
               <thead>
                 <tr>
-                  <th>Version</th>
-                  <th>Issued (epoch sec)</th>
-                  <th>Changed by</th>
-                  <th>Change</th>
+                  <th>{t('config.version')}</th>
+                  <th>{t('config.issuedAt')}</th>
+                  <th>{t('config.changedBy')}</th>
+                  <th>{t('config.change')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -186,7 +188,7 @@ export default function ConfigPage() {
           </div>
         </>
       )}
-      {!config && !error && busy && <div className="info-banner">Loading config…</div>}
+      {!config && !error && busy && <div className="info-banner">{t('config.loading')}</div>}
     </div>
   );
 }
@@ -209,6 +211,7 @@ function ConfigEditPanel({
   onClose: () => void;
   onDone: (notice: string) => void | Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [state, setState] = useState<EditState>(edit);
   const [error, setError] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
@@ -221,7 +224,7 @@ function ConfigEditPanel({
     setError(null);
     try {
       await api.patch('/v1/admin/config/login-methods', patch);
-      await onDone('Login methods saved - a new signed config version was published');
+      await onDone(t('config.saved'));
     } catch (err) {
       setError(err as ApiError);
     } finally {
@@ -230,17 +233,17 @@ function ConfigEditPanel({
   };
 
   return (
-    <div className="card" role="dialog" aria-modal="true" aria-label="Edit login methods" data-testid="config-edit-panel">
-      <h2 style={{ marginTop: 0, fontSize: 14 }}>Edit login methods</h2>
+    <div className="card" role="dialog" aria-modal="true" aria-label={t('config.edit')} data-testid="config-edit-panel">
+      <h2 style={{ marginTop: 0, fontSize: 14 }}>{t('config.edit')}</h2>
       {error && <div className="error-banner" role="alert" data-testid="config-edit-error">{error.code}: {error.message}</div>}
       <div className="form-grid">
-        <label htmlFor="cfg-password">Password login</label>
+        <label htmlFor="cfg-password">{t('config.passwordLogin')}</label>
         <input
           id="cfg-password" type="checkbox" checked={state.passwordLoginEnabled}
           onChange={(e) => setState({ ...state, passwordLoginEnabled: e.target.checked })}
           data-testid="cfg-toggle-password"
         />
-        <label htmlFor="cfg-autoregister">OTP auto-register</label>
+        <label htmlFor="cfg-autoregister">{t('config.otpAutoRegister')}</label>
         <input
           id="cfg-autoregister" type="checkbox" checked={state.otpAutoRegister}
           onChange={(e) => setState({ ...state, otpAutoRegister: e.target.checked })}
@@ -248,7 +251,7 @@ function ConfigEditPanel({
         />
         {Object.entries(state.channels).map(([name, ch]) => (
           <div key={name} style={{ display: 'contents' }}>
-            <label htmlFor={`cfg-enabled-${name}`}>OTP via {name}</label>
+            <label htmlFor={`cfg-enabled-${name}`}>{t('config.otpVia', { name })}</label>
             <span>
               <input
                 id={`cfg-enabled-${name}`} type="checkbox" checked={ch.enabled}
@@ -277,15 +280,12 @@ function ConfigEditPanel({
           </div>
         ))}
       </div>
-      <p className="muted">
-        devOnly is a deployment property and cannot be edited here (D37). Priorities order the enabled
-        channels (lower first) and must stay distinct - the server rejects duplicates.
-      </p>
+      <p className="muted">{t('config.editorNote')}</p>
       <div className="search-row">
         <button className="primary" onClick={() => void submit()} disabled={busy || !dirty} data-testid="config-edit-submit">
-          Save
+          {t('config.save')}
         </button>
-        <button onClick={onClose} data-testid="config-edit-cancel">Cancel</button>
+        <button onClick={onClose} data-testid="config-edit-cancel">{t('config.cancel')}</button>
       </div>
     </div>
   );
