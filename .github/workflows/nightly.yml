@@ -106,7 +106,11 @@ jobs:
   # P2-5 (Phase 2 gate deferral closed): font-scale + small/large-phone screenshot
   # cells. The locale/theme matrix above keeps the accent coverage; this job proves
   # LAYOUT robustness: system font_scale 1.3 (large-font accessibility) and two AVD
-  # skins (nexus_4 768x1280 small vs pixel_5 1080x2340 large). Storyboard screenshots
+  # skins (small_phone 720x1280@320dpi small vs pixel_5 1080x2340 large).
+  # small_phone replaces nexus_4 (round-10 fix: Google dropped the Nexus 4 device
+  # profile from the SDK - runner avdmanager fails with "No device found matching
+  # --device nexus_4"; small_phone is a generic profile in devices.xml, same ~360x640dp
+  # footprint). Storyboard screenshots
   # land as run artifacts per cell (nightly evidence; gallery cross-publish stays an
   # E6 follow-up - recorded in the BACKLOG row).
   android-screenshot-cells:
@@ -117,9 +121,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { font-scale: '1.0', profile: nexus_4 }
+          - { font-scale: '1.0', profile: small_phone }
           - { font-scale: '1.0', profile: pixel_5 }
-          - { font-scale: '1.3', profile: nexus_4 }
+          - { font-scale: '1.3', profile: small_phone }
           - { font-scale: '1.3', profile: pixel_5 }
     steps:
       - uses: actions/checkout@v4
