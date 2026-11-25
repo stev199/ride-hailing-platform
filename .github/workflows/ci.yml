@@ -403,8 +403,10 @@ jobs:
         run: |
           mkdir -p infra/data
           if [ ! -f infra/data/city.mbtiles ]; then
-            curl -fsSL -o infra/data/city.osm.pbf "https://download.geofabrik.de/europe/monaco-latest.osm.pbf"
-            docker run --rm -u "$(id -u):$(id -g)" -v "$PWD/infra/data:/data" ghcr.io/onthegomap/planetiler:latest --area=monaco --download=false --mbtiles=/data/city.mbtiles /data/city.osm.pbf
+            # --download: planetiler fetches the Monaco extract AND its aux datasets
+            # itself (--download=false was a fetch-map-data.sh bug: the aux files were
+            # never pre-fetched, so the build died on lake_centerline.parquet)
+            docker run --rm -u "$(id -u):$(id -g)" -v "$PWD/infra/data:/data" ghcr.io/onthegomap/planetiler:latest --area=monaco --download --mbtiles=/data/city.mbtiles
           fi
           ls -la infra/data/
       - name: Start the self-hosted tile server (standalone; host port 8081 -> emulator 10.0.2.2:8081)

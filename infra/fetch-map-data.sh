@@ -16,7 +16,7 @@ fi
 
 echo "[2/4] vector tiles (Planetiler -> MBTiles for tileserver-gl)"
 docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/data" ghcr.io/onthegomap/planetiler:latest \
-  --area=monaco --download=false --mbtiles=/data/city.mbtiles /data/city.osm.pbf
+  --area=monaco --download --mbtiles=/data/city.mbtiles
 
 echo "[3/4] OSRM graph (MLD)"
 docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/data" ghcr.io/project-osrm/osrm-backend:latest \
