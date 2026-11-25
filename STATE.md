@@ -55,7 +55,7 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Next 5 tasks
 
-1. Verify round-14 push CI (FULL run expected: android+backend paths touched -> every job runs): api-contract over the NEW driver endpoints, e2e-booking, dispatch tests, unit suites; fix red, re-dispatch
+1. Verify round-14 push CI (FULL run expected: android+backend paths touched -> every job runs): CI #191 run 45720262726 IN FLIGHT at session cutoff; live-view round-15 DISPATCHED (run 45720454314 in flight, scenario cross-actor-all); fix red, re-dispatch
 2. Phase 4 + Phase 5 gates: after the full green run - tag phase-4-gate (cites the run id), gate report rows, start Phase 6 immediately (NON-STOP D74)
 3. Phase 6 (admin center): verification center, users (exists), live map, trips admin views, fares editor UI - per spec delivery plan 6
 4. Re-dispatch live-view (workflow_dispatch) after driver-side changes - user directive: live-view must keep working (last GREEN #11 @ 4c3c27a)
