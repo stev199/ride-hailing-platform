@@ -17,4 +17,16 @@
     <string name="offline_failed">Download failed: %1$s</string>
     <string name="offline_delete">Delete</string>
     <string name="offline_noRegions">No offline regions stored yet.</string>
+    <string name="places_title">Places</string>
+    <string name="places_addLabel">Name a place at the map center</string>
+    <string name="places_add">Add place</string>
+    <string name="places_saved">Saved</string>
+    <string name="places_savedEmpty">Nothing saved yet.</string>
+    <string name="places_recent">Recent</string>
+    <string name="places_recentEmpty">No recent places yet.</string>
+    <string name="places_visited">Visited</string>
+    <string name="places_visitedEmpty">Visited places appear when rides complete (booking lands in Phase 4).</string>
+    <string name="places_save">Save</string>
+    <string name="places_unsave">Unsave</string>
+    <string name="places_delete">Delete</string>
 </resources>

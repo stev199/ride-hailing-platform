@@ -11,7 +11,9 @@ import com.ridehailing.core.data.outbox.OutboxRepository
 import com.ridehailing.core.data.prefs.ThemeStore
 import com.ridehailing.core.map.DriverMapScreen
 import com.ridehailing.core.map.MapConfig
+import androidx.compose.foundation.layout.Column
 import com.ridehailing.core.map.OfflineMapCard
+import com.ridehailing.core.map.PlacesCard
 import com.ridehailing.core.screens.SessionScreen
 import com.ridehailing.core.ui.AppMode
 import com.ridehailing.core.ui.ModeNavApp
@@ -69,7 +71,10 @@ class MainActivity : ComponentActivity() {
                                 lifecycleScope.launch { themeStore.setLanguage(value) }
                             },
                             extraCard = {
-                                OfflineMapCard(config = MapConfig(styleUrl = BuildConfig.MAP_STYLE_URL))
+                                Column {
+                                    OfflineMapCard(config = MapConfig(styleUrl = BuildConfig.MAP_STYLE_URL))
+                                    PlacesCard(config = MapConfig(styleUrl = BuildConfig.MAP_STYLE_URL))
+                                }
                             },
                         )
                     },

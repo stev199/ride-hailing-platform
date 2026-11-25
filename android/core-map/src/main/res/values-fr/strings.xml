@@ -17,4 +17,16 @@
     <string name="offline_failed">Échec du téléchargement : %1$s</string>
     <string name="offline_delete">Supprimer</string>
     <string name="offline_noRegions">Aucune région hors ligne enregistrée.</string>
+    <string name="places_title">Lieux</string>
+    <string name="places_addLabel">Nommer un lieu au centre de la carte</string>
+    <string name="places_add">Ajouter</string>
+    <string name="places_saved">Enregistrés</string>
+    <string name="places_savedEmpty">Rien d’enregistré pour le moment.</string>
+    <string name="places_recent">Récents</string>
+    <string name="places_recentEmpty">Aucun lieu récent.</string>
+    <string name="places_visited">Visités</string>
+    <string name="places_visitedEmpty">Les lieux visités apparaîtront à la fin des courses (réservation en Phase 4).</string>
+    <string name="places_save">Enregistrer</string>
+    <string name="places_unsave">Retirer</string>
+    <string name="places_delete">Supprimer</string>
 </resources>

@@ -17,4 +17,16 @@
     <string name="offline_failed">فشل التنزيل: %1$s</string>
     <string name="offline_delete">حذف</string>
     <string name="offline_noRegions">لا توجد مناطق مخزنة دون اتصال بعد.</string>
+    <string name="places_title">الأماكن</string>
+    <string name="places_addLabel">سمِّ مكاناً في مركز الخريطة</string>
+    <string name="places_add">إضافة</string>
+    <string name="places_saved">المحفوظة</string>
+    <string name="places_savedEmpty">لا شيء محفوظ بعد.</string>
+    <string name="places_recent">الأخيرة</string>
+    <string name="places_recentEmpty">لا أماكن أخيرة.</string>
+    <string name="places_visited">المُنصَرَف فيها</string>
+    <string name="places_visitedEmpty">ستظهر الأماكن المُنصَرَف فيها عند اكتمال الرحلات (الحجز في المرحلة 4).</string>
+    <string name="places_save">حفظ</string>
+    <string name="places_unsave">إزالة الحفظ</string>
+    <string name="places_delete">حذف</string>
 </resources>
