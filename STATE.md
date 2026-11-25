@@ -1,10 +1,10 @@
 # STATE - ride-hailing-platform
 
-Last updated: 2026-11-25 (Phase 2 gate closed, tag phase-2-gate)
+Last updated: 2026-11-25 (Phase 3 started: P3-1 done, P3-2/P3-3 next)
 Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
 Current phase: 3 (offline maps and visited places) - STARTED 2026-11-25 right after the Phase 2 gate (NON-STOP RULE D74). Phase 2 closed with tag phase-2-gate.
 Current task: P2-1c + P2-2 + P1-5 (479cae6) + P1-4c (0c44e0f) DONE; CI round 17 fix (dcbd055) pushed after run 45518041434 red (instrumented nav tests still asserted the P2-1b Home placeholder -> updated to map-screen elements, tile-independent). NOW: P2-4 auth UI. Next: gate check, P2-3 follow-up, Extras.
-Last completed task: Phase 2 gate (tag phase-2-gate @ 122175d; 4 CI iterations total across rounds 17-19: android-ui assertion + 2 CI-only ledger bugs + admin untouched-green)
+Last completed task: P3-1 offline maps (8333005): OfflineMapManager + OfflineMapCard outside the auth gate + JVM-tested codec/progress; 41 unit tests green; build exit 0
 
 ## Gate status table
 
@@ -41,10 +41,10 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Next 5 tasks
 
-1. P2-4 auth UI against Phase 1 backend (P2-1c done: Hilt+Room+DataStore+outbox ready)
-2. CI verification of the 479cae6/0c44e0f/dcbd055 batch (backend PG ledger, admin i18n matrix, android-ui fix)
-3. P2-3 follow-up: re-expand the android-ui shard matrix when a suite exceeds 1-2 tests/shard
-4. Phase 2 gate when P2-4 lands (D69 gate tier: emulator evidence + tags)
+1. P3-3 visited places UI (list + save-place from PlaceDao; marking-from-rides waits for Phase 4 rides)
+2. P3-2 offline e2e cell: geo compose profile + instrumented airplane-mode verification (Phase 3 gate evidence)
+3. P2-5 android font-scale/size screenshot cells on CI (Phase 2 gate deferral, BACKLOG)
+4. P2-3 follow-up: re-expand the android-ui shard matrix when a suite exceeds 1-2 tests/shard
 5. Extras: mesh long-mode scenario runner (nightly --scenario=long selection; BACKLOG)
 
 ## Session environment (2026-11-25 recycle #3 recovery)
