@@ -1,9 +1,9 @@
 # STATE - ride-hailing-platform
 
-Last updated: 2026-11-25
+Last updated: 2026-11-25 (batch 2: P1-5, P1-4c, CI round 17)
 Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
 Current phase: 2 (android shell) - P2-1a scaffold, P2-1b navigation/theming/i18n, P2-3 storyboard+video evidence DONE AND CI-VERIFIED (run 45507128835: 6 real-UI storyboard step screenshots + 2 screen recordings on the gallery); Phase 1 closed earlier (P1-CONTRACT rounds 1-5)
-Current task: P2-1c (182babe) + P2-2 MapLibre (12e77ae) DONE - 30 unit tests green local task tier, apps+androidTest APKs assemble, build exit 0; batch push + CI verification in flight. NOW: P1-5 ledger/wallet schema (backend). Next: P1-4c admin i18n, P1-4b backend? done already - P1-5 -> P1-4c -> P2-4 auth UI (needs P2-1c: done).
+Current task: P2-1c + P2-2 + P1-5 (479cae6) + P1-4c (0c44e0f) DONE; CI round 17 fix (dcbd055) pushed after run 45518041434 red (instrumented nav tests still asserted the P2-1b Home placeholder -> updated to map-screen elements, tile-independent). NOW: P2-4 auth UI. Next: gate check, P2-3 follow-up, Extras.
 Last completed task: P2-3 evidence chain - 15 CI iterations, 8 distinct root causes (3 pre-existing bugs found on the way: gallery media never shipped; e2e-cross-actor ran hollow-green for its whole history; guest screenrecord dead on ATD), all fixed with log evidence - see PROGRESS_LOG 2026-11-24 entries
 
 ## Gate status table
@@ -40,10 +40,10 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Next 5 tasks
 
-1. P1-5 ledger/wallet schema + double-entry invariant tests (backend)
-2. P1-4c admin i18n EN/FR/AR-RTL + light/dark screenshot baselines
-3. P2-4 auth UI against Phase 1 backend (P2-1c done)
-4. P2-3 follow-up: re-expand the android-ui shard matrix when a suite exceeds 1-2 tests/shard
+1. P2-4 auth UI against Phase 1 backend (P2-1c done: Hilt+Room+DataStore+outbox ready)
+2. CI verification of the 479cae6/0c44e0f/dcbd055 batch (backend PG ledger, admin i18n matrix, android-ui fix)
+3. P2-3 follow-up: re-expand the android-ui shard matrix when a suite exceeds 1-2 tests/shard
+4. Phase 2 gate when P2-4 lands (D69 gate tier: emulator evidence + tags)
 5. Extras: mesh long-mode scenario runner (nightly --scenario=long selection; BACKLOG)
 
 ## Session environment (2026-11-25 recycle #3 recovery)
