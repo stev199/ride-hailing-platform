@@ -453,11 +453,18 @@ jobs:
           adb reverse tcp:7070 tcp:7070 || echo "[warn] adb reverse failed - POSTs fall back to 10.0.2.2"
           node tools/report/step-collector.js --port 7070 --out offline-art >/dev/null 2>&1 &
           echo $! > /tmp/collector.pid
-          for i in $(seq 1 10); do curl -s -m 1 http://127.0.0.1:7070/health >/dev/null 2>&1 && break; sleep 0.5; done
+          for i in $(seq 1 10); do
+            if curl -s -m 1 http://127.0.0.1:7070/health >/dev/null 2>&1; then echo "collector up (attempt $i/10)"; break; fi
+            sleep 0.5
+          done
       - name: Install rider + androidTest APKs
         run: |
-          adb install -r app-rider-debug.apk
-          adb install -r app-rider-debug-androidTest.apk
+          # download-artifact{android-apks} preserves paths from the artifact LCA
+          # (android/): app-rider/build/outputs/... - the bare app-rider-debug.apk
+          # path was a P3-2 wiring bug that only surfaced once the AVD boot fix let
+          # the job reach this step (run 45574720662).
+          adb install -r app-rider/build/outputs/apk/debug/app-rider-debug.apk
+          adb install -r app-rider/build/outputs/apk/androidTest/debug/app-rider-debug-androidTest.apk
       - name: ONLINE - download the offline region (instrumented)
         run: |
           adb shell am instrument -w -e class com.ridehailing.rider.OfflineMapsInstrumentedTest#downloadRegionOffline \
