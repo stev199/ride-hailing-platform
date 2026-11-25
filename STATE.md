@@ -1,6 +1,7 @@
 # STATE - ride-hailing-platform
 
-Last updated: 2026-11-25 (gate round 12: the round-11 verification runs came back RED on all 4 jobs - api-contract 4 uniques (ST108 x2 + ST201 empty-cities config poisoning + ST202 Int32 offset), e2e-cross-actor docker gradle resolution, e2e-offline-maps style-URL 404 + hollow steps, live-view cloudflared 404 - ALL root-caused and fixed this batch; local backend 151 tests green (3 new regression tests); verification = this push + round-13 live-view dispatch)
+Last updated: 2026-11-25 (gate round 13: e2e-offline-maps ROOT CAUSE fixed - stale /styles/basic BuildConfig default in BOTH apps (round-12 missed the BuildConfig layer) -> push 3a61784 CI-VERIFIED run 45710987474 attempt 2 ALL GREEN -> PHASE 3 GATE CLOSED, tag phase-3-gate @ 3a61784; same batch: P4-3 on-device estimator + P4-4 booking UI + P4-5 booking e2e cell - code complete, local suites green (KAT parity 3/3, cache 5/5, estimator 12/12, rides repo 6/6), CI verification = this push)
+
 Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
 Current phase: 4 (rider booking happy path) - P4-1 fare engine + P4-2 rides API committed (178e400, b3fcabc); round-11 contract run caught 3 violations (offset=null accepted, GET estimate 404-not-405 via {id} shadowing, partial fare PATCH silently default-resetting straightLine/quote) - ALL FIXED this batch, CI verification in flight. Phase 3 code complete; P3-2 offline-map e2e verification re-dispatched (previous run 45593853432 CANCELLED by concurrency before any job ran).
 Gate round 11 (2026-11-25, session recycle #5): toolchain wiped again (gh+JDK17+gradle gone; android-sdk/platforms survived). Recovered gh 2.63.2, JDK 17.0.21.1, mirror init script; repo re-cloned clean at 19ffe9b (origin==local). Findings + fixes:
@@ -23,6 +24,7 @@ Verification: this push's CI (api-contract + e2e-cross-actor + e2e-offline-maps)
 | Gate | Status |
 |---|---|
 | Phase 0 (Part B delivery plan) | CLOSED 2026-11-24: D11.9 first-green pipeline + report gallery with storyboard screenshots and video, formally CI-verified (run 45507128835, all jobs green, media served from Pages: 6 filmstrip PNGs + 2 mp4 recordings, real UI pixels) |
+| Phase 3 (offline maps) | GATE CLOSED 2026-11-25, tag phase-3-gate @ 3a61784. Scope: P3-1 offline region manager (done 8333005) + P3-2 offline e2e (CI-VERIFIED run 45710987474 attempt 2: e2e-offline-maps GREEN - download in airplane-mode render chain with fail-closed evidence gates) + P3-3 visited places (done 5738206). Root-cause chain honest: rounds 8-13 (runner spec, hollow steps, style contract, BuildConfig default layer) - every fix evidence-backed |
 | Phase 2 (android shell) | GATE CLOSED 2026-11-25, tag phase-2-gate @ 122175d. Scope all done: P2-1a scaffold, P2-1b nav/theming/i18n, P2-1c Hilt/Room+FTS/DataStore/outbox, P2-2 MapLibre main screens (self-hosted tiles), P2-3 storyboard+video evidence, P2-4 auth UI (Ktor+AuthRepository+SessionScreen). Gate evidence per area (identical code per path at HEAD): backend-test + api-contract GREEN run 45530028415 @122175d (PG double-entry ledger verified on real Postgres); android-build + android-ui rider/driver GREEN run 45527631693 @841de18 (emulator shards, instrumented nav tests assert the REAL map/session screens); e2e-cross-actor GREEN run 45527631693; admin-web-test GREEN forced run 45525186273 @fd4cb63 (i18n matrix incl. 30-shot RTL/dark baselines, axe 0 violations on Arabic RTL); mesh-core-sim GREEN 45525186273. Gate budget honest: 3 CI iterations for backend-test (2 CI-only ledger bugs: uuid casts + wallet FK seeding; none reachable by in-memory tests), 1 for android-ui (ambiguous text node). DEFERRED to P2-5 (BACKLOG): android font-scale 1.3 + small/large-phone screenshot cells on CI - CLOSED: nightly 45592490175 all green (see BACKLOG P2-5) |
 | Mesh GATE 1-2 (Part C) | GATE 2 CLOSED AND CI-VERIFIED 2026-11-24 (run 45256630914, mesh-core-sim success): beacons (certified profiles, short MAC, adaptive pacing) + PRESENCE (backend-only seal) + GATEWAY_RELAY (opaque forward, internet shortcut) - scenarios 16-19 PASS on CI + locally |
 | Mesh GATE 3 (Stage 3) | DONE 2026-11-24: 15/15 scenarios + baseline gate green on CI (run 45245604015, mesh-sim-evidence artifact uploaded) + locally; suite now 19 scenarios (16-19 = GATE 2 close-out) |
@@ -53,11 +55,11 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Next 5 tasks
 
-1. Verify round-12 push CI: api-contract (fares cities minProperties + offset Int32 cap), e2e-cross-actor (docker plugin resolution), e2e-offline-maps (basic-preview style + fail-closed gates); fix red, re-dispatch
-2. Dispatch live-view (round-13) and iterate until green: cloudflared 2026.11.2 tunnel + stack + viewer + 2 emulators + tunnel URL annotation (user directive: live-view must work)
-3. Phase 3 GATE: P3-2 green -> gate report, tag phase-3-gate, start Phase 4 remainder immediately (NON-STOP D74)
-4. P4-3 on-device estimator: FareMath port in android (same KAT vectors -> parity suite), fare-bundle fetch/cache (DataStore, expiry + stale flag), offline estimate (cached route -> straight-line x calibrated detour)
-5. P4-4 rider booking UI: pickup/dropoff pickers, ride-type chips, estimate card (range + permanent disclaimer + breakdown), book -> POST /v1/rides, trip screen with signed quote, cancel
+1. Verify round-13 push CI: android-build + unit suites (new core-data/pricing + rides tests), e2e-booking cell (new), android-ui shards; fix red, re-dispatch
+2. P4 GATE: e2e-booking green + api-contract green -> Phase 4 gate report, tag phase-4-gate, start Phase 5 immediately (NON-STOP D74)
+3. Phase 5 (driver app + dispatch): D-state via config, driver duty toggle -> backend beacon/dispatch (auto-dispatch config), offer/accept flow, driver trip actions
+4. Phase 6 (ratings + history polish) per PROJECT_SPEC Part B order - re-check the spec section before starting
+5. Re-dispatch live-view (workflow_dispatch) after the Phase 5 driver-side changes land - user directive: live-view must keep working (currently GREEN #11 @ 4c3c27a)
 
 ## Session environment (2026-11-25 recycle #5 recovery)
 
