@@ -142,6 +142,17 @@ class BookingInstrumentedTest {
             composeRule.waitForIdle()
             composeRule.onNodeWithTag("login_identifier").performTextInput(phone)
             composeRule.onNodeWithTag("login_password").performTextInput(password)
+            // Round-15f probe A: prove the typing actually landed (CI #193-#199 showed
+            // a click that did nothing at all - neither busy, error nor session; an
+            // EMPTY field set would disable the button and explain every symptom).
+            val typedId = composeRule.onNodeWithTag("login_identifier")
+                .fetchSemanticsNode().config.getOrNull(SemanticsProperties.EditableText)
+            val typedPw = composeRule.onNodeWithTag("login_password")
+                .fetchSemanticsNode().config.getOrNull(SemanticsProperties.EditableText)
+            org.junit.Assert.assertTrue(
+                "typing did not land: identifier='$typedId' password='$typedPw'",
+                !typedId.isNullOrEmpty(),
+            )
             composeRule.onNodeWithTag("login_submit").performClick()
             // Round-15 fail-fast: poll for session_info OR login_error - a failed
             // login must name its error instead of burning the 20s waitUntil blind
@@ -164,8 +175,18 @@ class BookingInstrumentedTest {
                     .fetchSemanticsNodes()
                     .mapNotNull { it.config.getOrNull(SemanticsProperties.TestTag) }
                     .distinct()
+                // Round-15f probe B: was the submit button even enabled, and what is
+                // in the fields NOW (a remount between typing and clicking wipes
+                // rememberSaveable state - the numbers point at that instantly).
+                val submitNode = composeRule.onNodeWithTag("login_submit", useUnmergedTree = true)
+                    .fetchSemanticsNode()
+                // Compose semantics: DISABLED is the PRESENCE of Disabled (no Enabled prop).
+                val submitEnabled = submitNode.config.getOrNull(SemanticsProperties.Disabled) == null
+                val idNow = composeRule.onNodeWithTag("login_identifier", useUnmergedTree = true)
+                    .fetchSemanticsNode().config.getOrNull(SemanticsProperties.EditableText)
                 org.junit.Assert.fail(
-                    "no session card 20s after login; on-screen tags: ${tags.joinToString()}"
+                    "no session card 20s after login; submit enabled=${submitEnabled ?: "unset"}; " +
+                        "identifier now='$idNow'; on-screen tags: ${tags.joinToString()}"
                 )
             }
             // Round-15b: the tag lives in the UNMERGED tree (the session Card merges
