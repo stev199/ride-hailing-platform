@@ -118,7 +118,7 @@ class BookingInstrumentedTest {
         Espresso.closeSoftKeyboard()
         try {
             composeRule.onNodeWithTag("map_result_$placeId").performScrollTo()
-        } catch (_: Exception) {
+        } catch (_: Throwable) {  // AssertionError is an Error, not an Exception
             // No scrollable ancestor - already visible.
         }
         composeRule.onNodeWithTag("map_result_$placeId").assertIsDisplayed()
@@ -172,7 +172,7 @@ class BookingInstrumentedTest {
             Espresso.closeSoftKeyboard()
             try {
                 composeRule.onNodeWithTag("login_submit").performScrollTo()
-            } catch (_: Exception) {
+            } catch (_: Throwable) {  // AssertionError is an Error, not an Exception
                 // No scrollable ancestor - the card is already on screen.
             }
             composeRule.onNodeWithTag("login_submit").assertIsDisplayed()
