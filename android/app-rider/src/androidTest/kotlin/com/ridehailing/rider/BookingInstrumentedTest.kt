@@ -154,7 +154,10 @@ class BookingInstrumentedTest {
                 }
                 Thread.sleep(500)
             }
-            composeRule.onNodeWithTag("session_info").assertIsDisplayed()
+            // Round-15b: the tag lives in the UNMERGED tree (the session Card merges
+            // descendants) - nodeExists() polls unmerged, the final assert must too
+            // (CI #193: merged-tree assert failed right after the loop saw the node).
+            composeRule.onNodeWithTag("session_info", useUnmergedTree = true).assertIsDisplayed()
         }
 
         storyboard.step("Back to the map, assign pickup from search") {
@@ -182,16 +185,16 @@ class BookingInstrumentedTest {
         storyboard.step("Book -> trip screen with the server-signed quote") {
             composeRule.onNodeWithTag("booking_book").performClick()
             composeRule.waitUntil(timeoutMillis = 30_000) { nodeExists("trip_status") }
-            composeRule.onNodeWithTag("trip_status").assertIsDisplayed()
+            composeRule.onNodeWithTag("trip_status", useUnmergedTree = true).assertIsDisplayed()
             composeRule.waitUntil(timeoutMillis = 30_000) { nodeExists("trip_fare") }
-            composeRule.onNodeWithTag("trip_fare").assertIsDisplayed()
+            composeRule.onNodeWithTag("trip_fare", useUnmergedTree = true).assertIsDisplayed()
         }
 
         storyboard.step("Cancel -> CANCELLED") {
             composeRule.waitUntil(timeoutMillis = 20_000) { nodeExists("trip_cancel") }
             composeRule.onNodeWithTag("trip_cancel").performClick()
             composeRule.waitUntil(timeoutMillis = 30_000) { nodeExists("trip_cancelled") }
-            composeRule.onNodeWithTag("trip_cancelled").assertIsDisplayed()
+            composeRule.onNodeWithTag("trip_cancelled", useUnmergedTree = true).assertIsDisplayed()
         }
     }
 
