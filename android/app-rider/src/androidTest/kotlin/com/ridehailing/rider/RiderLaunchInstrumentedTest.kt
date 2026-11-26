@@ -66,7 +66,7 @@ class RiderLaunchInstrumentedTest {
                         ).fetchSemanticsNodes().any {
                             it.config.getOrNull(
                                 androidx.compose.ui.semantics.SemanticsProperties.TestTag,
-                            ) == "login_identifier"
+                            ) == "offline_download"
                         }
                     ) {
                         switched = true
@@ -81,10 +81,12 @@ class RiderLaunchInstrumentedTest {
                         )
                 }
             }
-            // P2-4: the Settings tab is the SessionScreen now; signed-out it shows the
-            // login card. Emulator runs carry no session -> the login SUBTITLE shows
-            // (unique node: auth_title "Sign in" also matches the submit button).
-            composeRule.onNodeWithText(activity.getString(ScreensR.string.auth_subtitle))
+            // P2-4: the Settings tab is the SessionScreen now. Since the booking e2e
+            // logs in FOR REAL (round 15l+) and the shard shares the app's DataStore,
+            // this test may run SIGNED-IN: assert the offline-maps card - it renders
+            // OUTSIDE the auth gate in BOTH states (signed-out login card / signed-in
+            // session card).
+            composeRule.onNodeWithTag("offline_download", useUnmergedTree = true)
                 .assertIsDisplayed()
         }
 
