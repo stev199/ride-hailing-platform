@@ -328,6 +328,10 @@ class BookingInstrumentedTest {
         }
 
         storyboard.step("Book -> trip screen with the server-signed quote") {
+            // Round-15l: bring the button into view first - the card interior now
+            // scrolls; a real tap with a 3s no-reaction fallback stays belt-and-braces.
+            composeRule.onNodeWithTag("booking_book").performScrollTo()
+            composeRule.onNodeWithTag("booking_book").assertIsDisplayed()
             composeRule.onNodeWithTag("booking_book").performClick()
             // Round-15k fail-fast: a failed book must name its on-screen error
             // instead of burning the 30s wait blind (the card renders booking_error).

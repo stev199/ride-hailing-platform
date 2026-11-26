@@ -1,6 +1,8 @@
 package com.ridehailing.core.map
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -66,8 +68,14 @@ fun BookingCard(
     modifier: Modifier = Modifier,
 ) {
     Card(modifier = modifier.fillMaxWidth().padding(12.dp)) {
+        // Round-15l PRODUCT FIX: the map pane hosts this card in a non-scrolling
+        // overlay Column, so a tall card (recents + estimate + note) overflowed the
+        // pane's leftover height and the Book button measured 0x0 (bounds
+        // (0,0,0,0) in the CI dump) - untappable for REAL users too. Scrolling the
+        // card's interior gives every child unbounded max height so the button is
+        // always laid out and reachable.
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.verticalScroll(rememberScrollState()).padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(stringResource(R.string.booking_title), style = MaterialTheme.typography.titleSmall)
