@@ -595,6 +595,9 @@ jobs:
             # the tag dump names the screen, logcat names the process behind it.
             adb logcat -d | grep -iE 'AndroidRuntime|FATAL|Ktor| okhttp|CIO|ridehailing' | tail -60 || true
             adb logcat -d > logcat-booking.txt
+            # Did the login POST reach the backend? (request arrives -> app-side state
+            # bug; nothing arrives -> app-side network bug; arrived+status -> mapping bug)
+            docker compose -f infra/docker-compose.yml --profile infra --profile app --profile test logs backend 2>/dev/null | grep -iE 'login/password|POST|GET' | tail -20 || true
             echo "::error::instrumentation did not report OK"; exit 1
           }
           PNGS=$(find booking-art -name '*.png' 2>/dev/null | wc -l)

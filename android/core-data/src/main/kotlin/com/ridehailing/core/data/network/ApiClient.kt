@@ -7,6 +7,8 @@ import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logging
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -58,6 +60,10 @@ object ApiClientFactory {
             // burned its 20s wait with neither error nor session card on screen because
             // the request never completed. A hung request now surfaces as login_error
             // (the fail-fast loop names it) instead of silence.
+            // Round-15e: INFO-level client log (request line + status, no bodies/headers)
+            // - the e2e failure branch greps logcat for Ktor and names the actual HTTP
+            // call/result instead of guessing from the UI state.
+            install(Logging) { level = LogLevel.INFO }
             install(HttpTimeout) {
                 connectTimeoutMillis = 5_000
                 requestTimeoutMillis = 15_000
