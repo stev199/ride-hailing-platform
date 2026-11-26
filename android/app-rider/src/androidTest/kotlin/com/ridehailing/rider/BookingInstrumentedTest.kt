@@ -329,7 +329,23 @@ class BookingInstrumentedTest {
 
         storyboard.step("Book -> trip screen with the server-signed quote") {
             composeRule.onNodeWithTag("booking_book").performClick()
-            composeRule.waitUntil(timeoutMillis = 30_000) { nodeExists("trip_status") }
+            // Round-15k fail-fast: a failed book must name its on-screen error
+            // instead of burning the 30s wait blind (the card renders booking_error).
+            var booked = false
+            val bookDeadline = System.currentTimeMillis() + 30_000
+            while (System.currentTimeMillis() < bookDeadline) {
+                if (nodeExists("trip_status")) {
+                    booked = true
+                    break
+                }
+                if (nodeExists("booking_error")) {
+                    org.junit.Assert.fail("book failed on-screen: '${firstNodeText("booking_error")}'")
+                }
+                Thread.sleep(500)
+            }
+            if (!booked) {
+                org.junit.Assert.fail("no trip screen after book; " + dumpTags("book-timeout"))
+            }
             composeRule.onNodeWithTag("trip_status", useUnmergedTree = true).assertIsDisplayed()
             composeRule.waitUntil(timeoutMillis = 30_000) { nodeExists("trip_fare") }
             composeRule.onNodeWithTag("trip_fare", useUnmergedTree = true).assertIsDisplayed()
