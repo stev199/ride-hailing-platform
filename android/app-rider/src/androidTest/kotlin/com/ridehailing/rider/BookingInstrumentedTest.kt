@@ -110,6 +110,31 @@ class BookingInstrumentedTest {
             .fetchSemanticsNodes()
             .isNotEmpty()
 
+    // Round-15j: prefix matcher - the chip tag embeds the server's raw rideType
+    // string (contract leaves it a free string; case could differ per environment).
+    private fun nodeExistsPrefix(prefix: String): Boolean =
+        composeRule.onAllNodes(
+            androidx.compose.ui.test.SemanticsMatcher("tag-prefix-$prefix") {
+                it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith(prefix) == true
+            },
+            useUnmergedTree = true,
+        ).fetchSemanticsNodes().isNotEmpty()
+
+    private fun dumpTags(prefix: String): String {
+        val tags = composeRule.onAllNodes(
+            androidx.compose.ui.test.SemanticsMatcher("any-node") { true },
+            useUnmergedTree = true,
+        )
+            .fetchSemanticsNodes()
+            .mapNotNull { n ->
+                val t = n.config.getOrNull(SemanticsProperties.TestTag)
+                    ?: return@mapNotNull null
+                "$t=${n.boundsInRoot}"
+            }
+            .joinToString()
+        return "$prefix on-screen tags: ${tags.ifEmpty { "(NONE)" }}"
+    }
+
     private fun searchAndTap(query: String, placeId: String) {
         composeRule.onNodeWithTag("map_search").performTextReplacement(query)
         // Local LIKE search is synchronous enough; wait for the row then tap.
@@ -275,8 +300,29 @@ class BookingInstrumentedTest {
         }
 
         storyboard.step("Estimate arrives with ride-type chips + permanent disclaimer") {
-            composeRule.waitUntil(timeoutMillis = 30_000) { nodeExists("booking_ride_standard") }
-            composeRule.onNodeWithTag("booking_ride_standard").performClick()
+            // Round-15j: CI (15i run) timed out here while the step-start screenshot
+            // PROVED the chips/estimate/disclaimer were already rendered - wait on
+            // the booking_ride_ PREFIX (server rideType case may vary) and on timeout
+            // dump every tag+bounds so the mismatch is named in the failure itself.
+            try {
+                composeRule.waitUntil(timeoutMillis = 30_000) { nodeExistsPrefix("booking_ride_") }
+            } catch (e: androidx.compose.ui.test.ComposeTimeoutException) {
+                org.junit.Assert.fail(
+                    "no ride-type chips 30s after both places set; " + dumpTags("estimate-timeout"),
+                )
+            }
+            composeRule.onAllNodes(
+                androidx.compose.ui.test.SemanticsMatcher("ride-chip-standard") {
+                    val t = it.config.getOrNull(SemanticsProperties.TestTag)
+                    t != null && t.startsWith("booking_ride_") &&
+                        t.lowercase().contains("standard")
+                },
+                useUnmergedTree = true,
+            ).fetchSemanticsNodes().firstOrNull()?.let { node ->
+                node.config.getOrNull(SemanticsProperties.TestTag)?.let { chipTag ->
+                    composeRule.onNodeWithTag(chipTag, useUnmergedTree = true).performClick()
+                }
+            }
             composeRule.waitUntil(timeoutMillis = 10_000) { nodeExists("booking_estimate_range") }
             composeRule.waitUntil(timeoutMillis = 10_000) { nodeExists("booking_disclaimer") }
         }
