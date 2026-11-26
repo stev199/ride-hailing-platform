@@ -5,9 +5,11 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.request.url
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
@@ -38,12 +40,20 @@ val ApiJson: Json = Json {
  * (the apps already set usesCleartextTraffic for the tile server + test viewer).
  */
 object ApiClientFactory {
-    fun create(engine: HttpClientEngine = CIO.create()): HttpClient =
+    /**
+     * [baseUrl] installs a DefaultRequest base (all app-side calls use relative paths).
+     * Round-15 ROOT CAUSE (CI #191 e2e-booking): the base URL was documented but never
+     * applied - the app failed EVERY request on a host-less client (visible login_error
+     * while the e2e waited for session_info). defaultRequest is an HttpClientConfig
+     * extension, so it belongs INSIDE this config block - not on the built instance.
+     */
+    fun create(engine: HttpClientEngine = CIO.create(), baseUrl: String? = null): HttpClient =
         HttpClient(engine) {
             // Error mapping lives in postTyped (typed ApiError from the Error schema);
             // expectSuccess would throw before that mapping could run.
             expectSuccess = false
             install(ContentNegotiation) { json(ApiJson) }
+            if (baseUrl != null) defaultRequest { url(baseUrl.trimEnd('/')) }
         }
 }
 

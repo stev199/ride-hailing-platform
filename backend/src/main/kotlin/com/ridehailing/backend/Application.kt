@@ -74,6 +74,15 @@ private val ROUTE_METHODS: Map<String, String> = mapOf(
     "/v1/rides" to "GET, POST",
     "/v1/rides/{id}" to "GET",
     "/v1/rides/{id}/cancel" to "POST",
+    // P5 driver flow (round-15: the missing entries made the catch-all answer
+    // Allow: GET for the POST-only action paths - schemathesis ST205/ST204).
+    "/v1/driver/duty" to "POST",
+    "/v1/driver/rides/available" to "GET",
+    "/v1/driver/rides" to "GET",
+    "/v1/rides/{id}/accept" to "POST",
+    "/v1/rides/{id}/arrive" to "POST",
+    "/v1/rides/{id}/start" to "POST",
+    "/v1/rides/{id}/complete" to "POST",
     "/v1/admin/users" to "GET, POST",
     "/v1/admin/users/{id}" to "GET, PATCH",
     "/v1/admin/users/{id}/reset-password" to "POST",
@@ -92,6 +101,14 @@ private fun allowFor(path: String): String = when {
     path.startsWith("/v1/admin/users/") -> "GET, PATCH"
     path.startsWith("/v1/admin/config/fares") -> "GET, PATCH"
     path.startsWith("/v1/rides/") && path.endsWith("/cancel") -> "POST"
+    // P5 driver action paths (must precede the generic /v1/rides/ rule).
+    path.startsWith("/v1/rides/") && path.endsWith("/accept") -> "POST"
+    path.startsWith("/v1/rides/") && path.endsWith("/arrive") -> "POST"
+    path.startsWith("/v1/rides/") && path.endsWith("/start") -> "POST"
+    path.startsWith("/v1/rides/") && path.endsWith("/complete") -> "POST"
+    path.startsWith("/v1/driver/duty") -> "POST"
+    path.startsWith("/v1/driver/rides/available") -> "GET"
+    path.startsWith("/v1/driver/rides") -> "GET"
     path.startsWith("/v1/rides/") -> "GET"
     path == "/v1/rides" -> "GET, POST"
     path.startsWith("/v1/admin/audit") -> "GET"
@@ -114,6 +131,7 @@ private fun isKnownRoutePath(path: String): Boolean = when {
     path.startsWith("/v1/me/sessions/") -> true
     path.startsWith("/v1/admin/") -> true
     path.startsWith("/v1/rides/") -> true
+    path.startsWith("/v1/driver/") -> true
     else -> false
 }
 

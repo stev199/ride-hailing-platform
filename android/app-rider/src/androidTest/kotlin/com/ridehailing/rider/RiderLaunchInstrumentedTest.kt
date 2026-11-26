@@ -2,10 +2,10 @@ package com.ridehailing.rider
 
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import com.ridehailing.core.map.R as MapR
 import com.ridehailing.core.screens.R as ScreensR
 import com.ridehailing.core.ui.R
 import com.ridehailing.test.storyboard.StoryboardRule
@@ -61,7 +61,9 @@ class RiderLaunchInstrumentedTest {
             composeRule.onNodeWithText(activity.getString(R.string.core_nav_home))
                 .performClick()
             composeRule.waitForIdle()
-            composeRule.onNodeWithText(activity.getString(MapR.string.map_booking_placeholder))
+            // P4-4: the bottom card is the REAL booking flow now (the old Phase-5
+            // placeholder string is gone) - the pickup row is the card's first node.
+            composeRule.onNodeWithTag("booking_pickup", useUnmergedTree = true)
                 .assertIsDisplayed()
         }
     }

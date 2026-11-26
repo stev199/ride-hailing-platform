@@ -143,8 +143,17 @@ class BookingInstrumentedTest {
             composeRule.onNodeWithTag("login_identifier").performTextInput(phone)
             composeRule.onNodeWithTag("login_password").performTextInput(password)
             composeRule.onNodeWithTag("login_submit").performClick()
-            // Session card replaces the login card on success.
-            composeRule.waitUntil(timeoutMillis = 20_000) { nodeExists("session_info") }
+            // Round-15 fail-fast: poll for session_info OR login_error - a failed
+            // login must name its error instead of burning the 20s waitUntil blind
+            // (the base-URL bug burned exactly this wait on CI #191).
+            val deadline = System.currentTimeMillis() + 20_000
+            while (System.currentTimeMillis() < deadline) {
+                if (nodeExists("session_info")) break
+                if (nodeExists("login_error")) {
+                    org.junit.Assert.fail("login failed on-screen: '${firstNodeText("login_error")}'")
+                }
+                Thread.sleep(500)
+            }
             composeRule.onNodeWithTag("session_info").assertIsDisplayed()
         }
 

@@ -677,6 +677,7 @@ paths:
         "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
   /v1/driver/rides/available:
     get:
       operationId: listAvailableRides
@@ -700,6 +701,7 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "409": { $ref: "#/components/responses/Conflict" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /v1/driver/rides:
     get:
       operationId: listMyDriverRides
@@ -720,6 +722,7 @@ paths:
                 $ref: "#/components/schemas/DriverRideListDto"
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "400": { $ref: "#/components/responses/ValidationError" }
   /v1/rides/{id}/accept:
     post:
       operationId: acceptRide
