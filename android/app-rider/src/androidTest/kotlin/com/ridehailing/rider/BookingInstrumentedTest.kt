@@ -6,13 +6,13 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.room.Room
+import androidx.test.espresso.Espresso
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ridehailing.core.data.db.AppDatabase
 import com.ridehailing.core.data.db.PlaceEntity
@@ -115,8 +115,12 @@ class BookingInstrumentedTest {
         composeRule.waitUntil(timeoutMillis = 10_000) { nodeExists("map_result_$placeId") }
         // Round-15g: close the IME first - it covers the lower half and the result
         // row (or the booking card behind it) can sit behind the keyboard.
-        composeRule.onNodeWithTag("map_search").performImeAction()
-        composeRule.onNodeWithTag("map_result_$placeId").performScrollTo()
+        Espresso.closeSoftKeyboard()
+        try {
+            composeRule.onNodeWithTag("map_result_$placeId").performScrollTo()
+        } catch (_: Exception) {
+            // No scrollable ancestor - already visible.
+        }
         composeRule.onNodeWithTag("map_result_$placeId").assertIsDisplayed()
         composeRule.onNodeWithTag("map_result_$placeId").performClick()
     }
@@ -165,8 +169,12 @@ class BookingInstrumentedTest {
             // proved: fields typed, button enabled, click = complete no-op, zero HTTP
             // lines). Hide the keyboard, bring the button into view, prove it is
             // displayed, THEN click.
-            composeRule.onNodeWithTag("login_password").performImeAction()
-            composeRule.onNodeWithTag("login_submit").performScrollTo()
+            Espresso.closeSoftKeyboard()
+            try {
+                composeRule.onNodeWithTag("login_submit").performScrollTo()
+            } catch (_: Exception) {
+                // No scrollable ancestor - the card is already on screen.
+            }
             composeRule.onNodeWithTag("login_submit").assertIsDisplayed()
             composeRule.onNodeWithTag("login_submit").performClick()
             // Round-15 fail-fast: poll for session_info OR login_error - a failed
