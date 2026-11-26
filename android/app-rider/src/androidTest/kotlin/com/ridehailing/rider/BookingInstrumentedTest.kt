@@ -151,8 +151,13 @@ class BookingInstrumentedTest {
             composeRule.onNodeWithText(composeRule.activity.getString(R.string.core_nav_settings))
                 .performClick()
             composeRule.waitForIdle()
-            composeRule.onNodeWithTag("login_identifier").performTextInput(phone)
-            composeRule.onNodeWithTag("login_password").performTextInput(password)
+            // Round-15g4: set the fields via SetText semantics - performTextInput
+            // opens the IME, and with the keyboard up the window PANS so the semantic
+            // tap coordinates no longer match screen coordinates (adjustPan): every
+            // tap lands elsewhere (CI #195-#204: typed fields, enabled+displayed
+            // button, click = no-op, zero HTTP lines). No keyboard, no trap.
+            composeRule.onNodeWithTag("login_identifier").performTextReplacement(phone)
+            composeRule.onNodeWithTag("login_password").performTextReplacement(password)
             // Round-15f probe A: prove the typing actually landed (CI #193-#199 showed
             // a click that did nothing at all - neither busy, error nor session; an
             // EMPTY field set would disable the button and explain every symptom).
