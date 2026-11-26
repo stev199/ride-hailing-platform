@@ -6,6 +6,8 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -111,6 +113,11 @@ class BookingInstrumentedTest {
         composeRule.onNodeWithTag("map_search").performTextReplacement(query)
         // Local LIKE search is synchronous enough; wait for the row then tap.
         composeRule.waitUntil(timeoutMillis = 10_000) { nodeExists("map_result_$placeId") }
+        // Round-15g: close the IME first - it covers the lower half and the result
+        // row (or the booking card behind it) can sit behind the keyboard.
+        composeRule.onNodeWithTag("map_search").performImeAction()
+        composeRule.onNodeWithTag("map_result_$placeId").performScrollTo()
+        composeRule.onNodeWithTag("map_result_$placeId").assertIsDisplayed()
         composeRule.onNodeWithTag("map_result_$placeId").performClick()
     }
 
@@ -153,6 +160,14 @@ class BookingInstrumentedTest {
                 "typing did not land: identifier='$typedId' password='$typedPw'",
                 !typedId.isNullOrEmpty(),
             )
+            // Round-15g ROOT CAUSE (CI #195-#201): the IME covers the bottom half of the
+            // screen after typing - the injected submit tap landed ON THE KEYBOARD (probe
+            // proved: fields typed, button enabled, click = complete no-op, zero HTTP
+            // lines). Hide the keyboard, bring the button into view, prove it is
+            // displayed, THEN click.
+            composeRule.onNodeWithTag("login_password").performImeAction()
+            composeRule.onNodeWithTag("login_submit").performScrollTo()
+            composeRule.onNodeWithTag("login_submit").assertIsDisplayed()
             composeRule.onNodeWithTag("login_submit").performClick()
             // Round-15 fail-fast: poll for session_info OR login_error - a failed
             // login must name its error instead of burning the 20s waitUntil blind
