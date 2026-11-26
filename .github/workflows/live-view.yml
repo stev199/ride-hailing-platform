@@ -80,7 +80,12 @@ jobs:
           KEEP: ${{ inputs.keep_alive_minutes }}
         run: |
           TOKEN=$(openssl rand -hex 16)
-          echo "::add-mask::$TOKEN"
+          # Round-16: NO ::add-mask:: here - masking makes GitHub replace the token
+          # with *** in the ::notice annotation AND the step summary, so the
+          # "see annotation" pointer handed out an UNUSABLE URL (the token was
+          # never readable anywhere). The token only guards an ephemeral tunnel on
+          # a private repo for the duration of the run; VISIBILITY_SPEC E5 defines
+          # the URL as containing the token.
           echo "VIEWER_TOKEN_VALUE=$TOKEN" >> "$GITHUB_ENV"
           cd tools/test-viewer && npm ci --no-audit --no-fund
           VIEWER_TOKEN="$TOKEN" node server.js > /tmp/viewer.log 2>&1 &
@@ -114,7 +119,7 @@ jobs:
           nohup /tmp/cloudflared tunnel --no-autoupdate --url http://localhost:7070 > /tmp/cloudflared.log 2>&1 &
           URL=""
           for _ in $(seq 1 30); do
-            URL=$(rg -o 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n1 || true)
+            URL=$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n1 || true)
             [ -n "$URL" ] && break
             sleep 2
           done
@@ -149,7 +154,9 @@ jobs:
           {
             echo "## Live View"
             if [ -n "$TUNNEL_URL" ]; then
-              echo "Tunnel: ${TUNNEL_URL}?token=<see annotation>  (token masked in logs; written as annotation above)"
+              # Round-16: full URL in the summary (token was previously masked -> unusable).
+              echo "Open: ${TUNNEL_URL}?token=${VIEWER_TOKEN_VALUE}"
+              echo "(same URL as the 'Live View ready' annotation; viewer rejects requests without the token)"
             else
               echo "No tunnel this run - see report gallery and videos instead."
             fi
