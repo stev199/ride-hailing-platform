@@ -162,7 +162,7 @@ class BookingInstrumentedTest {
                     useUnmergedTree = true,
                 )
                     .fetchSemanticsNodes()
-                    .mapNotNull { it.config[SemanticsProperties.TestTag] }
+                    .mapNotNull { it.config.getOrNull(SemanticsProperties.TestTag) }
                     .distinct()
                 org.junit.Assert.fail(
                     "no session card 20s after login; on-screen tags: ${tags.joinToString()}"

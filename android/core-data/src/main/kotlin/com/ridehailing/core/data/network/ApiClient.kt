@@ -4,6 +4,7 @@ import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.engine.cio.CIO
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.get
@@ -53,6 +54,15 @@ object ApiClientFactory {
             // expectSuccess would throw before that mapping could run.
             expectSuccess = false
             install(ContentNegotiation) { json(ApiJson) }
+            // Round-15c: a network layer without timeouts hangs FOREVER - the e2e login
+            // burned its 20s wait with neither error nor session card on screen because
+            // the request never completed. A hung request now surfaces as login_error
+            // (the fail-fast loop names it) instead of silence.
+            install(HttpTimeout) {
+                connectTimeoutMillis = 5_000
+                requestTimeoutMillis = 15_000
+                socketTimeoutMillis = 15_000
+            }
             if (baseUrl != null) defaultRequest { url(baseUrl.trimEnd('/')) }
         }
 }
