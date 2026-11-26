@@ -45,6 +45,17 @@ class SessionViewModel @Inject constructor(
                 _signedInUser.value = auth.login(identifier, password)
             } catch (e: ApiRequestException) {
                 _loginError.value = e
+            } catch (e: Exception) {
+                // Round-15c: ANY other failure (IOException on the emulator, serialization)
+                // must surface as login_error - an uncaught exception here killed the whole
+                // coroutine silently: neither session_info nor login_error ever appeared and
+                // the e2e burned its 20s wait against a dead UI (CI #193/#194).
+                _loginError.value = com.ridehailing.core.data.network.ApiRequestException(
+                    com.ridehailing.core.data.network.ApiError(
+                        code = "login_unavailable",
+                        message = e.message ?: e.javaClass.simpleName,
+                    )
+                )
             } finally {
                 _signingIn.value = false
             }

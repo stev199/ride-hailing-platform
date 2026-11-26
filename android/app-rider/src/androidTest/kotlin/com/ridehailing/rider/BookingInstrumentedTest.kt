@@ -154,6 +154,20 @@ class BookingInstrumentedTest {
                 }
                 Thread.sleep(500)
             }
+            if (!nodeExists("session_info")) {
+                // Round-15c: name the actual screen at timeout - dump every visible
+                // test tag so a hung/crashed/mis-routed login is diagnosable from CI.
+                val tags = composeRule.onAllNodes(
+                    androidx.compose.ui.test.SemanticsMatcher("any-node") { true },
+                    useUnmergedTree = true,
+                )
+                    .fetchSemanticsNodes()
+                    .mapNotNull { it.config[SemanticsProperties.TestTag] }
+                    .distinct()
+                org.junit.Assert.fail(
+                    "no session card 20s after login; on-screen tags: ${tags.joinToString()}"
+                )
+            }
             // Round-15b: the tag lives in the UNMERGED tree (the session Card merges
             // descendants) - nodeExists() polls unmerged, the final assert must too
             // (CI #193: merged-tree assert failed right after the loop saw the node).
