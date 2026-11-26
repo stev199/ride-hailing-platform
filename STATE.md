@@ -133,3 +133,16 @@ signed-in handling - the booking e2e logs in for real, so the launch test
 asserts the auth-state-neutral offline_download card). BACKLOG P4-1..P4-5
 flipped to CI-VERIFIED. Next: Phase 6 prep per the standing directives and the
 BACKLOG order.
+
+## Round-16 (2026-11-26): live-view Cloudflare URL generation VERIFIED FIXED
+
+Bug: `::add-mask::` on the viewer token made GitHub replace it with *** in the
+::notice annotation AND the step summary, so "Tunnel: ...?token=<see annotation>"
+pointed at an annotation showing token=*** - the generated URL was never usable.
+Fix (4fc1219): no masking (E5 defines the URL as containing the token; ephemeral
+tunnel on a private repo), rg -> grep -Eo for the tunnel-URL extraction, and the
+summary prints the full Open: URL. VERIFIED LIVE by dispatching rider-booking
+(run 45911937473, success): notice annotation carries the full URL + token
+(https://<random>.trycloudflare.com?token=<64hex>), TUNNEL_URL extracted by the
+grep, viewer token auth green inside the run, scenario executed. Tunnel is
+dead post-teardown by design.
