@@ -120,3 +120,16 @@ Breakthrough chain, each step verified on CI:
 - 15n (28b653a): the launch test's settings assert broke BECAUSE the booking e2e now really logs in (DataStore session persists; the shard runs booking first, so the launch test runs signed-in). Assert offline_download (outside the auth gate, both states).
 - Standings on 28b653a (run 45869261404): GREEN = security, changes, android-build, lint-and-static, e2e-booking (2nd consecutive), e2e-cross-actor, e2e-offline-maps; pending = android-ui-rider (0) [15n fix], android-ui-driver (0).
 - If android-ui-rider + android-ui-driver go green and ci-summary succeeds: THE FULL GREEN RUN -> tag phase-4-gate on the green sha + bookkeeping (P4 rows CI-VERIFIED).
+
+## PHASE 4 GATE PASSED (2026-11-26)
+
+Full green CI run: 45869261404 attempt 2 on sha 28b653a, tagged `phase-4-gate`.
+Green cells: changes, security, android-build, lint-and-static, e2e-booking
+(3rd consecutive), e2e-cross-actor, e2e-offline-maps, android-ui-rider (0),
+android-ui-driver (0), report-publish, ci-summary (backend-test + api-contract
+skipped by paths filter; green on their own triggers). The rerun of the
+cancelled 28b653a attempt provided the android-ui-rider verdict (15n fix:
+signed-in handling - the booking e2e logs in for real, so the launch test
+asserts the auth-state-neutral offline_download card). BACKLOG P4-1..P4-5
+flipped to CI-VERIFIED. Next: Phase 6 prep per the standing directives and the
+BACKLOG order.
