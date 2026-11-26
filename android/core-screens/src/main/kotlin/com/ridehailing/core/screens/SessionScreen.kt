@@ -101,7 +101,10 @@ private fun LoginCard(vm: SessionViewModel, modifier: Modifier = Modifier) {
                 )
             }
             Button(
-                onClick = { vm.login(identifier, password) },
+                onClick = {
+                    android.util.Log.i("e2e-login", "submit onClick fired (idLen=${identifier.length} pwLen=${password.length})")
+                    vm.login(identifier, password)
+                },
                 enabled = !signingIn && identifier.isNotBlank() && password.isNotEmpty(),
                 modifier = Modifier.semantics { testTag = "login_submit" },
             ) {

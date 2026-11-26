@@ -37,19 +37,30 @@ class SessionViewModel @Inject constructor(
     val signedInUser: StateFlow<UserDto?> = _signedInUser
 
     fun login(identifier: String, password: String) {
-        if (identifier.isBlank() || password.isEmpty()) return
+        // Round-15h: the emulator login click never produces ANY observable effect
+        // (CI #195-#206) - each step must name itself in logcat so the e2e artifact
+        // shows exactly how far the flow gets on device.
+        android.util.Log.i("e2e-login", "login() entered idLen=${identifier.length} pwLen=${password.length}")
+        if (identifier.isBlank() || password.isEmpty()) {
+            android.util.Log.i("e2e-login", "login() guard return (empty fields)")
+            return
+        }
         _loginError.value = null
         _signingIn.value = true
         viewModelScope.launch {
+            android.util.Log.i("e2e-login", "login() coroutine started")
             try {
                 _signedInUser.value = auth.login(identifier, password)
+                android.util.Log.i("e2e-login", "login() SUCCESS userId=${_signedInUser.value?.id}")
             } catch (e: ApiRequestException) {
+                android.util.Log.i("e2e-login", "login() ApiError ${e.error.code}")
                 _loginError.value = e
             } catch (e: Exception) {
                 // Round-15c: ANY other failure (IOException on the emulator, serialization)
                 // must surface as login_error - an uncaught exception here killed the whole
                 // coroutine silently: neither session_info nor login_error ever appeared and
                 // the e2e burned its 20s wait against a dead UI (CI #193/#194).
+                android.util.Log.i("e2e-login", "login() non-Api exception ${e.javaClass.simpleName}: ${e.message}")
                 _loginError.value = com.ridehailing.core.data.network.ApiRequestException(
                     com.ridehailing.core.data.network.ApiError(
                         code = "login_unavailable",
