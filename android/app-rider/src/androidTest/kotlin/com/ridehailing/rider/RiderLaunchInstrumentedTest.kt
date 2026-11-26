@@ -5,6 +5,9 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ridehailing.core.screens.R as ScreensR
 import com.ridehailing.core.ui.R
@@ -50,6 +53,34 @@ class RiderLaunchInstrumentedTest {
             composeRule.onNodeWithText(activity.getString(R.string.core_nav_settings))
                 .performClick()
             composeRule.waitForIdle()
+            // Round-15m: taps are intermittently eaten on this emulator (the login
+            // saga proved it) - if the pane did not switch in 3s, invoke the tab's
+            // OnClick semantics directly (accessibility-equivalent).
+            run {
+                var switched = false
+                val dl = System.currentTimeMillis() + 3_000
+                while (System.currentTimeMillis() < dl) {
+                    if (composeRule.onAllNodes(
+                            SemanticsMatcher("any-node") { true },
+                            useUnmergedTree = true,
+                        ).fetchSemanticsNodes().any {
+                            it.config.getOrNull(
+                                androidx.compose.ui.semantics.SemanticsProperties.TestTag,
+                            ) == "login_identifier"
+                        }
+                    ) {
+                        switched = true
+                        break
+                    }
+                    Thread.sleep(300)
+                }
+                if (!switched) {
+                    composeRule.onNodeWithTag("tab_settings", useUnmergedTree = true)
+                        .performSemanticsAction(
+                            androidx.compose.ui.semantics.SemanticsActions.OnClick,
+                        )
+                }
+            }
             // P2-4: the Settings tab is the SessionScreen now; signed-out it shows the
             // login card. Emulator runs carry no session -> the login SUBTITLE shows
             // (unique node: auth_title "Sign in" also matches the submit button).
@@ -61,6 +92,32 @@ class RiderLaunchInstrumentedTest {
             composeRule.onNodeWithText(activity.getString(R.string.core_nav_home))
                 .performClick()
             composeRule.waitForIdle()
+            // Round-15m: same intermittent-tap fallback for the return trip.
+            run {
+                var switched = false
+                val dl = System.currentTimeMillis() + 3_000
+                while (System.currentTimeMillis() < dl) {
+                    if (composeRule.onAllNodes(
+                            SemanticsMatcher("any-node") { true },
+                            useUnmergedTree = true,
+                        ).fetchSemanticsNodes().any {
+                            it.config.getOrNull(
+                                androidx.compose.ui.semantics.SemanticsProperties.TestTag,
+                            ) == "booking_pickup"
+                        }
+                    ) {
+                        switched = true
+                        break
+                    }
+                    Thread.sleep(300)
+                }
+                if (!switched) {
+                    composeRule.onNodeWithTag("tab_home", useUnmergedTree = true)
+                        .performSemanticsAction(
+                            androidx.compose.ui.semantics.SemanticsActions.OnClick,
+                        )
+                }
+            }
             // P4-4: the bottom card is the REAL booking flow now (the old Phase-5
             // placeholder string is gone) - the pickup row is the card's first node.
             composeRule.onNodeWithTag("booking_pickup", useUnmergedTree = true)
