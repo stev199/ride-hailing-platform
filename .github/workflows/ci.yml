@@ -593,7 +593,7 @@ jobs:
           grep -qE '^OK \([0-9]+ tests?\)' artifacts-booking.log || {
             # Round-15d: dump the app's tail (crashes, Ktor errors) inline on failure -
             # the tag dump names the screen, logcat names the process behind it.
-            adb logcat -d | grep -iE 'AndroidRuntime|FATAL|Ktor| okhttp|CIO|ridehailing' | tail -60 || true
+            adb logcat -d | grep -iE 'AndroidRuntime|FATAL|Ktor| okhttp|CIO|ridehailing|System.out|REQUEST:|RESPONSE:|10\.0\.2\.2' | grep -v AppsFilter | tail -80 || true
             adb logcat -d > logcat-booking.txt
             # Did the login POST reach the backend? (request arrives -> app-side state
             # bug; nothing arrives -> app-side network bug; arrived+status -> mapping bug)
@@ -614,6 +614,7 @@ jobs:
           name: e2e-booking
           path: |
             artifacts-booking.log
+            logcat-booking.txt
             booking-art/**
 
   # ---------- 10. security scans (always) ----------
