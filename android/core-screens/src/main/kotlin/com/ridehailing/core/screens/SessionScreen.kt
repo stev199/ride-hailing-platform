@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -105,6 +106,16 @@ private fun LoginCard(vm: SessionViewModel, modifier: Modifier = Modifier) {
                 modifier = Modifier.semantics { testTag = "login_submit" },
             ) {
                 Text(if (signingIn) stringResource(R.string.auth_signingIn) else stringResource(R.string.auth_signIn))
+            }
+            // Round-15d: the tag dump must be able to tell "coroutine still running"
+            // (login_busy present) from "never started / already finished" - CI #196
+            // showed neither session_info nor login_error and the fork was invisible.
+            if (signingIn) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .semantics { testTag = "login_busy" },
+                )
             }
         }
     }

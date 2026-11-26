@@ -590,7 +590,13 @@ jobs:
             com.ridehailing.rider.test/androidx.test.runner.AndroidJUnitRunner | tee artifacts-booking.log
           # Fail-closed gates (round-12 policy): JUnit OK line AND real storyboard
           # evidence - a skip produces 0 pngs and must fail the cell.
-          grep -qE '^OK \([0-9]+ tests?\)' artifacts-booking.log || { echo "::error::instrumentation did not report OK"; exit 1; }
+          grep -qE '^OK \([0-9]+ tests?\)' artifacts-booking.log || {
+            # Round-15d: dump the app's tail (crashes, Ktor errors) inline on failure -
+            # the tag dump names the screen, logcat names the process behind it.
+            adb logcat -d | grep -iE 'AndroidRuntime|FATAL|Ktor| okhttp|CIO|ridehailing' | tail -60 || true
+            adb logcat -d > logcat-booking.txt
+            echo "::error::instrumentation did not report OK"; exit 1
+          }
           PNGS=$(find booking-art -name '*.png' 2>/dev/null | wc -l)
           [ "$PNGS" -ge 3 ] || { echo "::error::booking flow captured $PNGS storyboard pngs (<3) - fail-closed"; exit 1; }
           echo "booking evidence: $PNGS storyboard pngs"
