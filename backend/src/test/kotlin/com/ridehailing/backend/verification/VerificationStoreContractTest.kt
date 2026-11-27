@@ -80,7 +80,10 @@ class VerificationStoreContractTest {
         for ((tag, store) in stores()) {
             val u1 = Ids.newId()
             val u2 = Ids.newId()
-            seedUsers(tag, store, listOf(u1, u2))
+            // reviewer for the APPROVED transition below - PG enforces the
+            // reviewer_id FK, so the id must exist in app_user (CI round 22).
+            val reviewer = Ids.newId()
+            seedUsers(tag, store, listOf(u1, u2, reviewer))
 
             // Insert + byId round-trip.
             val a = store.insert(submission(u1, submittedAtEpochSec = 100))
@@ -107,7 +110,7 @@ class VerificationStoreContractTest {
             assertEquals(listOf(a2.id, b.id, a.id), mine.map { it.id }, "$tag: newest-first order")
 
             // Status filter only matches that status (again scoped to our rows).
-            store.updateStatus(b.id, VerificationStatus.APPROVED, Ids.newId(), 300, null)
+            store.updateStatus(b.id, VerificationStatus.APPROVED, reviewer, 300, null)
             val pending = store.list(VerificationStatus.PENDING, 50, 0).filter { it.id in setOf(a.id, a2.id, b.id) }
             assertTrue(pending.map { it.id } == listOf(a2.id, a.id), "$tag: a2 then a stay pending")
             val approved = store.list(VerificationStatus.APPROVED, 50, 0).filter { it.id in setOf(a.id, a2.id, b.id) }
