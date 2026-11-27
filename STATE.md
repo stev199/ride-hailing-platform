@@ -55,11 +55,11 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 ## Next 5 tasks
 
-1. Verify round-14 push CI (FULL run expected: android+backend paths touched -> every job runs): CI #191 run 45720262726 IN FLIGHT at session cutoff; live-view round-15 DISPATCHED (run 45720454314 in flight, scenario cross-actor-all); fix red, re-dispatch
-2. Phase 4 + Phase 5 gates: after the full green run - tag phase-4-gate (cites the run id), gate report rows, start Phase 6 immediately (NON-STOP D74)
-3. Phase 6 (admin center): users (exists) + trips admin views + fares editor (P6-1/P6-2, CI-verified round-20) + verification center v1 (P6-3, verify-in-flight) DONE; live map (P6-4) is the remaining item
-4. Re-dispatch live-view (workflow_dispatch) after driver-side changes - user directive: live-view must keep working (last GREEN #11 @ 4c3c27a)
-5. Driver-side instrumented e2e cell (duty -> board -> accept -> trip actions) as the Phase 5 evidence appendix if the run above leaves any gap
+1. Verify CI run on 0992dec (P6-3 FK fix + P6-4 live map backend/UI + round-23 ST205/ST204/ST201 fixes): every job expected (backend+admin-web paths touched); fix red, re-dispatch (D29 override if the docs-only HEAD skips jobs)
+2. Phase 6 gate: on full green - tag phase-6-gate citing the run, gate table row, then immediately scope Phase 7 (money/ledger services per Part B plan; backend mesh-gateway seam per D73) with BACKLOG entries (NON-STOP D74)
+3. live-view (user directive "make sure web-view works"): last dispatch GREEN 46006321083 @ b77e6db (round-21 smoke chain); re-dispatch after the P6-4/round-23 batch only if CI surfaces regressions
+4. Dependabot branch 6ed9ae4 (lockfile bump) CI red - triage at next batch if still open (expected: PR-only job matrix)
+5. Keep P4-3/P4-4 backlog rows honest: P4-1..P4-5 CI-verified rounds 14-19 (phase-4-gate re-tagged on real full green); P5 gate CLOSED (phase-5-gate tag)
 
 ## Session environment (2026-11-25 recycle #5 recovery)
 
