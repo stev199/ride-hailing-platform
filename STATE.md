@@ -400,3 +400,21 @@ Local gates: vitest 41/41, tsc 0, eslint 0 (sandbox cannot run Kotlin/PG - CI ve
 the backend tier: backend-test, api-contract incl. new paths, admin-web-test).
 Verification of THIS push: the dispatched CI run (no mid-run pushes - D-concurrency rule).
 Phase 6 remainder: P6-4 admin live map (todo).
+
+## Round-22b (2026-11-27, session cut-off): P6-3 CI convergence record
+
+- Attempt 1 (46017779058 @ df2c14f): 12/14 GREEN - every e2e/docker cell passed
+  (= backend compiles + runs in compose); backend-test log truncated mid-step
+  (infra); admin-web-test failed ONLY on 2 wrong spec expectations.
+- Fixes pushed: spec aligned with the shipped design (PENDING default filter,
+  RIDER as the no-VERIFICATION_READ principal) 5a0ece2; ContractAlignmentTest
+  block moved inside the class 6764ee8; backtick names cannot contain dots
+  (1..512 -> 1 to 512) c7c61e2; contract-test ordering scoped to the test's own
+  rows (PG shared within the job) 4856ad6; InMemoryVerificationStore.list now
+  orders by submittedAtEpochSec DESC (contract parity with the PG store - a REAL
+  bug the contract test caught) 4856ad6+.
+- State at cut-off: admin-web-test GREEN on CI; backend-test down to ONE failing
+  test (the ordering one, fixed in the last push); final verdict run in flight.
+- Follow-up (first action next session): check the newest CI run on main - if
+  green, tag the Phase-6 verification-center increment complete in BACKLOG
+  (P6-3 verify-in-flight -> done). P6-4 admin live map is the next task.

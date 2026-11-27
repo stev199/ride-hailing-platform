@@ -63,8 +63,13 @@ class InMemoryVerificationStore : VerificationStore {
     }
 
     override fun list(status: VerificationStatus?, limit: Int, offset: Int): List<VerificationSubmission> = synchronized(lock) {
+        // Contract parity with PgVerificationStore: ordered by submittedAtEpochSec
+        // DESC (id DESC tiebreak) - NOT insertion order. The contract test caught
+        // this: reversed insertion order diverges the moment callers submit rows
+        // with out-of-order timestamps.
         rows.asReversed()
             .filter { status == null || it.status == status }
+            .sortedWith(compareByDescending<VerificationSubmission> { it.submittedAtEpochSec }.thenByDescending { it.id })
             .drop(offset)
             .take(limit)
             .map { it.copy() }
