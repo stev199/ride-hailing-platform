@@ -31,6 +31,7 @@ import com.ridehailing.backend.rides.RideService
 import com.ridehailing.backend.rides.InMemoryRideStore
 import com.ridehailing.backend.rides.rideRoutes
 import com.ridehailing.backend.rides.driverRoutes
+import com.ridehailing.backend.rides.adminLiveRoutes
 import com.ridehailing.backend.rides.adminTripRoutes
 import com.ridehailing.backend.verification.verificationRoutes
 import com.ridehailing.backend.rbac.AdminService
@@ -74,6 +75,7 @@ private val ROUTE_METHODS: Map<String, String> = mapOf(
     "/v1/admin/config/fares" to "GET, PATCH",
     "/v1/admin/rides" to "GET",
     "/v1/admin/rides/{id}" to "GET",
+    "/v1/admin/live" to "GET",
     "/v1/rides/estimate" to "POST",
     "/v1/rides" to "GET, POST",
     "/v1/rides/{id}" to "GET",
@@ -338,6 +340,7 @@ fun Application.module(
         rideRoutes(auth.service, auth.rideService, auth.config.publicKeyHex())
         driverRoutes(auth.service, auth.rideService)
         adminTripRoutes(auth.service, auth.rideStore, auth.eventChain)
+        adminLiveRoutes(auth.service, auth.rideService, auth.rideStore)
         verificationRoutes(auth.service, auth.verification)
         if (testProfile) testRoutes(eventChain, configBundle, auth.devInbox)
         // Catch-all (registered LAST - earlier routes win at equal resolution quality):

@@ -249,6 +249,13 @@ class RideService(
 
     fun dutyOf(driverId: String): DutyState? = duty[driverId]
 
+    /**
+     * P6-4 admin live map: a consistent copy of the duty registry (driverId ->
+     * DutyState). Only ONLINE drivers are present by construction (the registry
+     * removes on duty-off); the copy isolates callers from concurrent mutation.
+     */
+    fun dutySnapshot(): Map<String, DutyState> = java.util.Collections.unmodifiableMap(java.util.HashMap(duty))
+
     /** Dispatch candidate row: the ride + straight-line distance to the driver. */
     data class AvailableRide(val ride: Ride, val distanceMeters: Double)
 

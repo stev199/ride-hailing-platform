@@ -568,6 +568,28 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /v1/admin/live:
+    get:
+      operationId: adminGetLiveSnapshot
+      description: >-
+        The live-map snapshot (TRIPS_READ): on-duty drivers (positions from the duty
+        registry - the driver's own duty-toggle coordinates; no GPS stream until the
+        location work) and the ACTIVE trips (REQUESTED/ACCEPTED/ARRIVED/IN_PROGRESS)
+        at their pickup coordinates. Mesh-origin filtering (MESH_READ view) lands with
+        Phase 10 - every trip answers origin="online" until then. Read-only by design.
+      summary: Live-map snapshot (admin)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Duty drivers + active trips
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminLive"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /v1/admin/config/fares:
     get:
       operationId: adminGetFares
@@ -1093,6 +1115,39 @@ components:
         timeline:
           type: array
           items: { $ref: "#/components/schemas/AdminTimelineEvent" }
+    AdminLiveDriver:
+      type: object
+      required: [driverId, lat, lon, online, updatedAtEpochSec]
+      properties:
+        driverId: { type: string }
+        lat: { type: number, format: double, minimum: -90, maximum: 90 }
+        lon: { type: number, format: double, minimum: -180, maximum: 180 }
+        online: { type: boolean }
+        updatedAtEpochSec: { type: integer, format: int64 }
+    AdminLiveTrip:
+      type: object
+      required: [id, status, city, riderId, driverId, pickupLat, pickupLon, dropoffLat, dropoffLon, origin]
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [REQUESTED, ACCEPTED, ARRIVED, IN_PROGRESS] }
+        city: { type: string }
+        riderId: { type: string }
+        driverId: { type: string, nullable: true }
+        pickupLat: { type: number, format: double, minimum: -90, maximum: 90 }
+        pickupLon: { type: number, format: double, minimum: -180, maximum: 180 }
+        dropoffLat: { type: number, format: double, minimum: -90, maximum: 90 }
+        dropoffLon: { type: number, format: double, minimum: -180, maximum: 180 }
+        origin: { type: string, enum: [online, offline-mesh] }
+    AdminLive:
+      type: object
+      required: [drivers, trips]
+      properties:
+        drivers:
+          type: array
+          items: { $ref: "#/components/schemas/AdminLiveDriver" }
+        trips:
+          type: array
+          items: { $ref: "#/components/schemas/AdminLiveTrip" }
     VerificationSubmitRequest:
       type: object
       required: [licenseNumber, vehiclePlate, declaredDocs]
