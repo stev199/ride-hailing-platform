@@ -1,0 +1,123 @@
+name: Live View Smoke
+
+# Round-21b: cheap on-runner proof of the E5 live-viewer URL path - NO emulators,
+# NO KVM, ~3 minutes. The full live-view.yml (55 min, 2 emulators) hung 5x on
+# 2026-11-27 with the signature "runner assigned, zero log bytes" (GitHub runner
+# pool, not the workflow - guard + the pre-tunnel smoke passed on both healthy
+# runs). This workflow proves the part that matters for "the URL actually opens
+# the viewing": viewer boots on a runner (smoke.js 8 checks), a quick tunnel
+# GENERATES a URL on a runner, and that URL is fetched THROUGH the Cloudflare
+# edge with the token -> Set-Cookie -> cookie-only /api/state flow, then held
+# open briefly so a human can click it from the summary.
+on:
+  workflow_dispatch:
+    inputs:
+      keep_alive_minutes:
+        description: 'Hold the tunnel open for inspection (max 15)'
+        default: '5'
+
+permissions:
+  contents: read
+
+jobs:
+  viewer-tunnel-verify:
+    name: viewer-tunnel-verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '20' }
+      - name: Boot viewer + smoke (fail-fast on viewer regressions)
+        env:
+          SMOKE: '1'
+        run: |
+          TOKEN=$(openssl rand -hex 16)
+          echo "VIEWER_TOKEN_VALUE=$TOKEN" >> "$GITHUB_ENV"
+          cd tools/test-viewer && npm ci --no-audit --no-fund
+          VIEWER_TOKEN="$TOKEN" node server.js > /tmp/viewer.log 2>&1 &
+          sleep 2
+          curl -fsS "http://localhost:7070/api/state?token=$TOKEN" >/dev/null
+          node smoke.js
+      - name: Tunnel (cloudflared quick tunnel, pinned + http2 retry)
+        run: |
+          # Same pinned binary + retry logic as live-view.yml (round-11/21).
+          curl -fsSL -o /tmp/cloudflared "https://github.com/cloudflare/cloudflared/releases/download/2026.11.2/cloudflared-linux-amd64"
+          chmod +x /tmp/cloudflared
+          start_tunnel() {
+            nohup /tmp/cloudflared tunnel --no-autoupdate "$@" --url http://localhost:7070 > /tmp/cloudflared.log 2>&1 &
+          }
+          grab_url() {
+            URL=""
+            for _ in $(seq 1 45); do
+              URL=$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n1 || true)
+              [ -n "$URL" ] && break
+              sleep 2
+            done
+            echo "$URL"
+          }
+          start_tunnel
+          URL=$(grab_url)
+          if [ -z "$URL" ]; then
+            echo "::warning::first attempt produced no URL - retrying with --protocol http2"
+            pkill -f "cloudflared tunnel" || true
+            echo "--- cloudflared.log (attempt 1) ---"; tail -20 /tmp/cloudflared.log || true
+            start_tunnel --protocol http2
+            URL=$(grab_url)
+          fi
+          if [ -z "$URL" ]; then
+            echo "--- cloudflared.log (attempt 2) ---"; tail -20 /tmp/cloudflared.log || true
+            echo "::warning::tunnel unavailable (E5 fallback: report gallery + videos)"
+            echo "TUNNEL_URL=" >> "$GITHUB_ENV"
+          else
+            echo "TUNNEL_URL=$URL" >> "$GITHUB_ENV"
+            echo "::notice title=Live View Smoke ready::$URL?token=$VIEWER_TOKEN_VALUE"
+          fi
+      - name: Verify the generated URL through the Cloudflare edge
+        if: env.TUNNEL_URL != ''
+        run: |
+          set -e
+          U="$TUNNEL_URL"; T="$VIEWER_TOKEN_VALUE"
+          echo "URL under test: $U"
+          # 1. The page load from the generated URL: 200 + Set-Cookie.
+          code=$(curl -s -m 20 -D /tmp/h -o /tmp/page.html -w '%{http_code}' "$U/?token=$T")
+          echo "page: $code"
+          [ "$code" = "200" ] || { echo "::error::page load failed ($code)"; exit 1; }
+          grep -qi "set-cookie: .*viewer_token=$T" /tmp/h || { echo "::error::no Set-Cookie"; exit 1; }
+          # 2. The in-page fetches with ONLY the cookie (the round-21 stuck-at-loading bug).
+          CK=$(grep -io "viewer_token=[^;]*" /tmp/h | head -n1)
+          code=$(curl -s -m 20 -H "Cookie: $CK" -o /tmp/state.json -w '%{http_code}' "$U/api/state")
+          echo "cookie /api/state: $code"
+          [ "$code" = "200" ] || { echo "::error::cookie /api/state failed ($code)"; exit 1; }
+          grep -q '"counters"' /tmp/state.json || { echo "::error::state JSON malformed"; exit 1; }
+          code=$(curl -s -m 20 -H "Cookie: $CK" -o /dev/null -w '%{http_code}' "$U/api/serials")
+          echo "cookie /api/serials: $code"
+          [ "$code" = "200" ] || { echo "::error::cookie /api/serials failed ($code)"; exit 1; }
+          # 3. /frame answers as a COMPLETED request even with zero devices (404 JSON, not a hang).
+          code=$(curl -s -m 20 -H "Cookie: $CK" -o /tmp/frame.json -w '%{http_code}' "$U/frame/no-device")
+          echo "cookie /frame (no device): $code"
+          [ "$code" = "404" ] || { echo "::error::/frame no-device must 404, got $code"; exit 1; }
+          # 4. Protection intact.
+          code=$(curl -s -m 20 -o /dev/null -w '%{http_code}' "$U/api/state")
+          echo "no-token /api/state: $code"
+          [ "$code" = "401" ] || { echo "::error::unauthenticated request must 401, got $code"; exit 1; }
+          echo "TUNNEL VERIFIED: page -> Set-Cookie -> cookie-only fetches -> /frame -> 401 gate all pass through the edge"
+      - name: Hold the URL open for inspection
+        if: env.TUNNEL_URL != ''
+        env:
+          KEEP: ${{ inputs.keep_alive_minutes }}
+        run: |
+          MIN=$(( KEEP > 15 ? 15 : KEEP ))
+          echo "URL live for inspection: ${TUNNEL_URL}?token=${VIEWER_TOKEN_VALUE}"; sleep "${MIN}m"
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## Live View Smoke"
+            if [ -n "$TUNNEL_URL" ]; then
+              echo "Open: ${TUNNEL_URL}?token=${VIEWER_TOKEN_VALUE}"
+              echo "(no emulators in this workflow - panels appear only when a device stream is attached; the verified part is page+auth+API through the edge)"
+            else
+              echo "No tunnel this run - see the warnings; E5 fallback applies."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
