@@ -237,3 +237,22 @@ Admin-web (TripsPage):
   timeline; origin badge. 4 RTL tests (list render newest-first + origin badges,
   detail fetch + close, filter refetch query params, RIDER -> ForbiddenPerm).
 - Local: typecheck 0 errors, lint clean, 36/36 vitest.
+
+### Round-20 CI verdict (2026-11-27)
+
+Two bumps were needed and both are lessons, not flukes:
+1. 4191e78: lint-and-static RED (spectral invalid-ref + duplicate keys) and
+   api-contract RED (ST108 validated GET /v1/admin/rides/{id} against the DUTY
+   schema) - BOTH traced to one openapi patch bug: my schemas block replaced the
+   "schemas:\n    DriverDutyRequest:" anchor without re-including the
+   DriverDutyRequest key line, orphaning its body into AdminRideDetail.
+   backend-test + admin-web-test were GREEN on that same run.
+2. 9c9b438 (fix): yaml restored + the real preemptive ST202 closed (list offset
+   capped at 2147483647 per the adminListUsers precedent - schemathesis fuzzes
+   offset=2^63 which the schema would otherwise accept and paginationOr400 400s).
+   Docs-only push skipped backend cells -> workflow_dispatch full run:
+   **run 45950006188 @ 9c9b438 COMPLETED SUCCESS - every cell green**
+   (backend-test incl. AdminTripsRoutesTest, api-contract incl. the two new
+   paths, admin-web-test incl. TripsPage 4 tests, e2e-driver-flow re-verified
+   on current main, booking/cross-actor/offline-maps, android rider+driver,
+   lint/security/mesh/report/summary). Phase 6 trips view is CI-VERIFIED.
