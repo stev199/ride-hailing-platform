@@ -355,8 +355,6 @@ class ContractAlignmentTest {
             ?: fail("/v1/rides offset parameter maximum missing")
         assertEquals(2147483647, paramMax, "offset query param must cap at Int32 (server toIntOrNull)")
     }
-}
-
     @Test
     fun `verification submit request mirrors the server field validation - P6-1`() {
         assertEquals(64, int("VerificationSubmitRequest", "licenseNumber", "maxLength"))
@@ -382,3 +380,7 @@ class ContractAlignmentTest {
         assertEquals(50, getQueryParam("/v1/admin/verification", "limit")["default"])
         assertEquals(200, int("AdminVerificationList", "limit", "maximum"))
     }
+
+}
+
+
