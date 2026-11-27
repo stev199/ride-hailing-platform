@@ -119,16 +119,37 @@ jobs:
           # only darwin gets a .tgz). curl -f then exited 22 and the job died before the
           # tunnel ever started. Pinned to a verified-real tag+asset (2026.11.2, plain
           # binary, asset list checked via the releases API 2026-11-25).
+          #
+          # Round-21: run 45969240475 hit "tunnel unavailable" - cloudflared ran but
+          # never printed the URL (its log stayed on the runner, invisible). Retry
+          # once with --protocol http2 (QUIC/UDP 7844 egress is the usual blocker on
+          # sandboxed runners) and ALWAYS dump the cloudflared log tail when no URL
+          # materialized, so the failure reason is in the GitHub log.
           curl -fsSL -o /tmp/cloudflared "https://github.com/cloudflare/cloudflared/releases/download/2026.11.2/cloudflared-linux-amd64"
           chmod +x /tmp/cloudflared
-          nohup /tmp/cloudflared tunnel --no-autoupdate --url http://localhost:7070 > /tmp/cloudflared.log 2>&1 &
-          URL=""
-          for _ in $(seq 1 30); do
-            URL=$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n1 || true)
-            [ -n "$URL" ] && break
-            sleep 2
-          done
+          start_tunnel() {
+            nohup /tmp/cloudflared tunnel --no-autoupdate "$@" --url http://localhost:7070 > /tmp/cloudflared.log 2>&1 &
+          }
+          grab_url() {
+            URL=""
+            for _ in $(seq 1 45); do
+              URL=$(grep -Eo 'https://[a-z0-9-]+\.trycloudflare\.com' /tmp/cloudflared.log | head -n1 || true)
+              [ -n "$URL" ] && break
+              sleep 2
+            done
+            echo "$URL"
+          }
+          start_tunnel
+          URL=$(grab_url)
           if [ -z "$URL" ]; then
+            echo "::warning::first tunnel attempt produced no URL - retrying with --protocol http2"
+            pkill -f "cloudflared tunnel" || true
+            echo "--- cloudflared.log (attempt 1) ---"; tail -20 /tmp/cloudflared.log || true
+            start_tunnel --protocol http2
+            URL=$(grab_url)
+          fi
+          if [ -z "$URL" ]; then
+            echo "--- cloudflared.log (attempt 2) ---"; tail -20 /tmp/cloudflared.log || true
             echo "::warning::tunnel unavailable - rely on report gallery + videos (E5 fallback)"
             echo "TUNNEL_URL=" >> "$GITHUB_ENV"
           else
