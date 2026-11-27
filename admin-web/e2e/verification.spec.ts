@@ -35,23 +35,30 @@ test.describe('verification center (seeded verifier session)', () => {
     await expect(page.getByTestId(`verification-status-${id}`)).toContainText('plate mismatch');
   });
 
-  test('reviewed rows keep their reason visible but lose the action buttons', async ({ page }) => {
+  test('a reviewed submission keeps its reason visible but loses the action buttons', async ({ page }) => {
     await mockApi(page, 'ADMIN_VERIFIER');
     await seedSession(page);
     await page.goto('/verification');
-    // The seeded REJECTED row shows the reviewer reason verbatim and no actions.
+    // The queue defaults to the PENDING filter - the seeded REJECTED row is
+    // deliberately not on this screen (switch the filter to see history).
     const rejectedId = '22222222-2222-2222-2222-222222222222';
-    await expect(page.getByTestId(`verification-status-${rejectedId}`)).toContainText('license unreadable');
-    await expect(page.getByTestId(`verification-approve-${rejectedId}`)).toHaveCount(0);
-    // Approve the pending row -> APPROVED + no further actions on it either.
+    await expect(page.getByTestId(`verification-row-${rejectedId}`)).toHaveCount(0);
+    // Reject the pending row with a reason: the row shows REJECTED + the reason
+    // verbatim and its action buttons are gone (reviewed = terminal for v1).
     const id = '11111111-1111-1111-1111-111111111111';
-    await page.getByTestId(`verification-approve-${id}`).click();
-    await expect(page.getByTestId(`verification-status-${id}`)).toContainText('APPROVED');
+    await page.getByTestId(`verification-reject-open-${id}`).click();
+    await page.getByTestId(`verification-reason-input-${id}`).fill('plate mismatch');
+    await page.getByTestId(`verification-reject-confirm-${id}`).click();
+    await expect(page.getByTestId(`verification-status-${id}`)).toContainText('REJECTED');
+    await expect(page.getByTestId(`verification-status-${id}`)).toContainText('plate mismatch');
     await expect(page.getByTestId(`verification-approve-${id}`)).toHaveCount(0);
+    await expect(page.getByTestId(`verification-reject-open-${id}`)).toHaveCount(0);
   });
 
-  test('role without VERIFICATION_READ (ADMIN_FINANCE) sees the forbidden notice', async ({ page }) => {
-    await mockApi(page, 'ADMIN_FINANCE');
+  test('role without VERIFICATION_READ (RIDER) sees the forbidden notice', async ({ page }) => {
+    // Every ADMIN_* role holds VERIFICATION_READ by design (the center is a core
+    // admin function; VERIFIER/OPS write it) - only RIDER/DRIVER are excluded.
+    await mockApi(page, 'RIDER');
     await seedSession(page);
     await page.goto('/verification');
     await expect(page.getByTestId('forbidden-perm')).toBeVisible();
