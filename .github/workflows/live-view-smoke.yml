@@ -76,14 +76,22 @@ jobs:
       - name: Verify the generated URL through the Cloudflare edge
         if: env.TUNNEL_URL != ''
         run: |
-          set -e
           U="$TUNNEL_URL"; T="$VIEWER_TOKEN_VALUE"
           echo "URL under test: $U"
-          # 1. The page load from the generated URL: 200 + Set-Cookie.
-          code=$(curl -s -m 20 -D /tmp/h -o /tmp/page.html -w '%{http_code}' "$U/?token=$T")
+          # 1. Page load from the generated URL. A freshly grabbed tunnel URL can
+          # 530/1033 for a few seconds while the edge propagates the route (the
+          # first smoke run failed 0.006s after the URL appeared) - poll until
+          # the edge picks it up.
+          code="000"
+          for i in $(seq 1 20); do
+            code=$(curl -s -m 20 -D /tmp/h -o /tmp/page.html -w '%{http_code}' "$U/?token=$T" || echo 000)
+            [ "$code" = "200" ] && break
+            echo "page attempt $i -> $code (edge propagation), retrying"
+            sleep 3
+          done
           echo "page: $code"
-          [ "$code" = "200" ] || { echo "::error::page load failed ($code)"; exit 1; }
-          grep -qi "set-cookie: .*viewer_token=$T" /tmp/h || { echo "::error::no Set-Cookie"; exit 1; }
+          [ "$code" = "200" ] || { echo "::error::page load never became 200 (last $code)"; exit 1; }
+          grep -qi "set-cookie: .*viewer_token=$T" /tmp/h || { echo "::error::no Set-Cookie"; cat /tmp/h | head -5; exit 1; }
           # 2. The in-page fetches with ONLY the cookie (the round-21 stuck-at-loading bug).
           CK=$(grep -io "viewer_token=[^;]*" /tmp/h | head -n1)
           code=$(curl -s -m 20 -H "Cookie: $CK" -o /tmp/state.json -w '%{http_code}' "$U/api/state")
