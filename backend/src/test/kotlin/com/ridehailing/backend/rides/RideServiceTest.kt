@@ -85,7 +85,8 @@ class RideServiceTest {
         assertEquals("unknown_ride_type", (svc.create(rider(), booking.copy(rideType = "helicopter")) as RideService.CreateResult.Invalid).code)
         assertEquals(
             "payment_method_unavailable",
-            (svc.create(rider(), booking.copy(paymentMethod = "WALLET")) as RideService.CreateResult.Invalid).code,
+            // WALLET is now valid (P7-2, upfront_locked); an UNKNOWN method still 400s.
+            (svc.create(rider(), booking.copy(paymentMethod = "BITCOIN")) as RideService.CreateResult.Invalid).code,
         )
         assertEquals(
             "invalid_coordinates",

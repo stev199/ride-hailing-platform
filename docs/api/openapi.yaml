@@ -822,7 +822,9 @@ paths:
         Book a ride (RIDER role only - 403 booking_role_required). Creates the trip in
         REQUESTED with the server-SIGNED final quote (spec §pricing: authoritative,
         admin-configurable validity window, upfront-locked or metered-with-cap policy).
-        v1 accepts CASH only (WALLET/POINTS become bookable in Phase 7 - 400
+        Estimates are payment-method agnostic (P7-2: WALLET booking requires an
+        upfront_locked quote - the estimate itself is unchanged). v1 accepts CASH and
+        WALLET (unknown methods - 400
         payment_method_unavailable). Coordinates/city/rideType validation mirrors the
         estimate endpoint (invalid_coordinates / unknown_city / unknown_ride_type).
       summary: Book a ride
@@ -2156,8 +2158,14 @@ components:
           description: Ride type offered in the city; unknown keys are 400 unknown_ride_type.
         paymentMethod:
           type: string
-          enum: [CASH]
-          description: CASH only in Phase 4 (WALLET/POINTS land with the wallet holds, Phase 7) - other values are 400 payment_method_unavailable.
+          enum: [CASH, WALLET]
+          description: >-
+            CASH always bookable. WALLET (P7-2) books ONLY with an upfront_locked
+            quote - the fare is HELD server-side at driver accept and captured at
+            completion minus the configured commission; metered + WALLET is 400
+            wallet_requires_upfront_quote. Other values are 400
+            payment_method_unavailable. Wallet rides charge the quote's minor
+            amount against the rider's POINTS wallet (v1 points-cent equivalence).
         note:
           type: [string, "null"]
           maxLength: 500

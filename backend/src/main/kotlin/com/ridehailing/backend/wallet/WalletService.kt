@@ -160,6 +160,41 @@ class WalletService(
         }
     }
 
+    /**
+     * P7-2 ride-money capture: DEBIT the hold wallet [amountMinor], CREDIT the
+     * driver (X - commission), CREDIT the platform fee wallet (commission) in ONE
+     * atomic transaction (money conserves by construction). commissionBps comes
+     * from the signed wallet config at completion time.
+     */
+    fun captureWithCommission(
+        ownerId: String,
+        toOwnerId: String,
+        amountMinor: Long,
+        commissionBps: Int,
+        refType: String?,
+        refId: String?,
+    ): HoldResult {
+        if (amountMinor <= 0) return HoldResult.Invalid("amountMinor", "invalid_amount")
+        val hold = ledger.walletFor(ownerId, holdCurrency())
+            ?: return HoldResult.Invalid("amountMinor", "no_hold")
+        if (ledger.balance(hold.id) < amountMinor) return HoldResult.Invalid("amountMinor", "hold_too_small")
+        val commission = amountMinor * commissionBps.coerceIn(0, 10_000) / 10_000
+        val driverGets = amountMinor - commission
+        val dest = ledger.ensureWallet(toOwnerId, POINTS)
+        val feeWallet = ledger.walletFor(PLATFORM_FEE_OWNER, POINTS) ?: ledger.ensureWallet(PLATFORM_FEE_OWNER, POINTS)
+        val legs = mutableListOf(
+            LedgerLeg(hold.id, amountMinor, Direction.DEBIT),
+            LedgerLeg(dest.id, driverGets, Direction.CREDIT),
+        )
+        if (commission > 0) legs += LedgerLeg(feeWallet.id, commission, Direction.CREDIT)
+        return try {
+            ledger.postTransaction(legs, refType = refType, refId = refId, reason = REASON_CAPTURE)
+            HoldResult.Held
+        } catch (_: InsufficientBalanceException) {
+            HoldResult.Invalid("amountMinor", "insufficient_balance")
+        }
+    }
+
     /** RELEASE: return [amountMinor] from the hold wallet to the main wallet. */
     fun release(ownerId: String, amountMinor: Long, refType: String?, refId: String?): HoldResult {
         if (amountMinor <= 0) return HoldResult.Invalid("amountMinor", "invalid_amount")

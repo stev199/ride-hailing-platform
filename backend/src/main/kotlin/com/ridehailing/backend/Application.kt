@@ -237,6 +237,8 @@ class AuthGraph(
         fares = { config.fares },
         bundle = config.quoteSigningBundle,
         ledger = ledger,
+        walletProvider = { walletService },
+        walletConfigProvider = { config.walletConfig },
         osrm = osrm,
         eventRecorder = { type, payload -> eventChain.append(type, payload) },
     )

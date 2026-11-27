@@ -170,7 +170,8 @@ class RideRoutesTest {
         )
         assertEquals(
             "payment_method_unavailable",
-            client.postJson("/v1/rides", bookingBody.replace("CASH", "WALLET"), token).errCode(),
+            // WALLET is now valid (P7-2, upfront_locked); an UNKNOWN method still 400s.
+            client.postJson("/v1/rides", bookingBody.replace("CASH", "BITCOIN"), token).errCode(),
         )
         assertEquals(
             "invalid_coordinates",

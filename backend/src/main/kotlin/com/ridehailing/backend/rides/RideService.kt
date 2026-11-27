@@ -30,6 +30,10 @@ class RideService(
     private val fares: () -> com.ridehailing.backend.fares.FareConfig,
     private val bundle: SignedConfigBundle,
     private val ledger: LedgerStore?,
+    /** P7-2 ride money: wallet provider (null in graphs without the wallet work). */
+    private val walletProvider: (() -> com.ridehailing.backend.wallet.WalletService)? = null,
+    /** P7-2 commission source: the live wallet config section (provider-lambda pattern). */
+    private val walletConfigProvider: (() -> com.ridehailing.backend.config.WalletConfig?)? = null,
     private val osrm: OsrmRouteSource? = null,
     private val clock: () -> Instant = Instant::now,
     private val eventRecorder: EventRecorder? = null,
@@ -71,7 +75,13 @@ class RideService(
         val cfg = fares()
         val cityFares = cfg.cities[req.city] ?: return CreateResult.Invalid("city", "unknown_city")
         val typeFares = cityFares.rideTypes[req.rideType] ?: return CreateResult.Invalid("rideType", "unknown_ride_type")
-        if (req.paymentMethod != "CASH") return CreateResult.Invalid("paymentMethod", "payment_method_unavailable")
+        // P7-2: WALLET joins CASH - holds require a KNOWN amount, so WALLET is
+        // upfront_locked-only (metered rides stay CASH until the meter settlement
+        // lands, honest scope note). Units: the quote's minor amount is charged
+        // against the POINTS wallet (v1 points-cent equivalence, spec §wallet).
+        if (req.paymentMethod != "CASH" && req.paymentMethod != "WALLET") {
+            return CreateResult.Invalid("paymentMethod", "payment_method_unavailable")
+        }
         if (req.note != null && req.note.length > 500) return CreateResult.Invalid("note", "note_too_long")
 
         val now = clock()
@@ -103,6 +113,9 @@ class RideService(
             policy = cfg.quote,
             now = now,
         )
+        if (req.paymentMethod == "WALLET" && quote.mode != "upfront_locked") {
+            return CreateResult.Invalid("paymentMethod", "wallet_requires_upfront_quote")
+        }
         val ride = Ride(
             id = com.ridehailing.backend.auth.Ids.newId(),
             riderId = rider.id,
@@ -295,6 +308,17 @@ class RideService(
             eventRecorder?.append("ride.expired", mapOf("rideId" to rideId, "by" to "accept_raced_expiry"))
             return DriverActionResult.Error(409, "ride_expired")
         }
+        // P7-2: WALLET rides hold the upfront-locked fare server-side AT ACCEPT
+        // (spec "wallet holds happen server-side at confirmation"). The hold is
+        // attempted BEFORE the single-winner claim: a rider without funds never
+        // burns the race window (409 keeps the ride on the board for funded drivers).
+        if (ride.paymentMethod == "WALLET") {
+            val wallet = walletProvider?.invoke()
+            val held = wallet?.hold(ride.riderId, ride.quoteAmountMinor, "ride", ride.id)
+            if (wallet == null || held !is com.ridehailing.backend.wallet.WalletService.HoldResult.Held) {
+                return DriverActionResult.Error(409, "wallet_hold_failed")
+            }
+        }
         val claimed = store.claimForDriver(rideId, driver.id, now.epochSecond)
             ?: return DriverActionResult.Error(409, "already_accepted")
         eventRecorder?.append(
@@ -329,6 +353,29 @@ class RideService(
         }
         val updated = store.updateStatus(rideId, target, now.epochSecond)
             ?: return DriverActionResult.Error(404, "ride_not_found")
+        // P7-2: WALLET completion captures the held fare - driver credited minus the
+        // configured commission, platform fee wallet credited, ONE atomic transaction.
+        // The hold was taken at accept; a hold that is somehow too small surfaces as
+        // a money event (the trip itself still completes - the fare debt is tracked
+        // by the ledger, never by blocking a finished ride).
+        if (target == RideStatus.COMPLETED && ride.paymentMethod == "WALLET") {
+            walletProvider?.invoke()?.let { wallet ->
+                val cfgNow = walletConfigProvider?.invoke()
+                val commissionBps = cfgNow?.commissionBps ?: 0
+                when (val c = wallet.captureWithCommission(ride.riderId, driver.id, ride.quoteAmountMinor, commissionBps, "ride.completed", ride.id)) {
+                    is com.ridehailing.backend.wallet.WalletService.HoldResult.Held ->
+                        eventRecorder?.append(
+                            "money.captured",
+                            mapOf("rideId" to rideId, "amountMinor" to ride.quoteAmountMinor.toString(), "commissionBps" to commissionBps.toString()),
+                        )
+                    is com.ridehailing.backend.wallet.WalletService.HoldResult.Invalid ->
+                        eventRecorder?.append(
+                            "money.capture_failed",
+                            mapOf("rideId" to rideId, "code" to c.code, "amountMinor" to ride.quoteAmountMinor.toString()),
+                        )
+                }
+            }
+        }
         eventRecorder?.append(
             "ride.${target.name.lowercase()}",
             mapOf("rideId" to rideId, "driverId" to driver.id, "riderId" to ride.riderId),
