@@ -97,23 +97,21 @@ class VerificationStoreContractTest {
             // One submission for u2 (older than a2, newer than a).
             val b = store.insert(submission(u2, submittedAtEpochSec = 150))
 
-            // List is newest-first across users.
+            // List is newest-first ACROSS THIS TEST'S OWN ROWS. The PG store shares
+            // one database with the other contract tests (LedgerStore/RideStore run in
+            // the same backend-test job), so absolute positions in list(null, ...) are
+            // NOT assertable - scope to the ids this test created.
             val all = store.list(null, 50, 0)
             assertTrue(all.size >= 3, "$tag: expected >= 3 rows, got ${all.size}")
-            assertEquals(a2.id, all[0].id)
-            assertEquals(b.id, all[1].id)
+            val mine = all.filter { it.id in setOf(a.id, a2.id, b.id) }
+            assertEquals(listOf(a2.id, b.id, a.id), mine.map { it.id }, "$tag: newest-first order")
 
-            // Offset pagination.
-            val page2 = store.list(null, 1, 1)
-            assertEquals(1, page2.size)
-            assertEquals(b.id, page2[0].id)
-
-            // Status filter only matches that status.
+            // Status filter only matches that status (again scoped to our rows).
             store.updateStatus(b.id, VerificationStatus.APPROVED, Ids.newId(), 300, null)
-            val pending = store.list(VerificationStatus.PENDING, 50, 0)
-            assertTrue(pending.all { it.status == VerificationStatus.PENDING }, "$tag")
-            assertTrue(pending.any { it.id == a2.id }, "$tag: a2 must still be pending")
-            assertTrue(store.list(VerificationStatus.APPROVED, 50, 0).any { it.id == b.id }, "$tag")
+            val pending = store.list(VerificationStatus.PENDING, 50, 0).filter { it.id in setOf(a.id, a2.id, b.id) }
+            assertTrue(pending.map { it.id } == listOf(a2.id, a.id), "$tag: a2 then a stay pending")
+            val approved = store.list(VerificationStatus.APPROVED, 50, 0).filter { it.id in setOf(a.id, a2.id, b.id) }
+            assertTrue(approved.map { it.id } == listOf(b.id), "$tag: b approved")
 
             // updateStatus is single-winner: a SECOND update of the same row must
             // not go through (the PENDING guard lives in the UPDATE for PG; the
