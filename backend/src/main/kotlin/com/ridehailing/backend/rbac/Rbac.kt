@@ -43,13 +43,17 @@ enum class Perm {
     MONEY_WRITE,
     /** Read trips (admin list + detail + ride timeline). */
     TRIPS_READ,
+    /** Read the driver verification queue/submissions. */
+    VERIFICATION_READ,
+    /** Approve/reject verification submissions. */
+    VERIFICATION_WRITE,
 }
 
 object Rbac {
 
     private val READ_ONLY = setOf(
         Perm.USERS_READ, Perm.AUDIT_READ, Perm.CONFIG_READ, Perm.MESH_READ, Perm.MONEY_READ,
-        Perm.TRIPS_READ,
+        Perm.TRIPS_READ, Perm.VERIFICATION_READ,
     )
 
     private val BY_ROLE: Map<Role, Set<Perm>> = mapOf(
@@ -61,16 +65,20 @@ object Rbac {
             Perm.USERS_READ, Perm.USERS_WRITE, Perm.USERS_BAN, Perm.USERS_RESET_PASSWORD,
             Perm.SESSIONS_ADMIN, Perm.AUDIT_READ, Perm.CONFIG_READ, Perm.CONFIG_WRITE,
             Perm.MESH_READ, Perm.MESH_ADMIN, Perm.MONEY_READ, Perm.TRIPS_READ,
+            Perm.VERIFICATION_READ, Perm.VERIFICATION_WRITE,
         ),
         Role.ADMIN_SUPPORT to setOf(
             Perm.USERS_READ, Perm.USERS_RESET_PASSWORD, Perm.SESSIONS_ADMIN, Perm.AUDIT_READ, Perm.CONFIG_READ,
-            Perm.TRIPS_READ,
+            Perm.TRIPS_READ, Perm.VERIFICATION_READ,
         ),
         Role.ADMIN_FINANCE to setOf(
             Perm.USERS_READ, Perm.AUDIT_READ, Perm.CONFIG_READ, Perm.MONEY_READ, Perm.MONEY_WRITE,
-            Perm.TRIPS_READ,
+            Perm.TRIPS_READ, Perm.VERIFICATION_READ,
         ),
-        Role.ADMIN_VERIFIER to setOf(Perm.USERS_READ, Perm.AUDIT_READ, Perm.CONFIG_READ, Perm.TRIPS_READ),
+        Role.ADMIN_VERIFIER to setOf(
+            Perm.USERS_READ, Perm.AUDIT_READ, Perm.CONFIG_READ, Perm.TRIPS_READ,
+            Perm.VERIFICATION_READ, Perm.VERIFICATION_WRITE,
+        ),
         Role.ADMIN_READONLY to READ_ONLY,
     )
 

@@ -9,6 +9,7 @@ import AuditPage from './pages/AuditPage';
 import ConfigPage from './pages/ConfigPage';
 import FaresPage from './pages/FaresPage';
 import TripsPage from './pages/TripsPage';
+import VerificationPage from './pages/VerificationPage';
 
 /** Blocks the shell until boot completes, then gates on auth state. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -45,6 +46,7 @@ export default function App() {
             <Route path="/config" element={<ConfigPage />} />
             <Route path="/fares" element={<FaresPage />} />
             <Route path="/trips" element={<TripsPage />} />
+            <Route path="/verification" element={<VerificationPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

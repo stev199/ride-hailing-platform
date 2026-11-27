@@ -9,9 +9,9 @@ const ROLES: Role[] = [
 ];
 
 describe('RBAC client mirror parity (Rbac.kt)', () => {
-  it('covers exactly the 8 roles x 13 perms of the backend matrix', () => {
+  it('covers exactly the 8 roles x 15 perms of the backend matrix', () => {
     expect(Object.keys(PERMISSIONS_BY_ROLE).sort()).toEqual([...ROLES].sort());
-    expect(ALL_PERMS).toHaveLength(13);
+    expect(ALL_PERMS).toHaveLength(15);
   });
 
   it('matches the pinned Rbac.kt fixture byte-for-byte (drift test)', () => {

@@ -49,10 +49,15 @@ RIDER_PASSWORD = "contract-horse-battery-42"
 RIDER_DISPLAY_NAME = "ST Contract Rider"
 
 ADMIN_PHONE = "15550088888"
+# P6-1: DRIVER account created by the contract run itself (admin API) for the
+# /v1/verification* families. Random suffix: re-runs must not collide with the
+# 409-duplicate-user path (unlike the pinned rider above, this user is disposable).
+VERIFY_DRIVER_PHONE = "155500" + os.getenv("VERIFY_DRIVER_PHONE_SUFFIX", "99991")[-5:].rjust(5, "0")
+VERIFY_DRIVER_PASSWORD = "contract-verify-driver-42"
 ADMIN_PASSWORD = "contract-admin-pass-42"
 
 _lock = threading.Lock()
-_access = {"rider": None, "admin": None}
+_access = {"rider": None, "admin": None, "driver": None}
 _refresh_token = {"rider": None}
 _otp_cache = {"request_id": None, "code": None}
 _admin_id_cache = {"id": None, "failed": False}
@@ -105,6 +110,30 @@ def _session_for(kind: str) -> str | None:
                 with _lock:
                     _refresh_token["rider"] = tokens["refreshToken"]
                 return tokens["accessToken"]
+        return None
+    if kind == "driver":
+        # P6-1: the admin creates the disposable DRIVER account (USERS_WRITE),
+        # then logs in with its password. 409 on re-run -> login directly.
+        admin_token = _session_for("admin")
+        if admin_token:
+            try:
+                requests.post(
+                    f"{BACKEND_URL}/v1/admin/users",
+                    headers={"Authorization": f"Bearer {admin_token}", "Content-Type": "application/json"},
+                    json={
+                        "displayName": "Contract Verify Driver",
+                        "role": "DRIVER",
+                        "phone": VERIFY_DRIVER_PHONE,
+                        "password": VERIFY_DRIVER_PASSWORD,
+                    },
+                    timeout=10,
+                )
+            except Exception:
+                pass
+        r = _login(VERIFY_DRIVER_PHONE, VERIFY_DRIVER_PASSWORD)
+        if r.status_code == 200:
+            tokens = _tokens_of(r.json())
+            return tokens["accessToken"] if tokens else None
         return None
     # Admin: bootstrapped by the compose env pair. None (unauthenticated cases,
     # documented 401/403) when running against a backend without the bootstrap.
@@ -269,7 +298,65 @@ def _fresh_ride_id_for_cancel() -> str | None:
     return _create_ride(token)
 
 
-@schemathesis.auth(cache_by_key=lambda case, ctx: "admin" if case.operation.path.startswith("/v1/admin") else "rider")
+def _auth_kind(path: str) -> str:
+    """admin for /v1/admin/*, driver for /v1/verification*, rider for the rest."""
+    if path.startswith("/v1/admin"):
+        return "admin"
+    if path.startswith("/v1/verification"):
+        return "driver"
+    return "rider"
+
+
+# P6-1: verification submission priming for the /v1/admin/verification/{id} rewrites.
+# GET detail reuses a cached id (reads never transition); APPROVE/REJECT are terminal
+# transitions - those get a FRESH PENDING submission per positive case (cancel lesson).
+_verification_cache = {"submission_id": None}
+
+
+def _submit_verification(token: str) -> str | None:
+    """Submit a verification for the contract driver; returns the submission id or None."""
+    try:
+        r = requests.post(
+            f"{BACKEND_URL}/v1/verification",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json={
+                "licenseNumber": f"FR-{os.urandom(4).hex().upper()}",
+                "vehiclePlate": "CT-999-ZZ",
+                "declaredDocs": ["license_front", "insurance"],
+            },
+            timeout=10,
+        )
+        if r.status_code == 201:
+            return r.json().get("id")
+    except Exception:
+        pass
+    return None
+
+
+def _own_submission_id_for_get() -> str | None:
+    with _lock:
+        cached = _verification_cache["submission_id"]
+        token = _access["driver"]
+    if cached:
+        return cached
+    if not token:
+        return None
+    sid = _submit_verification(token)
+    if sid:
+        with _lock:
+            _verification_cache["submission_id"] = sid
+    return sid
+
+
+def _fresh_submission_id_for_review() -> str | None:
+    with _lock:
+        token = _access["driver"]
+    if not token:
+        return None
+    return _submit_verification(token)
+
+
+@schemathesis.auth(cache_by_key=lambda case, ctx: _auth_kind(case.operation.path))
 class ContractAuth:
     """Rider bearer for the API; the bootstrap admin only for /v1/admin/*.
 
@@ -279,7 +366,7 @@ class ContractAuth:
 
     def get(self, case, ctx):
         op = getattr(ctx, "operation", None) or case.operation
-        kind = "admin" if op.path.startswith("/v1/admin") else "rider"
+        kind = _auth_kind(op.path)
         with _lock:
             token = _access[kind]
         if token is None:
@@ -340,6 +427,25 @@ def before_call(ctx, case, **kwargs):
         rid = _fresh_ride_id_for_cancel()
         if rid:
             case.path_parameters = {**ride_params, "id": rid}
+    # P6-1 verification rewrites: GET detail reuses the cached submission;
+    # approve/reject get a FRESH PENDING submission per positive case
+    # (a terminal submission would 409 on every subsequent positive case).
+    if path == "/v1/admin/verification/{id}" and "id" in ride_params and not ride_negative:
+        sid = _own_submission_id_for_get()
+        if sid:
+            case.path_parameters = {**ride_params, "id": sid}
+    elif path == "/v1/admin/verification/{id}/approve" and "id" in ride_params and not ride_negative:
+        sid = _fresh_submission_id_for_review()
+        if sid:
+            case.path_parameters = {**ride_params, "id": sid}
+    elif path == "/v1/admin/verification/{id}/reject" and "id" in ride_params and not ride_negative:
+        sid = _fresh_submission_id_for_review()
+        if sid:
+            case.path_parameters = {**ride_params, "id": sid}
+            # The generated reason may be invalid (empty/oversized -> documented 400);
+            # upgrade POSITIVE cases to a valid reason so the 200 path is exercised.
+            if isinstance(case.body, dict):
+                case.body = {**case.body, "reason": "contract reject reason"}
     if body is None:
         return
     # Self-targeted mutation rewrites (designed 400 refusals are unit-tested; see _admin_self_id).

@@ -62,6 +62,10 @@ Phase mapping follows the Part B delivery plan (0-11).
 |----|-----|---------|-------|-------|--------|----------|
 | A-01 | P0 | RBAC roles: Super Admin, Operations, Support, Finance, Verifier, Read-only, custom roles; server-side enforcement | I,C,PW | 1/6 | todo | |
 | A-02 | P0 | Admin shell + login + TOTP 2FA + sessions | I,PW | 1 | partial | shell+login v0 done (no TOTP yet; admin session views land with P1-4b/P2): 18 vitest + 30 playwright green, axe 0 violations |
+| A-03 | P0 | Trips admin (live + historical): list w/ filters + detail w/ ride.* timeline; read-only v1 | I,C | 6 | done | P6-1; CI-VERIFIED run 45950006188 @ 9c9b438 FULL GREEN (round-20) |
+| A-04 | P0 | Fares editor over the signed config bundle (full-replace PATCH, version bump + audit) | I,C | 6 | done | P6-2; FaresPage vitest; backend PATCH contract green since round-12 |
+| A-05 | P0 | Verification center: driver submit + admin queue + approve/reject (reason required, audited, PII-minimal); declared doc names only (images = S-03) | I,C,UI | 6 | verify-in-flight | P6-3: backend 11 tests + store contract test + openapi/contract alignment + schemathesis driver hooks; admin-web VerificationPage vitest 5 + playwright 4, i18n en/fr/ar; CI = this push |
+| A-06 | P1 | Admin live map (duty drivers + active trips) | UI,I | 6 | todo | P6-4 |
 | A-03 | P0 | Live map: online riders, drivers by status, active trips, OFFLINE riders (last known, hops, gateway, path), mesh nodes/links, filters, detail click, force-offline, message | I,PW,E2E | 6/10 | todo | |
 | A-04 | P0 | User management: search/create/edit riders/drivers/admins, CSV import/export, audited read-only impersonation, reset password, force logout, sessions/devices | I,PW | 6 | todo | |
 | A-05 | P0 | Verification center: document queue, zoom/rotate viewer, per-doc approve/reject + reason, expiry tracking, re-verification | I,PW,E2E | 6 | todo | |

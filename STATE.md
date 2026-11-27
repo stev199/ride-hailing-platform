@@ -57,7 +57,7 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 
 1. Verify round-14 push CI (FULL run expected: android+backend paths touched -> every job runs): CI #191 run 45720262726 IN FLIGHT at session cutoff; live-view round-15 DISPATCHED (run 45720454314 in flight, scenario cross-actor-all); fix red, re-dispatch
 2. Phase 4 + Phase 5 gates: after the full green run - tag phase-4-gate (cites the run id), gate report rows, start Phase 6 immediately (NON-STOP D74)
-3. Phase 6 (admin center): verification center, users (exists), live map, trips admin views, fares editor UI - per spec delivery plan 6
+3. Phase 6 (admin center): users (exists) + trips admin views + fares editor (P6-1/P6-2, CI-verified round-20) + verification center v1 (P6-3, verify-in-flight) DONE; live map (P6-4) is the remaining item
 4. Re-dispatch live-view (workflow_dispatch) after driver-side changes - user directive: live-view must keep working (last GREEN #11 @ 4c3c27a)
 5. Driver-side instrumented e2e cell (duty -> board -> accept -> trip actions) as the Phase 5 evidence appendix if the run above leaves any gap
 
@@ -389,3 +389,14 @@ pool recovers; its viewer/tunnel/auth code paths are now proven on-runner.
   GitHub pool recovers; live-view-smoke.yml (GREEN) already proves viewer +
   URL + auth + frame transport on a runner, and the sandbox tunnel test
   proved real PNG frames cross the tunnel end-to-end.
+
+## Round-22 (2026-11-27): P6-3 verification center v1 (user directive: stop live-view work, continue the project)
+
+Scope per BACKLOG P6-3 (full record in PROGRESS_LOG 2026-11-27 entry): backend workflow
++ audit + RBAC (2 new perms, matrix + mirror + fixture re-pinned together) + V7 +
+PgVerificationStore (contract test vs both stores) + openapi/ContractAlignment +
+schemathesis driver hooks + admin-web VerificationPage with i18n and vitest/playwright.
+Local gates: vitest 41/41, tsc 0, eslint 0 (sandbox cannot run Kotlin/PG - CI verifies
+the backend tier: backend-test, api-contract incl. new paths, admin-web-test).
+Verification of THIS push: the dispatched CI run (no mid-run pushes - D-concurrency rule).
+Phase 6 remainder: P6-4 admin live map (todo).

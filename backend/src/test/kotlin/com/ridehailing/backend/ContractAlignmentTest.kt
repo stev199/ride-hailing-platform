@@ -356,3 +356,29 @@ class ContractAlignmentTest {
         assertEquals(2147483647, paramMax, "offset query param must cap at Int32 (server toIntOrNull)")
     }
 }
+
+    @Test
+    fun `verification submit request mirrors the server field validation - P6-1`() {
+        assertEquals(64, int("VerificationSubmitRequest", "licenseNumber", "maxLength"))
+        assertEquals(32, int("VerificationSubmitRequest", "vehiclePlate", "maxLength"))
+        @Suppress("UNCHECKED_CAST")
+        val docs = prop("VerificationSubmitRequest", "declaredDocs")
+        assertEquals(1, docs["minItems"])
+        assertEquals(16, docs["maxItems"])
+        @Suppress("UNCHECKED_CAST")
+        val item = docs["items"] as? Map<String, Any> ?: fail("declaredDocs.items missing")
+        assertEquals(64, item["maxLength"])
+    }
+
+    @Test
+    fun `verification reject reason mirrors the server 1..512 bound - P6-1`() {
+        assertEquals(1, int("VerificationRejectRequest", "reason", "minLength"))
+        assertEquals(512, int("VerificationRejectRequest", "reason", "maxLength"))
+    }
+
+    @Test
+    fun `verification queue limit mirrors the server 1..200 clamp - P6-1`() {
+        assertEquals(200, getQueryParam("/v1/admin/verification", "limit")["maximum"])
+        assertEquals(50, getQueryParam("/v1/admin/verification", "limit")["default"])
+        assertEquals(200, int("AdminVerificationList", "limit", "maximum"))
+    }

@@ -875,6 +875,173 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
+  /v1/verification:
+    post:
+      operationId: submitVerification
+      description: >-
+        Submit a driver verification request (P6-1 verification center). Any authenticated
+        user may call; the server answers 403 role_not_driver for non-DRIVER roles. One
+        PENDING-or-APPROVED submission per driver (409 already_submitted); resubmission is
+        allowed after a REJECT (the re-review loop). V1 stores the DECLARED document names
+        only - document images and their encrypted storage are the S-03 slice and are not
+        pretended here.
+      summary: Submit driver verification
+      tags: [verification]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerificationSubmitRequest"
+      responses:
+        "201":
+          description: Submission created (PENDING)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationSubmission"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+  /v1/verification/me:
+    get:
+      operationId: myVerification
+      description: The caller's latest verification submission (any role); 404 when the account never submitted.
+      summary: Own latest verification submission
+      tags: [verification]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Latest submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationSubmission"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/admin/verification:
+    get:
+      operationId: adminListVerification
+      description: >-
+        The verification queue, newest first (VERIFICATION_READ). Optional status filter
+        (PENDING/APPROVED/REJECTED); offset pagination (limit 1..200, default 50).
+      summary: Verification queue (admin)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 2147483647, default: 0 }
+      responses:
+        "200":
+          description: Submissions (newest first)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminVerificationList"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /v1/admin/verification/{id}:
+    get:
+      operationId: adminGetVerification
+      description: One verification submission in full (VERIFICATION_READ). 404 for unknown ids.
+      summary: Verification submission detail (admin)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationSubmission"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+  /v1/admin/verification/{id}/approve:
+    post:
+      operationId: adminApproveVerification
+      description: >-
+        Approve a PENDING submission (VERIFICATION_WRITE). Only PENDING transitions (409
+        not_pending otherwise; APPROVED is terminal - revocation is an admin ban). The
+        review lands in the hash-chained audit store with a PII-minimal payload.
+      summary: Approve a verification submission (admin)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: The approved submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationSubmission"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/admin/verification/{id}/reject:
+    post:
+      operationId: adminRejectVerification
+      description: >-
+        Reject a PENDING submission with a reviewer reason, 1..512 chars (VERIFICATION_WRITE;
+        the driver sees the reason verbatim on GET /v1/verification/me). 409 not_pending
+        otherwise; the reason is required (400 invalid_reason).
+      summary: Reject a verification submission with a reason (admin)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerificationRejectRequest"
+      responses:
+        "200":
+          description: The rejected submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerificationSubmission"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
 components:
   securitySchemes:
     bearerAuth:
@@ -926,6 +1093,48 @@ components:
         timeline:
           type: array
           items: { $ref: "#/components/schemas/AdminTimelineEvent" }
+    VerificationSubmitRequest:
+      type: object
+      required: [licenseNumber, vehiclePlate, declaredDocs]
+      properties:
+        licenseNumber: { type: string, minLength: 1, maxLength: 64 }
+        vehiclePlate: { type: string, minLength: 1, maxLength: 32 }
+        declaredDocs:
+          type: array
+          minItems: 1
+          maxItems: 16
+          items: { type: string, minLength: 1, maxLength: 64 }
+          description: Document NAMES in the declared set (images/encrypted storage = S-03, not in v1)
+    VerificationRejectRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, minLength: 1, maxLength: 512 }
+    VerificationSubmission:
+      type: object
+      required: [id, userId, licenseNumber, vehiclePlate, declaredDocs, status, submittedAtEpochSec]
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: string, format: uuid }
+        licenseNumber: { type: string, description: Admin/owner-visible declared license number (images never stored in v1) }
+        vehiclePlate: { type: string }
+        declaredDocs:
+          type: array
+          items: { type: string }
+        status: { type: string, enum: [PENDING, APPROVED, REJECTED] }
+        submittedAtEpochSec: { type: integer, format: int64 }
+        reviewedAtEpochSec: { type: [integer, 'null'], format: int64 }
+        reviewerId: { type: [string, 'null'], format: uuid }
+        rejectReason: { type: [string, 'null'], maxLength: 512 }
+    AdminVerificationList:
+      type: object
+      required: [submissions, limit, offset]
+      properties:
+        submissions:
+          type: array
+          items: { $ref: "#/components/schemas/VerificationSubmission" }
+        limit: { type: integer, minimum: 1, maximum: 200 }
+        offset: { type: integer, minimum: 0 }
     DriverDutyRequest:
       type: object
       required: [online, lat, lon]

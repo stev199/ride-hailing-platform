@@ -32,6 +32,7 @@ import com.ridehailing.backend.rides.InMemoryRideStore
 import com.ridehailing.backend.rides.rideRoutes
 import com.ridehailing.backend.rides.driverRoutes
 import com.ridehailing.backend.rides.adminTripRoutes
+import com.ridehailing.backend.verification.verificationRoutes
 import com.ridehailing.backend.rbac.AdminService
 import com.ridehailing.backend.rbac.adminRoutes
 import com.ridehailing.backend.testprofile.testRoutes
@@ -149,6 +150,8 @@ class AuthGraph(
     val eventChain: EventChain = EventChain(),
     // P4-2: rides + ledger (in-memory default, PG in defaultGraph - CI double-verifies).
     val rideStore: com.ridehailing.backend.rides.RideStore = com.ridehailing.backend.rides.InMemoryRideStore(),
+    val verificationStore: com.ridehailing.backend.verification.VerificationStore =
+        com.ridehailing.backend.verification.InMemoryVerificationStore(),
     val ledger: com.ridehailing.backend.ledger.LedgerStore = com.ridehailing.backend.ledger.InMemoryLedgerStore(),
 ) {
     private val recorder = AuthService.EventChainRecorder { type, payload -> eventChain.append(type, payload) }
@@ -191,6 +194,10 @@ class AuthGraph(
         bundle = config.quoteSigningBundle,
         ledger = ledger,
         osrm = osrm,
+        eventRecorder = { type, payload -> eventChain.append(type, payload) },
+    )
+    val verification = com.ridehailing.backend.verification.VerificationService(
+        store = verificationStore,
         eventRecorder = { type, payload -> eventChain.append(type, payload) },
     )
 
@@ -259,6 +266,7 @@ fun defaultGraph(): AuthGraph {
         eventChain = events,
         ledger = com.ridehailing.backend.db.PgLedgerStore(connect),
         rideStore = com.ridehailing.backend.db.PgRideStore(connect),
+        verificationStore = com.ridehailing.backend.db.PgVerificationStore(connect),
     )
 }
 
@@ -330,6 +338,7 @@ fun Application.module(
         rideRoutes(auth.service, auth.rideService, auth.config.publicKeyHex())
         driverRoutes(auth.service, auth.rideService)
         adminTripRoutes(auth.service, auth.rideStore, auth.eventChain)
+        verificationRoutes(auth.service, auth.verification)
         if (testProfile) testRoutes(eventChain, configBundle, auth.devInbox)
         // Catch-all (registered LAST - earlier routes win at equal resolution quality):
         // Ktor answers 404 for a KNOWN path hit with an undeclared method, but the

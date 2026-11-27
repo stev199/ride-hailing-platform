@@ -36,7 +36,7 @@ class MigrationTest {
         DriverManager.getConnection(url, user, password).use { conn ->
             val expected = listOf(
                 "app_user", "device", "event_log", "config_version", "wallet", "ledger_entry", "ledger_transaction",
-                "rides", "ride_stops",
+                "rides", "ride_stops", "verification_submission",
             )
             for (table in expected) {
                 conn.createStatement().use { st ->

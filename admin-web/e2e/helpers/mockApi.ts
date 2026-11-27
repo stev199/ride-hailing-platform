@@ -194,6 +194,89 @@ export async function mockApi(page: Page, role: string): Promise<void> {
     Object.assign(u, updated);
     return json(route, 200, updated);
   });
+
+  // P6-1 verification center: queue + review transitions (mirror the backend contract).
+  await page.route('**/v1/admin/verification?*', (route) => {
+    const url = new URL(route.request().url());
+    const statusFilter = url.searchParams.get('status');
+    const rows = VERIFICATION_SUBMISSIONS.filter((s) => !statusFilter || s.status === statusFilter);
+    return json(route, 200, { submissions: rows, limit: 25, offset: 0 });
+  });
+  await page.route(/v1\/admin\/verification\/([0-9a-f-]+)\/(approve|reject)$/, (route) => {
+    const url = route.request().url();
+    const id = url.match(/([0-9a-f-]{36})/)![1];
+    const kind = url.endsWith('/approve') ? 'approve' : 'reject';
+    const s = VERIFICATION_SUBMISSIONS.find((x) => x.id === id);
+    if (!s) return json(route, 404, { code: 'submission_not_found', message: 'No such verification submission', traceId: null });
+    if (s.status !== 'PENDING') return json(route, 409, { code: 'not_pending', message: 'Only PENDING submissions can be reviewed', traceId: null });
+    const body = (route.request().postDataJSON() ?? {}) as { reason?: string };
+    if (kind === 'reject' && !(body.reason ?? '').trim()) {
+      return json(route, 400, { code: 'invalid_reason', message: 'A reject reason (1..512 chars) is required', traceId: null });
+    }
+    s.status = kind === 'approve' ? 'APPROVED' : 'REJECTED';
+    s.reviewedAtEpochSec = 1764200900;
+    s.reviewerId = 'u1';
+    s.rejectReason = kind === 'reject' ? (body.reason ?? '').trim() : null;
+    return json(route, 200, s);
+  });
+}
+
+// ---- P6-1 verification center fixtures (mutable like USERS) ----
+const VERIFICATION_SUBMISSIONS = [
+  {
+    id: '11111111-1111-1111-1111-111111111111',
+    userId: 'driver-1',
+    licenseNumber: 'FR-12345678',
+    vehiclePlate: 'AA-123-BB',
+    declaredDocs: ['license_front', 'insurance'],
+    status: 'PENDING',
+    submittedAtEpochSec: 1764200000,
+    reviewedAtEpochSec: null,
+    reviewerId: null,
+    rejectReason: null,
+  },
+  {
+    id: '22222222-2222-2222-2222-222222222222',
+    userId: 'driver-2',
+    licenseNumber: 'FR-87654321',
+    vehiclePlate: 'BB-456-CC',
+    declaredDocs: ['license_front'],
+    status: 'REJECTED',
+    submittedAtEpochSec: 1764100000,
+    reviewedAtEpochSec: 1764100500,
+    reviewerId: 'u1',
+    rejectReason: 'license unreadable',
+  },
+];
+
+export function resetVerification(): void {
+  VERIFICATION_SUBMISSIONS.length = 0;
+  VERIFICATION_SUBMISSIONS.push(
+    {
+      id: '11111111-1111-1111-1111-111111111111',
+      userId: 'driver-1',
+      licenseNumber: 'FR-12345678',
+      vehiclePlate: 'AA-123-BB',
+      declaredDocs: ['license_front', 'insurance'],
+      status: 'PENDING',
+      submittedAtEpochSec: 1764200000,
+      reviewedAtEpochSec: null,
+      reviewerId: null,
+      rejectReason: null,
+    },
+    {
+      id: '22222222-2222-2222-2222-222222222222',
+      userId: 'driver-2',
+      licenseNumber: 'FR-87654321',
+      vehiclePlate: 'BB-456-CC',
+      declaredDocs: ['license_front'],
+      status: 'REJECTED',
+      submittedAtEpochSec: 1764100000,
+      reviewedAtEpochSec: 1764100500,
+      reviewerId: 'u1',
+      rejectReason: 'license unreadable',
+    },
+  );
 }
 
 /** Seeds a session so the shell boots straight into the authenticated area. */
