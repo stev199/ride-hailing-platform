@@ -371,3 +371,21 @@ pool recovers; its viewer/tunnel/auth code paths are now proven on-runner.
   +16 min) -> cancelled. Heavy live-view job remains a manual dispatch for a
   healthy pool window; live-view-smoke.yml (GREEN) covers the on-runner proof
   of viewer+URL+auth+frames-transport.
+
+
+## Round-21f (2026-11-27, closing): CI FULL GREEN on exact HEAD
+
+- CI run 46010173279 @ 156b77d: ALL 14 cells GREEN (security, changes,
+  backend-test, admin-web-test, mesh-core-sim, lint-and-static, api-contract,
+  android-build, android-ui-rider, android-ui-driver, e2e-booking,
+  e2e-driver-flow, e2e-offline-maps, e2e-cross-actor).
+- Notable: e2e-driver-flow green (the artifact-resolution flake cleared),
+  mesh-core-sim green again (Gate3 tally today: green-green-red-green =>
+  intermittent gate, follow-up item, not a regression).
+- Root-caused the earlier rerun cancellations: ci.yml uses concurrency
+  cancel-in-progress on the branch group - pushing docs mid-run kills
+  in-flight reruns. Rule: no pushes while a verdict run is in flight.
+- live-view.yml: 8th dead-runner hang -> cancelled. Manual dispatch when the
+  GitHub pool recovers; live-view-smoke.yml (GREEN) already proves viewer +
+  URL + auth + frame transport on a runner, and the sandbox tunnel test
+  proved real PNG frames cross the tunnel end-to-end.
