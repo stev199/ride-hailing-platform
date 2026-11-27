@@ -1,6 +1,6 @@
 # STATE - ride-hailing-platform
 
-Last updated: 2026-11-27 (round 22/23, session recycle #7: full toolchain wipe incl. /tmp; gh+JDK17+gradle recovered; P6-1 CI reds fixed - reviewer FK seed + round-23 ST205/ST204/ST201 contract holes; P6-4 admin live map IMPLEMENTED backend+admin-web, verification in flight on 75ba965)
+Last updated: 2026-11-28 (round 23 GATE: PHASE 6 COMPLETE - CI-VERIFIED forced full run 46080886324 @ 06c9053, ALL 16 JOBS GREEN incl. api-contract on the AdminLive snapshot + round-23 ST205/ST204/ST201 fixes; phase-6-gate TAGGED; next: Phase 7 money/ledger scoping per Part B plan)
 
 Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
 Current phase: 4 (rider booking happy path) - P4-1 fare engine + P4-2 rides API committed (178e400, b3fcabc); round-11 contract run caught 3 violations (offset=null accepted, GET estimate 404-not-405 via {id} shadowing, partial fare PATCH silently default-resetting straightLine/quote) - ALL FIXED this batch, CI verification in flight. Phase 3 code complete; P3-2 offline-map e2e verification re-dispatched (previous run 45593853432 CANCELLED by concurrency before any job ran).
@@ -21,6 +21,7 @@ Verification: this push's CI (api-contract + e2e-cross-actor + e2e-offline-maps)
 
 ## Gate status table
 
+| Phase 6 (admin center) | GATE CLOSED 2026-11-28, tag phase-6-gate @ 06c9053. Scope: P6-1 trips admin (9c9b438), P6-2 fares editor, P6-3 verification center v1 (d8e1799 store ordering + e99bfad reviewer FK seed), P6-4 admin live map (5dc670a+f78b5f0). Gate evidence: forced full run 46080886324 all 16 jobs green incl. api-contract (round-23: single-source Allow header, verification paths in ROUTE_METHODS/allowFor, code-point password policy, AdminLiveTrip +/-180 booking-contract alignment); admin-web vitest 45 + playwright 2; backend suite 182 green local |
 | Gate | Status |
 |---|---|
 | Phase 0 (Part B delivery plan) | CLOSED 2026-11-24: D11.9 first-green pipeline + report gallery with storyboard screenshots and video, formally CI-verified (run 45507128835, all jobs green, media served from Pages: 6 filmstrip PNGs + 2 mp4 recordings, real UI pixels) |
