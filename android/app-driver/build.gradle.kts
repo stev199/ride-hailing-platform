@@ -18,8 +18,10 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // run-ui-tests.sh passes -Pandroid.testInstrumentationRunnerArguments.<k>=<v>
-        // (P2-3: real numShards/shardIndex sharding + runId for the storyboard layout).
-        listOf("numShards", "shardIndex", "runId", "viewerUrl").forEach { key ->
+        // (P2-3: real numShards/shardIndex sharding + runId for the storyboard layout;
+        // round-18: "class" so the UI smoke cell can pin the launch suite while the
+        // driver flow e2e owns its dedicated cell).
+        listOf("numShards", "shardIndex", "runId", "viewerUrl", "class").forEach { key ->
             (project.findProperty("android.testInstrumentationRunnerArguments.$key") as? String)
                 ?.let { testInstrumentationRunnerArguments[key] = it }
         }

@@ -47,22 +47,43 @@ class DriverLaunchInstrumentedTest {
         val activity = composeRule.activity
 
         storyboard.step("Switch to the Settings tab - session screen (P2-4)") {
-            composeRule.onNodeWithText(activity.getString(R.string.core_nav_settings))
-                .performClick()
-            composeRule.waitForIdle()
-            // P2-4: the Settings tab is the SessionScreen now; signed-out it shows the
-            // login card. Emulator runs carry no session -> the login SUBTITLE shows
-            // (unique node: auth_title "Sign in" also matches the submit button).
-            composeRule.onNodeWithText(activity.getString(ScreensR.string.auth_subtitle))
-                .assertIsDisplayed()
+            // Round-18: 15m pattern - injected tab taps can be silently eaten on the
+            // emulator (the rider launch test burned a run on exactly this); retry the
+            // tap until the target screen reacts (bounded).
+            val expectedSettings = activity.getString(ScreensR.string.auth_subtitle)
+            var onSettings = false
+            for (attempt in 1..3) {
+                composeRule.onNodeWithText(activity.getString(R.string.core_nav_settings))
+                    .performClick()
+                composeRule.waitForIdle()
+                try {
+                    composeRule.onNodeWithText(expectedSettings).assertIsDisplayed()
+                    onSettings = true
+                    break
+                } catch (_: AssertionError) {
+                    // tap eaten - retry
+                }
+            }
+            assert(onSettings) { "Settings tab never showed the login card after 3 taps" }
         }
 
         storyboard.step("Return to the Home tab - driver map screen") {
-            composeRule.onNodeWithText(activity.getString(R.string.core_nav_home))
-                .performClick()
             composeRule.waitForIdle()
-            composeRule.onNodeWithText(activity.getString(MapR.string.map_duty_offline))
-                .assertIsDisplayed()
+            val expectedDuty = activity.getString(MapR.string.map_duty_offline)
+            var onHome = false
+            for (attempt in 1..3) {
+                composeRule.onNodeWithText(activity.getString(R.string.core_nav_home))
+                    .performClick()
+                composeRule.waitForIdle()
+                try {
+                    composeRule.onNodeWithText(expectedDuty).assertIsDisplayed()
+                    onHome = true
+                    break
+                } catch (_: AssertionError) {
+                    // tap eaten - retry
+                }
+            }
+            assert(onHome) { "Home tab never showed the offline duty card after 3 taps" }
         }
     }
 }

@@ -175,11 +175,17 @@ run_shard() {
   start_collector
   start_recorder "$module"
   local gradle_rc=0
+  # Optional suite pin (round-18): the UI smoke cells pass CLASS_FILTER to keep the
+  # flow e2es (Booking/DriverBoard) out of the gradle-run shard - each flow e2e owns
+  # a dedicated cell with the fail-closed OK + png gates.
+  local class_args=()
+  [ -n "${CLASS_FILTER:-}" ] && class_args=(-Pandroid.testInstrumentationRunnerArguments.class="$CLASS_FILTER")
   ( cd android && ./gradlew ":${module}:connectedDebugAndroidTest" \
     -Pandroid.testInstrumentationRunnerArguments.numShards="$n" \
     -Pandroid.testInstrumentationRunnerArguments.shardIndex="$s" \
     -Pandroid.testInstrumentationRunnerArguments.runId="$RUN_ID" \
-    -Pandroid.testInstrumentationRunnerArguments.viewerUrl="http://127.0.0.1:7070" ) &
+    -Pandroid.testInstrumentationRunnerArguments.viewerUrl="http://127.0.0.1:7070" \
+    "${class_args[@]}" ) &
   local gradle_pid=$!
   while kill -0 "$gradle_pid" 2>/dev/null; do
     pull_storyboards com.ridehailing.rider rider
