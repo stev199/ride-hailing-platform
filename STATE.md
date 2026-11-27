@@ -344,7 +344,9 @@ pool recovers; its viewer/tunnel/auth code paths are now proven on-runner.
   impossible in the sandbox (JDK17 toolchain OK via portable JDK, but the Kotlin
   compiler artifact kotlin-scripting-compiler-embeddable:1.9.24 is not resolvable
   from this network - CI-only dependency).
-- Action: rerun-failed-jobs on 46002755548 for mesh-core-sim. If green => HEAD is
+- Action: rerun-failed-jobs on 46002755548 was launched but returned "cancelled"
+  (superseded by the concurrent docs push 68e1240). Follow-up: rerun-failed-jobs
+  again or dispatch ci.yml. If green => HEAD is
   fully CI-verified and the flake is recorded; if red again => BLOCKERS item with
   the failing assertions for a threshold-margin investigation (do NOT silently
   relax the gate).
