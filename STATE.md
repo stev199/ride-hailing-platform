@@ -350,3 +350,24 @@ pool recovers; its viewer/tunnel/auth code paths are now proven on-runner.
   fully CI-verified and the flake is recorded; if red again => BLOCKERS item with
   the failing assertions for a threshold-margin investigation (do NOT silently
   relax the gate).
+
+
+## Round-21e (2026-11-27): CI verdicts on final HEAD + flake taxonomy
+
+- CI attempt 3 (46002755548) on 86f36e6: 13/14 GREEN; only mesh-core-sim red
+  (Gate3 scenario 18 + baseline gate). Attempt 4 (46006316947) on b77e6db:
+  13/14 GREEN; only e2e-driver-flow red. MESH-CORE-SIM GREEN in attempt 4 =>
+  the Gate3 gate is CONFIRMED INTERMITTENT (same code: green, green, red,
+  green) - a threshold-margin/entropy investigation item, NOT a regression.
+- e2e-driver-flow failure root cause (log-verified): docker build step
+  `gradle installDist` could not resolve org.jetbrains.kotlin:kotlin-gradle-
+  plugin-api:1.9.24 from plugins.gradle.org AND repo.maven.apache.org - an
+  artifact that exists; same failure family as the sandbox local repro earlier
+  (kotlin-scripting-compiler-embeddable:1.9.24). Dependency-resolution infra
+  flake, NOT code. Makefile already retries once (sleep 30).
+- rerun-failed-jobs launched for e2e-driver-flow on 46006316947 (a green rerun
+  = FULL GREEN on exact HEAD b77e6db).
+- live-view.yml: 8th dead-runner hang (runner 1000002494, BlobNotFound at
+  +16 min) -> cancelled. Heavy live-view job remains a manual dispatch for a
+  healthy pool window; live-view-smoke.yml (GREEN) covers the on-runner proof
+  of viewer+URL+auth+frames-transport.
