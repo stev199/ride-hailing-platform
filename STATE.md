@@ -308,3 +308,22 @@ the same pinned cloudflared 2026.11.2 + the viewer):
   (onerror guard). /stream stays for direct/localhost use. smoke.js: 8 checks
   (added /frame 404-no-device). Local smoke PASS; tunnel test: 3/3 PNG frames +
   serials + 401-no-token through the live URL.
+
+
+## Round-21c (2026-11-27): ON-RUNNER proof landed - Live View Smoke workflow GREEN
+
+The 55-min live-view.yml kept hitting dead runners (5x: runner assigned, zero
+log bytes). Added .github/workflows/live-view-smoke.yml (e6dcb15 + verify-fix
+82934db): ~3 min, no KVM/emulators - boots the viewer, runs smoke.js (8/8 PASS
+on the runner), generates a quick-tunnel URL, and verifies THE GENERATED URL
+through the Cloudflare edge from the same runner. Run 45990409938 @ 82934db:
+- URL under test: https://catch-hometown-lobby-mines.trycloudflare.com
+- page attempt 1 -> 000000 (edge propagation - proves the fresh-route 530/1033
+  window is real) -> page: 200 on attempt 2 (~3.4s)
+- cookie /api/state: 200  <- the exact round-21 stuck-at-loading path, on-runner
+- cookie /api/serials: 200; /frame no-device -> clean 404; no-token -> 401
+- job completed SUCCESS.
+Also confirmed live: a fresh tunnel URL is NOT routable for a few seconds at
+the edge - the smoke now polls through that window. The full live-view.yml
+(emulators + real device panels) remains a manual dispatch for when the runner
+pool recovers; its viewer/tunnel/auth code paths are now proven on-runner.
