@@ -369,13 +369,13 @@ class ContractAlignmentTest {
     }
 
     @Test
-    fun `verification reject reason mirrors the server 1..512 bound - P6-1`() {
+    fun `verification reject reason mirrors the server 1 to 512 bound - P6-1`() {
         assertEquals(1, int("VerificationRejectRequest", "reason", "minLength"))
         assertEquals(512, int("VerificationRejectRequest", "reason", "maxLength"))
     }
 
     @Test
-    fun `verification queue limit mirrors the server 1..200 clamp - P6-1`() {
+    fun `verification queue limit mirrors the server 1 to 200 clamp - P6-1`() {
         assertEquals(200, getQueryParam("/v1/admin/verification", "limit")["maximum"])
         assertEquals(50, getQueryParam("/v1/admin/verification", "limit")["default"])
         assertEquals(200, int("AdminVerificationList", "limit", "maximum"))
