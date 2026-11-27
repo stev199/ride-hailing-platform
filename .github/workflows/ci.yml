@@ -180,7 +180,7 @@ jobs:
           npx playwright test           # chromium+firefox, route-mocked API (P1-4), axe checks
           # summary.json feeds the report gallery shard cards (tools/report/generate.js)
           node -e "const r=require('./artifacts/admin-playwright.json');const s=r.stats??{};require('fs').writeFileSync('artifacts/summary.json',JSON.stringify({tests:(s.expected??0)+(s.unexpected??0)+(s.skipped??0)+(s.flaky??0),passed:s.expected??0,failed:s.unexpected??0,skipped:s.skipped??0,flaky:[]}))"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ always() && hashFiles('admin-web/package.json') != '' }}
         with:
           name: admin-web-evidence
@@ -212,12 +212,12 @@ jobs:
           # GATE 3 (P1B-4): full suite (Stage 1/2/3) + simReport (evidence + baseline
           # regression gate; build fails if any mesh metric regresses >10%)
           ./gradlew --no-daemon test simReport
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ hashFiles('mesh-core/**/*.kt') != '' }}
         with:
           name: mesh-sim-evidence
           path: docs/evidence/mesh-sim/
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ always() && hashFiles('mesh-core/**/*.kt') != '' }}
         with:
           name: mesh-test-results
@@ -247,7 +247,7 @@ jobs:
             :app-rider:testDebugUnitTest :app-driver:testDebugUnitTest \
             :core-data:testDebugUnitTest :core-map:testDebugUnitTest \
             :storyboard:testDebugUnitTest
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: ${{ always() && hashFiles('android/**/build.gradle.kts') != '' }}
         with:
           name: android-apks
@@ -294,7 +294,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: ./scripts/run-ui-tests.sh rider ${{ matrix.shard }} 1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ui-rider-${{ matrix.shard }}
@@ -337,7 +337,7 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: CLASS_FILTER=com.ridehailing.driver.DriverLaunchInstrumentedTest ./scripts/run-ui-tests.sh driver ${{ matrix.shard }} 1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ui-driver-${{ matrix.shard }}
@@ -383,7 +383,7 @@ jobs:
       - name: Orchestrate two emulators + admin (tri-view recording)
         run: |
           cd e2e && npm ci && RECORD_ALL=1 node orchestrator.js --scenario all
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: e2e-cross-actor
@@ -523,7 +523,7 @@ jobs:
           adb shell svc data enable || true
           kill "$(cat /tmp/collector.pid 2>/dev/null)" 2>/dev/null || true
           echo "collector captured: $(find offline-art -name '*.png' 2>/dev/null | wc -l) storyboard pngs"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: e2e-offline-maps
@@ -608,7 +608,7 @@ jobs:
         run: |
           kill "$(cat /tmp/collector.pid 2>/dev/null)" 2>/dev/null || true
           echo "collector captured: $(find booking-art -name '*.png' 2>/dev/null | wc -l) storyboard pngs"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: e2e-booking
@@ -693,7 +693,7 @@ jobs:
         run: |
           kill "$(cat /tmp/collector.pid 2>/dev/null)" 2>/dev/null || true
           echo "collector captured: $(find driver-art -name '*.png' 2>/dev/null | wc -l) storyboard pngs"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: e2e-driver-flow
@@ -820,7 +820,7 @@ jobs:
         with:
           path: _site
       - name: Upload fallback artifact (E6.2)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-report-${{ github.run_id }}
           path: _site
