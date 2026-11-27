@@ -36,6 +36,7 @@ import com.ridehailing.backend.rides.adminTripRoutes
 import com.ridehailing.backend.verification.verificationRoutes
 import com.ridehailing.backend.wallet.WalletService
 import com.ridehailing.backend.wallet.walletRoutes
+import com.ridehailing.backend.wallet.walletConfigRoutes
 import com.ridehailing.backend.rbac.AdminService
 import com.ridehailing.backend.rbac.adminRoutes
 import com.ridehailing.backend.testprofile.testRoutes
@@ -75,6 +76,7 @@ private val ROUTE_METHODS: Map<String, String> = mapOf(
     "/v1/config" to "GET",
     "/v1/admin/config/login-methods" to "GET, PATCH",
     "/v1/admin/config/fares" to "GET, PATCH",
+    "/v1/admin/config/wallet" to "GET, PATCH",
     "/v1/admin/rides" to "GET",
     "/v1/admin/rides/{id}" to "GET",
     "/v1/admin/live" to "GET",
@@ -125,6 +127,7 @@ private fun allowFor(path: String): String = when {
     path == "/v1/wallet" -> "GET"
     path == "/v1/wallet/transfer" -> "POST"
     path.startsWith("/v1/admin/config/fares") -> "GET, PATCH"
+    path.startsWith("/v1/admin/config/wallet") -> "GET, PATCH"
     path.startsWith("/v1/admin/rides") -> "GET"
     path.startsWith("/v1/rides/") && path.endsWith("/cancel") -> "POST"
     // P5 driver action paths (must precede the generic /v1/rides/ rule).
@@ -382,6 +385,7 @@ fun Application.module(
         adminLiveRoutes(auth.service, auth.rideService, auth.rideStore)
         verificationRoutes(auth.service, auth.verification)
         walletRoutes(auth.service, auth.walletService)
+        walletConfigRoutes(auth.service, auth.config)
         if (testProfile) testRoutes(eventChain, configBundle, auth.devInbox)
         // Catch-all (registered LAST - earlier routes win at equal resolution quality):
         // Ktor answers 404 for a KNOWN path hit with an undeclared method, but the

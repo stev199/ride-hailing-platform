@@ -590,6 +590,161 @@ paths:
                 $ref: "#/components/schemas/AdminLive"
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+  /v1/wallet:
+    get:
+      operationId: getWalletBalances
+      description: >-
+        The caller's wallet balances (P7-1, spec "Wallet: balance... history"). v1
+        surfaces POINTS (and CASH once ride money lands); heldMinor is the amount
+        moved into the hold wallet by booking holds.
+      summary: Wallet balances (owner)
+      tags: [wallet]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Balances + held amount
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletBalances"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/wallet/transactions:
+    get:
+      operationId: getWalletHistory
+      description: >-
+        Newest-first transaction history for the caller's POINTS wallet, offset
+        paginated (limit 1..200, default 50).
+      summary: Wallet history (owner)
+      tags: [wallet]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 200, default: 50 }
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, maximum: 2147483647, default: 0 }
+      responses:
+        "200":
+          description: History page
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletHistory"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/wallet/transfer:
+    post:
+      operationId: transferPoints
+      description: >-
+        Points transfer by phone (P7-1, spec "send points/money by phone" - points
+        are first-class). The fee (bps from the signed wallet config) is taken from
+        the RECEIVED amount and posted to the platform fee wallet in the SAME
+        double-entry transaction, so money always conserves. Errors: 400
+        invalid_amount/below_minimum/self_transfer, 404 (uniform not_found body -
+        existence-leak prevention; the phone does not resolve), 409
+        insufficient_balance/daily_limit_exceeded.
+      summary: Transfer points by phone
+      tags: [wallet]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletTransferRequest"
+      responses:
+        "200":
+          description: Transfer posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletTransferResult"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { $ref: "#/components/responses/Conflict" }
+  /v1/admin/config/wallet:
+    get:
+      operationId: adminGetWalletConfig
+      description: The current wallet section (CONFIG_READ) - limits/fees the device caches from GET /v1/config.
+      summary: Read wallet config
+      tags: [config]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current wallet section
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletConfigSection"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    patch:
+      operationId: adminPatchWalletConfig
+      description: >-
+        Replace the wallet section (CONFIG_WRITE, D75 full-replace; invalid configs
+        never touch live state and never burn a version). Bumps the signed bundle
+        version and appends a config.wallet.updated audit event.
+      summary: Replace wallet config
+      tags: [config]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WalletConfigSection"
+      responses:
+        "200":
+          description: New version + applied config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletConfigUpdated"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /v1/admin/users/{id}/wallet-credit:
+    post:
+      operationId: adminWalletCredit
+      description: >-
+        Admin credit into a user's POINTS wallet (MONEY_WRITE; platform-funded =
+        the v1 top-up path, vouchers/cash agents land with the provider work).
+        Audited via the admin actions trail like every admin mutation.
+      summary: Admin wallet credit
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminWalletCreditRequest"
+      responses:
+        "200":
+          description: Credit posted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminWalletCreditResult"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /v1/admin/config/fares:
     get:
       operationId: adminGetFares
@@ -1115,6 +1270,79 @@ components:
         timeline:
           type: array
           items: { $ref: "#/components/schemas/AdminTimelineEvent" }
+    WalletBalances:
+      type: object
+      required: [balances, heldMinor]
+      properties:
+        balances:
+          type: object
+          additionalProperties: { type: integer, format: int64 }
+          description: "currency name -> minor units (v1: POINTS; CASH with ride money)"
+        heldMinor: { type: integer, format: int64, minimum: 0 }
+    WalletHistoryItem:
+      type: object
+      required: [entryId, transactionId, amountMinor, direction, reason, createdAtEpochSec]
+      properties:
+        entryId: { type: string }
+        transactionId: { type: string }
+        amountMinor: { type: integer, format: int64, minimum: 1 }
+        direction: { type: string, enum: [DEBIT, CREDIT] }
+        reason: { type: string }
+        refType: { type: [string, "null"] }
+        refId: { type: [string, "null"] }
+        createdAtEpochSec: { type: integer, format: int64 }
+    WalletHistory:
+      type: object
+      required: [items, limit, offset]
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/WalletHistoryItem" }
+        limit: { type: integer, minimum: 1, maximum: 200 }
+        offset: { type: integer, minimum: 0 }
+    WalletTransferRequest:
+      type: object
+      required: [toPhone, amountMinor]
+      properties:
+        toPhone:
+          type: string
+          pattern: '^(?:[^0-9]*[0-9]){8,15}[^0-9]*$'
+          description: 8-15 ASCII digits (same shape as the register phone).
+        amountMinor: { type: integer, format: int64, minimum: 1 }
+        note: { type: [string, "null"], maxLength: 120 }
+    WalletTransferResult:
+      type: object
+      required: [feeMinor, receiverGotMinor, balanceMinor]
+      properties:
+        feeMinor: { type: integer, format: int64, minimum: 0 }
+        receiverGotMinor: { type: integer, format: int64, minimum: 0 }
+        balanceMinor: { type: integer, format: int64, minimum: 0 }
+    AdminWalletCreditRequest:
+      type: object
+      required: [amountMinor, reason]
+      properties:
+        amountMinor: { type: integer, format: int64, minimum: 1 }
+        reason: { type: string, minLength: 1, maxLength: 120 }
+    AdminWalletCreditResult:
+      type: object
+      required: [balances]
+      properties:
+        balances:
+          type: object
+          additionalProperties: { type: integer, format: int64 }
+    WalletConfigSection:
+      type: object
+      required: [transferFeeBps, minTransferMinor, dailyTransferLimitMinor]
+      properties:
+        transferFeeBps: { type: integer, minimum: 0, maximum: 1000 }
+        minTransferMinor: { type: integer, format: int64, minimum: 1 }
+        dailyTransferLimitMinor: { type: integer, format: int64, minimum: 1 }
+    WalletConfigUpdated:
+      type: object
+      required: [version, config]
+      properties:
+        version: { type: integer, format: int64, minimum: 1 }
+        config: { $ref: "#/components/schemas/WalletConfigSection" }
     AdminLiveDriver:
       type: object
       required: [driverId, lat, lon, online, updatedAtEpochSec]

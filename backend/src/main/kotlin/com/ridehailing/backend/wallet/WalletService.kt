@@ -113,7 +113,7 @@ class WalletService(
         legs += LedgerLeg(to.id, receiverGot, Direction.CREDIT)
         if (feeMinor > 0) legs += LedgerLeg(feeWallet.id, feeMinor, Direction.CREDIT)
         return try {
-            ledger.postTransaction(legs, refType = "wallet_transfer", refId = note, reason = REASON_TRANSFER)
+            ledger.postTransaction(legs, refType = "wallet_transfer", refId = note?.take(120), reason = REASON_TRANSFER)
             TransferResult.Done(feeMinor, receiverGot)
         } catch (_: InsufficientBalanceException) {
             TransferResult.Invalid("amountMinor", "insufficient_balance")
