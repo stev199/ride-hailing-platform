@@ -167,3 +167,45 @@ Tag phase-5-gate on 28b653a cites both runs. BACKLOG P5-1/P5-2 CI-VERIFIED.
 Recorded open item (directive #5): driver-side duty->board->accept instrumented
 flow e2e appendix not yet built - P5-2 row notes the gap honestly; first item
 of the next work block before Phase 6 expansion.
+
+## Round-18/19 (2026-11-27): driver flow e2e appendix CLOSED + Phase 6 opened (fares editor)
+
+Round-18 (driver flow e2e, directive #5):
+- NEW DriverBoardInstrumentedTest (app-driver androidTest): seeds a REQUESTED ride
+  server-side (register rider+driver via API, bootstrap ADMIN_SUPER promotes the
+  driver via PATCH /v1/admin/users/{id}, rider books POST /v1/rides city=monaco),
+  then drives the DRIVER APP UI: login (15g/15i pattern), duty_toggle ON
+  (server-acked), the 5s board poll surfaces offer_<id>, tap = single-winner
+  accept, arrive->ARRIVED, start->IN_PROGRESS, complete. Completion asserted via
+  the driver_completed node (5s UI window before the poll nulls activeRide) AND
+  the rider-side GET /v1/rides/{id} reading COMPLETED (final truth).
+- Discovery that matters: the android-emulator-runner cells (android-ui-rider/
+  driver) CANNOT reach the host compose stack (10.0.2.2:8080) - Booking also only
+  ever really runs in e2e-booking (manual boot path). Evidence: rider suite
+  finished in 19s with zero network lines; driver shard identical. So the flow
+  e2es get DEDICATED cells on the proven booking-cell pattern.
+- NEW e2e-driver-flow CI cell: manual boot (driver_api34), direct am instrument
+  -e class with per-run unique phones + bootstrap-admin creds, fail-closed gates
+  (JUnit OK line AND >=3 storyboard pngs - a skip = 0 pngs = red cell).
+- android-ui-driver pinned to the launch suite via CLASS_FILTER (new optional
+  run-ui-tests.sh arg, wired in app-driver build.gradle.kts); DriverLaunch got
+  the 15m tab-tap retry (eaten-tap flake failed the shard once).
+- VERDICT: e2e-driver-flow GREEN first real run (job 14027067285, run 45927323917
+  @ dc2c4a5) alongside android-ui-driver, e2e-booking (5th consecutive),
+  e2e-cross-actor, e2e-offline-maps. Run-level status "cancelled" is a race
+  artifact: a dependabot branch push (upload-artifact v4->v7, 1325fef, NOT on
+  main) fired overlapping runs and cut the rider shard + summary after every
+  cell that matters had finished green (9 success / 0 failure at cutoff).
+
+Round-19 (Phase 6 starter - fares editor):
+- FaresPage.tsx: GET /v1/admin/config/fares (CONFIG_READ) renders the live
+  document as a per-city x per-ride-type grid; CONFIG_WRITE opens the editor.
+  The backend PATCH is D75 FULL-REPLACE (every schema key at every level or 400),
+  so Save sends the WHOLE validated document (the full-replace body test caught
+  a real bug: the state closure was sent instead of the validated doc).
+- Client-side validation: non-finite/negative inputs blocked before the wire
+  (UTC hour fields exempt); server errors surface verbatim.
+- Wired: /fares route + nav entry (CONFIG_READ gate), i18n en/fr/ar key sets
+  (parity pinned by the drift test), 4 RTL tests (grid render, read-only role,
+  full-replace body, 400 verbatim + negative block). Local: typecheck + lint +
+  32/32 vitest green. CI verdict: the push run's admin-web-test cell.
