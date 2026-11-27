@@ -82,6 +82,17 @@ Ordered granular tasks. Each is finishable and verifiable in one work session. D
 | P6-3 | Verification center v1: driver submits (license/plate + DECLARED doc names - images/encryption = S-03, honest scope note), one PENDING per driver, resubmit after reject; admin queue (VERIFICATION_READ) + approve/reject with required reason (VERIFICATION_WRITE, audited, PII-minimal payloads); V7 migration + InMemory/Pg stores + contract test; openapi 6 paths + ContractAlignment mirrors; schemathesis driver-session hooks with fresh-review priming; admin-web VerificationPage (verifier/ops write, support/finance/readonly read) + vitest 5 + playwright 4 + i18n en/fr/ar + RBAC mirror/fixture re-pin | P5-1 | done | backend VerificationServiceTest 7 + VerificationRoutesTest 4 + VerificationStoreContractTest (in-memory local, PG on CI) + MigrationTest V7; admin-web vitest 41/41 green local (incl. drift test re-pin 15 perms), tsc + eslint clean; CI = this push |
 | P6-4 | Admin live map: duty drivers + active trips on a MapLibre map in admin-web (positions v1 = duty registry map-center constants - real GPS lands with the location work); MESH_READ/TRIPS_READ gated | P5-1 | done | 5dc670a+f78b5f0: GET /v1/admin/live (TRIPS_READ, ROUTE_METHODS 405 entry, openapi AdminLive*) + dutySnapshot(); AdminLiveRoutesTest 2 (full suite green local); LiveMapPage MapLibre lazy-chunk 10s poll + nav/route gate + i18n en/fr/ar + vitest 45/45 + tsc/eslint + build + playwright 2/2 local; mesh-origin MESH_READ view honestly deferred to Phase 10; CI-VERIFIED forced full run 46080886324 @ 06c9053 ALL 16 JOBS GREEN (api-contract incl. AdminLiveTrip +/-180 alignment, round-23 ST205/ST204/ST201 fixes verified) |
 
+## Phase 7 (wallet/ledger services, points transfer, promos, payouts, fees) - per spec delivery plan 7
+
+| ID | Task | Depends | Status | Evidence |
+|---|---|---|---|---|
+| P7-1 | Wallet core: WalletService over the LedgerStore port (balance/history w/ offset pagination, points transfer by phone first-class, HOLD/CAPTURE/RELEASE via hold-shadow-wallet double-entry, limits+fees from a wallet config section in the signed bundle); routes GET /v1/wallet + GET /v1/wallet/transactions + POST /v1/wallet/transfer + admin credit (MONEY_WRITE); openapi + ContractAlignment + hooks; WalletServiceTest + WalletRoutesTest + ledger pagination contract tests | P1-5 | in progress | |
+| P7-2 | Ride money integration: booking confirm -> HOLD on upfront-locked wallet rides, capture at completion, release+cancel-fee on cancellation; CASH rides recorded; commission split (config rate) + driver earnings accrual on completion; event-chain money.* entries; tests incl. cancel-fee-vs-hold edges | P7-1, P4-2 | todo | |
+| P7-3 | Rider wallet UI (android): balance card, history list, points transfer by phone, top-up v1 = admin credit only (honest note: vouchers/cash agents land with the provider work), limits/fees surfaced; i18n en/fr/ar | P7-1 | todo | |
+| P7-4 | Driver earnings UI (android): daily/weekly summary, per-trip breakdown, commission, cash vs wallet; payout records v1 read-only | P7-2 | todo | |
+| P7-5 | Admin money UI: TripsPage admin cancel/refund (unblocks the read-only note), wallet admin credit page, payouts queue, MONEY_READ/WRITE RBAC wiring | P7-2 | todo | |
+| P7-6 | Promos: promo-code config section (percent/amount, validity window, per-user limit), booking apply + discount inside the quote math, admin editor | P7-2, P4-1 | todo | |
+
 ## Deferred / blocked
 
 | ID | Item | Reason | Revisit |
