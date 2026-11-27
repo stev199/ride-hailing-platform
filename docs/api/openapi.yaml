@@ -1133,9 +1133,12 @@ components:
         city: { type: string }
         riderId: { type: string }
         driverId: { type: string, nullable: true }
-        pickupLat: { type: number, format: double, minimum: -90, maximum: 90 }
+        # Trip lat bounds are +/-180 like the BOOKING input (round-23: the booking
+        # contract deliberately accepts +/-180 on both axes with the client pinning
+        # latitude - the response schema must echo exactly what the server stores).
+        pickupLat: { type: number, format: double, minimum: -180, maximum: 180 }
         pickupLon: { type: number, format: double, minimum: -180, maximum: 180 }
-        dropoffLat: { type: number, format: double, minimum: -90, maximum: 90 }
+        dropoffLat: { type: number, format: double, minimum: -180, maximum: 180 }
         dropoffLon: { type: number, format: double, minimum: -180, maximum: 180 }
         origin: { type: string, enum: [online, offline-mesh] }
     AdminLive:
