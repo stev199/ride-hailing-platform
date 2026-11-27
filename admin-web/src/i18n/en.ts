@@ -25,6 +25,7 @@ const en = {
     fares: 'Fares',
     trips: 'Trips',
     verification: 'Verification',
+    live: 'Live map',
   },
   auth: {
     subtitle: 'Sign in with your operator account (phone or email + password).',
@@ -207,6 +208,18 @@ const en = {
     timeline: 'Timeline (ride.* events, chain order)',
     noEvents: 'No ride events recorded for this ride yet.',
     close: 'Close',
+  },
+  live: {
+    title: 'Live map (duty drivers + active trips)',
+    refreshEvery: 'Auto-refreshes every 10 s',
+    counts: '{{drivers}} on duty, {{trips}} active trips',
+    empty: 'Nothing live right now.',
+    driversTitle: 'On-duty drivers',
+    noDrivers: 'No drivers on duty.',
+    driverAt: 'Driver at {{lat}}, {{lon}}',
+    tripsTitle: 'Active trips',
+    noTrips: 'No active trips.',
+    pickup: 'Pickup',
   },
 };
 

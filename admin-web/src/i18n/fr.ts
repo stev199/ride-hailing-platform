@@ -21,6 +21,7 @@ const fr = {
     fares: 'Tarifs',
     trips: 'Courses',
     verification: 'Vérifications',
+    live: 'Carte en direct',
   },
   auth: {
     subtitle: 'Connectez-vous avec votre compte opérateur (téléphone ou e-mail + mot de passe).',
@@ -204,6 +205,18 @@ const fr = {
     timeline: 'Chronologie (événements ride.*, ordre de la chaîne)',
     noEvents: 'Aucun événement enregistré pour cette course.',
     close: 'Fermer',
+  },
+  live: {
+    title: 'Carte en direct (chauffeurs en service + courses actives)',
+    refreshEvery: 'Actualisation automatique toutes les 10 s',
+    counts: '{{drivers}} en service, {{trips}} courses actives',
+    empty: 'Rien en direct pour le moment.',
+    driversTitle: 'Chauffeurs en service',
+    noDrivers: 'Aucun chauffeur en service.',
+    driverAt: 'Chauffeur à {{lat}}, {{lon}}',
+    tripsTitle: 'Courses actives',
+    noTrips: 'Aucune course active.',
+    pickup: 'Départ',
   },
 };
 
