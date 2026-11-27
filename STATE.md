@@ -146,3 +146,24 @@ summary prints the full Open: URL. VERIFIED LIVE by dispatching rider-booking
 (https://<random>.trycloudflare.com?token=<64hex>), TUNNEL_URL extracted by the
 grep, viewer token auth green inside the run, scenario executed. Tunnel is
 dead post-teardown by design.
+
+## PHASE 5 GATE PASSED (2026-11-26)
+
+Phase 5 code landed in round 14 (backend dispatch + driver app flow). Gate
+evidence completed round 17 as a union of two verified runs (no single run had
+every cell: the gate run path-skipped backend cells, the b3c2b3c run predates
+the rider-e2e fixes):
+- run 45774558161 @ b3c2b3c: backend-test GREEN (P5-1 dispatch 160/160),
+  api-contract GREEN (driver routes contract), android-ui-driver GREEN (P5-2
+  driver shard), lint/android-build/e2e-cross-actor/e2e-offline-maps GREEN.
+  Its failures were ONLY android-ui-rider + e2e-booking (rider booking e2e,
+  fixed by 15i-15l which touched rider test code alone - backend and driver
+  code byte-identical from b3c2b3c through 28b653a).
+- run 45869261404/attempt-2 @ 28b653a (the phase-4-gate run): android-ui-driver
+  GREEN again (twice-verified), android-ui-rider + e2e-booking + e2e-cross-actor
+  + e2e-offline-maps + report + summary GREEN; backend-test/api-contract
+  path-skipped (backend identical to b3c2b3c - the green verdict carries).
+Tag phase-5-gate on 28b653a cites both runs. BACKLOG P5-1/P5-2 CI-VERIFIED.
+Recorded open item (directive #5): driver-side duty->board->accept instrumented
+flow e2e appendix not yet built - P5-2 row notes the gap honestly; first item
+of the next work block before Phase 6 expansion.
