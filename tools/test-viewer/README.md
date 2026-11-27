@@ -29,3 +29,22 @@ Point `REPLAY_DIR` at a run/artifact directory (e.g. downloaded `test-report-<ru
 ## CI usage
 
 live-view.yml (E5) boots the stack + viewer on the runner and exposes it through a Cloudflare quick tunnel with a per-run random token; the URL is written to the job summary and an annotation. Never on fork PRs; auto-teardown at timeout.
+
+## Token auth (round-21, "stuck at loading" fix)
+
+The tunnel URL is `<tunnel>?token=X`. The page load authenticates and receives a
+`viewer_token` **cookie**; every in-page request (`/api/state`, `/api/serials`,
+`/stream/<serial>` MJPEG) then carries the cookie automatically. The page JS also
+propagates `?token=` explicitly (belt and braces). Before round-21 the page's own
+fetches were UNauthenticated -> every poll 401'd -> the counters stayed on
+`loading…` forever. `/stream` additionally calls `flushHeaders()` so the MJPEG
+response starts immediately (writeHead alone never hits the wire until the first
+frame; with a dead device the `<img>` used to hang forever).
+
+## Smoke
+
+`node smoke.js` reproduces the browser flow against a spawned server (no-token
+401, wrong-token 401, page-with-token 200 + Set-Cookie, cookie-only `/api/state`
++ `/api/serials` + `/stream` 200, explicit query token 200). Runs as a live-view
+workflow step BEFORE the tunnel starts - a viewer regression now fails the run
+instead of shipping a page that hangs.

@@ -16,10 +16,26 @@ const REPLAY_DIR = process.env.REPLAY_DIR || "";
 const app = express();
 app.use(express.json({ limit: "4mb" }));
 
+function cookieToken(req) {
+  for (const pair of (req.headers.cookie || "").split(";")) {
+    const [k, ...rest] = pair.trim().split("=");
+    if (k === "viewer_token") return rest.join("=");
+  }
+  return null;
+}
+
 function auth(req, res, next) {
   if (!TOKEN) return next();
-  const t = req.query.token || req.header("x-viewer-token");
+  const direct = req.query.token || req.header("x-viewer-token");
+  const t = direct || cookieToken(req);
   if (t !== TOKEN) return res.status(401).send("viewer token required");
+  // Round-21 handshake (stuck-at-loading fix): the tunnel URL carries ?token=X
+  // only on the page load - the page's own fetches / MJPEG img do NOT. Remember
+  // a directly-authenticated caller so the browser carries the token from here
+  // on (query/header tokens still always work).
+  if (direct) {
+    res.setHeader("Set-Cookie", `viewer_token=${TOKEN}; Path=/; HttpOnly; SameSite=Lax`);
+  }
   next();
 }
 app.use(auth);
@@ -81,6 +97,12 @@ app.get("/stream/:serial", (req, res) => {
     "Content-Type": "multipart/x-mixed-replace; boundary=frame",
     "Cache-Control": "no-store",
   });
+  // Round-21: flush the headers NOW. writeHead alone does not put bytes on the
+  // wire - headers only go out with the first frame write (~700ms later IF the
+  // screencap succeeds; NEVER when the device is gone). The browser <img> then
+  // hangs with no response at all. flushHeaders makes the MJPEG response start
+  // immediately; frames follow when devices exist.
+  res.flushHeaders();
   let timer = null;
   const push = async () => {
     try {
@@ -149,26 +171,37 @@ app.get("/", (req, res) => {
 <div id="grid"></div>
 <div id="tests"><table id="tbl"><tr><th>test</th><th>app</th><th>shard</th><th>status</th><th>last step</th><th>steps</th></tr></table></div>
 <script>
+// Round-21 (stuck-at-loading fix): propagate the ?token= from the tunnel URL to
+// every in-page request (fetch + MJPEG img). The server also issues a cookie on
+// the page load, so this is belt and braces for cookie-less browsers.
+const TOK = new URLSearchParams(location.search).get('token') || '';
+function tk(p){ return p + (p.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(TOK); }
 async function refresh(){
-  const s = await (await fetch('/api/state')).json();
-  document.getElementById('counters').innerHTML =
-    'passed: <b class="pass">'+s.counters.passed+'</b> failed: <b class="fail">'+s.counters.failed+
-    '</b> running: <b class="run">'+s.counters.running+'</b>';
-  const r = await (await fetch('/api/serials')).json();
-  const grid = document.getElementById('grid');
-  if(!grid.childElementCount || grid.dataset.sig!==r.serials.join(',')){
-    grid.dataset.sig=r.serials.join(','); grid.innerHTML='';
-    for(const ser of r.serials){
-      const d=document.createElement('div'); d.className='panel';
-      d.innerHTML='<h3>device '+ser+'</h3><img src="/stream/'+ser+'" alt="screen '+ser+'">';
-      grid.appendChild(d);
+  try {
+    const s = await (await fetch(tk('/api/state'))).json();
+    document.getElementById('counters').innerHTML =
+      'passed: <b class="pass">'+s.counters.passed+'</b> failed: <b class="fail">'+s.counters.failed+
+      '</b> running: <b class="run">'+s.counters.running+'</b>';
+    const r = await (await fetch(tk('/api/serials'))).json();
+    const grid = document.getElementById('grid');
+    if(!grid.childElementCount || grid.dataset.sig!==r.serials.join(',')){
+      grid.dataset.sig=r.serials.join(','); grid.innerHTML='';
+      for(const ser of r.serials){
+        const d=document.createElement('div'); d.className='panel';
+        d.innerHTML='<h3>device '+ser+'</h3><img src="'+tk('/stream/'+ser)+'" alt="screen '+ser+'">';
+        grid.appendChild(d);
+      }
     }
+    const tb=document.getElementById('tbl');
+    const rows=Object.entries(s.tests).map(([id,t])=>
+      '<tr><td>'+t.name+'</td><td>'+t.app+'</td><td>'+t.shard+'</td><td class="'+t.status+'">'+t.status+
+      '</td><td>'+(t.steps.length?t.steps[t.steps.length-1].step:'-')+'</td><td>'+t.steps.length+'</td></tr>');
+    tb.innerHTML='<tr><th>test</th><th>app</th><th>shard</th><th>status</th><th>last step</th><th>steps</th></tr>'+rows.join('');
+  } catch(e) {
+    // A viewer that silently stays on "loading…" is how round-21 shipped broken.
+    document.getElementById('counters').innerHTML =
+      '<b class="fail">viewer error: '+String(e.message || e)+'</b> (retrying…)';
   }
-  const tb=document.getElementById('tbl');
-  const rows=Object.entries(s.tests).map(([id,t])=>
-    '<tr><td>'+t.name+'</td><td>'+t.app+'</td><td>'+t.shard+'</td><td class="'+t.status+'">'+t.status+
-    '</td><td>'+(t.steps.length?t.steps[t.steps.length-1].step:'-')+'</td><td>'+t.steps.length+'</td></tr>');
-  tb.innerHTML='<tr><th>test</th><th>app</th><th>shard</th><th>status</th><th>last step</th><th>steps</th></tr>'+rows.join('');
 }
 refresh(); setInterval(refresh,2000);
 </script></body></html>`);

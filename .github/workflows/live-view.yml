@@ -91,6 +91,11 @@ jobs:
           VIEWER_TOKEN="$TOKEN" node server.js > /tmp/viewer.log 2>&1 &
           sleep 2
           curl -fsS "http://localhost:7070/api/state?token=$TOKEN" >/dev/null
+          # Round-21: smoke BEFORE the tunnel - reproduces the browser flow (page
+          # load with ?token= -> cookie -> in-page fetches). The reported
+          # "stuck at loading" shipped because page fetches were unauthenticated;
+          # a viewer regression now fails the run instead of a dead page.
+          node smoke.js
       - name: Install Android SDK components (emulator is NOT preinstalled on ubuntu-24.04)
         run: |
           export ANDROID_HOME=/usr/local/lib/android/sdk
