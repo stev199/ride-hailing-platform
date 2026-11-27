@@ -76,6 +76,15 @@ private val ROUTE_METHODS: Map<String, String> = mapOf(
     "/v1/admin/rides" to "GET",
     "/v1/admin/rides/{id}" to "GET",
     "/v1/admin/live" to "GET",
+    // P6-1 verification center (round-23: the fuzzer hit these - ST204 TRACE 404s +
+    // ST205 wrong Allow from the generic else-fallthrough; every path needs its
+    // exact method list here).
+    "/v1/verification" to "POST",
+    "/v1/verification/me" to "GET",
+    "/v1/admin/verification" to "GET",
+    "/v1/admin/verification/{id}" to "GET",
+    "/v1/admin/verification/{id}/approve" to "POST",
+    "/v1/admin/verification/{id}/reject" to "POST",
     "/v1/rides/estimate" to "POST",
     "/v1/rides" to "GET, POST",
     "/v1/rides/{id}" to "GET",
@@ -118,6 +127,13 @@ private fun allowFor(path: String): String = when {
     path.startsWith("/v1/driver/rides") -> "GET"
     path.startsWith("/v1/rides/") -> "GET"
     path == "/v1/rides" -> "GET, POST"
+    path.startsWith("/v1/admin/verification/") && path.endsWith("/approve") -> "POST"
+    path.startsWith("/v1/admin/verification/") && path.endsWith("/reject") -> "POST"
+    path.startsWith("/v1/admin/verification/") -> "GET"
+    path.startsWith("/v1/admin/verification") -> "GET"
+    // Exact resources (ST205 wants exactly the documented methods per resource).
+    path == "/v1/verification" -> "POST"
+    path == "/v1/verification/me" -> "GET"
     path.startsWith("/v1/admin/audit") -> "GET"
     else -> "GET, POST"
 }
@@ -137,6 +153,7 @@ private fun isKnownRoutePath(path: String): Boolean = when {
     path.startsWith("/v1/auth/") -> true
     path.startsWith("/v1/me/sessions/") -> true
     path.startsWith("/v1/admin/") -> true
+    path.startsWith("/v1/verification") -> true
     path.startsWith("/v1/rides/") -> true
     path.startsWith("/v1/driver/") -> true
     else -> false
@@ -352,7 +369,9 @@ fun Application.module(
                 val path = call.request.path()
                 if (isKnownRoutePath(path)) {
                     val allow = allowFor(path)
-                    call.response.headers.append(HttpHeaders.Allow, allow)
+                    // NO Allow append here - the status(HttpStatusCode.MethodNotAllowed)
+                    // hook below is the SINGLE header source (round-23: the double append
+                    // produced "GET, POST, GET, POST" -> schemathesis ST205).
                     call.respond(
                         HttpStatusCode.MethodNotAllowed,
                         ErrorDto(code = "method_not_allowed", message = "Allowed: $allow"),

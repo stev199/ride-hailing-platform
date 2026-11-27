@@ -1,8 +1,13 @@
 package com.ridehailing.backend
 
 import io.ktor.client.request.get
+import io.ktor.client.request.options
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import io.ktor.client.request.request
 import io.ktor.client.request.setBody
+import io.ktor.http.HttpMethod
+import io.ktor.http.HttpHeaders
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
@@ -66,6 +71,41 @@ class HealthAndRoutesTest {
         val allow = res.headers["Allow"]
         assertEquals("GET", allow)
     }
+
+    @Test
+    fun `405 Allow header is EXACTLY once and matches the resource methods (round-23 ST205)`() =
+        withApp(testProfile = false) {
+            // POST /health: schema documents GET only -> single "GET".
+            val res = client.post("/health")
+            assertEquals(HttpStatusCode.MethodNotAllowed, res.status)
+            assertEquals(listOf("GET"), res.headers.getAll("Allow"))
+
+            // /v1/rides (GET+POST) hit with PATCH: exactly one Allow = "GET, POST".
+            val rides = client.patch("/v1/rides")
+            assertEquals(HttpStatusCode.MethodNotAllowed, rides.status)
+            assertEquals(listOf("GET, POST"), rides.headers.getAll("Allow"))
+
+            // P6-1 verification collection: OPTIONS -> exactly one Allow = "POST"
+            // (the fuzzer saw "GET, POST, GET, POST" - a wrong list, twice).
+            val ver = client.options("/v1/verification")
+            assertEquals(HttpStatusCode.MethodNotAllowed, ver.status)
+            assertEquals(listOf("POST"), ver.headers.getAll("Allow"))
+        }
+
+    @Test
+    fun `known verification paths answer 405 + Allow for undeclared methods (round-23 ST204)`() =
+        withApp(testProfile = false) {
+            // TRACE on GET-only paths must be 405 + Allow "GET" (was: 404 not_found).
+            for (path in listOf("/v1/verification/me", "/v1/admin/verification")) {
+                val res = client.request(path) { method = HttpMethod("TRACE") }
+                assertEquals(HttpStatusCode.MethodNotAllowed, res.status, path)
+                assertEquals(listOf("GET"), res.headers.getAll("Allow"), path)
+            }
+            // POST-only submit path hit with GET -> 405 + Allow "POST".
+            val submit = client.get("/v1/verification")
+            assertEquals(HttpStatusCode.MethodNotAllowed, submit.status)
+            assertEquals(listOf("POST"), submit.headers.getAll("Allow"))
+        }
 
     @Test
     fun `unknown route returns documented 404 error shape`() = withApp(testProfile = false) {

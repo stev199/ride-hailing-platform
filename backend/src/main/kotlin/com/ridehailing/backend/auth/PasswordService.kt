@@ -30,7 +30,7 @@ class PasswordService(private val random: SecureRandom = SecureRandom()) {
     }
 
     fun hash(password: String, params: Params = DEFAULT_PARAMS): String {
-        require(password.length >= MIN_PASSWORD_LENGTH) { "password too short" }
+        require(password.codePointCount(0, password.length) >= MIN_PASSWORD_LENGTH) { "password too short" }
         val salt = ByteArray(16).also(random::nextBytes)
         val hash = argon2id(password, salt, params)
         return "\$argon2id\$v=19\$m=${params.memoryKib},t=${params.iterations},p=${params.parallelism}" +
@@ -72,8 +72,11 @@ class PasswordService(private val random: SecureRandom = SecureRandom()) {
     /** Validate password policy; returns a machine-readable rejection or null when acceptable.
      *  Bounds match openapi RegisterRequest.password (minLength 10, maxLength 128, D49). */
     fun policyViolation(password: String): String? = when {
-        password.length < MIN_PASSWORD_LENGTH -> "password_too_short"
-        password.length > MAX_PASSWORD_LENGTH -> "password_too_long"
+        // JSON Schema length semantics = UNICODE CODE POINTS (round-23 ST201: a 10-astral-
+        // char password is 20 UTF-16 units but 10 code points - Kotlin String.length
+        // overcounts, so validate in code points to match the spec exactly).
+        password.codePointCount(0, password.length) < MIN_PASSWORD_LENGTH -> "password_too_short"
+        password.codePointCount(0, password.length) > MAX_PASSWORD_LENGTH -> "password_too_long"
         else -> null
     }
 

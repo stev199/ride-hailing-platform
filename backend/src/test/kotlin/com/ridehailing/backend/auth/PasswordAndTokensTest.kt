@@ -44,6 +44,22 @@ class PasswordServiceTest {
         val caught = runCatching { service.hash("short") }
         assertTrue(caught.isFailure, "hash must reject policy-violating input")
     }
+
+    @Test
+    fun `policy length counts UNICODE CODE POINTS, not UTF-16 units (round-23 ST201)`() {
+        // 5 astral-plane chars = 10 UTF-16 units but 5 code points -> TOO SHORT
+        // (the old String.length check accepted exactly this shape - the fuzzer's
+        // register/reset-password 200 on a minLength-10-violating body).
+        val astralShort = "\uD83D\uDE00\uD83D\uDE00\uD83D\uDE00\uD83D\uDE00\uD83D\uDE00" // 5 x U+1F600
+        assertEquals(10, astralShort.length, "UTF-16 units")
+        assertEquals("password_too_short", service.policyViolation(astralShort))
+        // 10 astral code points (20 UTF-16 units) IS schema-valid (minLength 10).
+        val astralOk = "\uD83D\uDE00".repeat(10)
+        assertNull(service.policyViolation(astralOk))
+        // 129 code points -> too long (maxLength 128) even when units suggest more.
+        val tooLong = "a".repeat(129)
+        assertEquals("password_too_long", service.policyViolation(tooLong))
+    }
 }
 
 class RefreshTokenStoreTest {
