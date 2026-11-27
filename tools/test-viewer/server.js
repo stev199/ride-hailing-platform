@@ -89,7 +89,53 @@ app.post("/api/log", (req, res) => { // backend/device log tails
 
 app.get("/api/state", (req, res) => res.json(state));
 
-// ---------- MJPEG: adb screencap polling per serial ----------
+// ---------- device frames ----------
+// Round-21: one-shot frame endpoint. The MJPEG /stream below works on direct
+// connections but EMPIRICALLY STALLS behind a cloudflared quick tunnel - even
+// with frames flowing every ~850ms, ZERO bytes (headers included) reach the
+// browser for the long-lived multipart response (sandbox tunnel test, run vs
+// localhost), so the live page's device panels would stay black through the
+// tunnel. /frame/:serial returns ONE screencap per COMPLETED request - the same
+// short response shape as /api/state, which provably crosses the tunnel. The
+// page polls it (~1 fps). /stream is kept for direct (localhost) use.
+const shotCache = new Map(); // serial -> {at, buf}
+app.get("/frame/:serial", (req, res) => {
+  const serial = req.params.serial;
+  const cached = shotCache.get(serial);
+  if (cached && Date.now() - cached.at < 500) { // coalesce concurrent page polls
+    res.type("png").set("Cache-Control", "no-store").send(cached.buf);
+    return;
+  }
+  let buf = Buffer.alloc(0);
+  let done = false;
+  const fail = (code, msg) => {
+    if (done) return;
+    done = true;
+    res.status(code).json({ error: msg });
+  };
+  let proc;
+  try {
+    proc = spawn("adb", ["-s", serial, "exec-out", "screencap", "-p"]);
+  } catch (_) {
+    return fail(404, "adb unavailable");
+  }
+  const timeout = setTimeout(() => { try { proc.kill("SIGKILL"); } catch (_) {} fail(404, "screencap timeout"); }, 5000);
+  proc.stdout.on("data", (d) => (buf = Buffer.concat([buf, d])));
+  proc.on("error", () => { clearTimeout(timeout); fail(404, "adb unavailable"); });
+  proc.on("close", () => {
+    clearTimeout(timeout);
+    if (done) return;
+    done = true;
+    if (buf.length > 8) {
+      shotCache.set(serial, { at: Date.now(), buf });
+      res.type("png").set("Cache-Control", "no-store").send(buf);
+    } else {
+      fail(404, "no frame from device " + serial);
+    }
+  });
+});
+
+// ---------- MJPEG (direct connections only; see /frame above) ----------
 const mjpegStreams = new Map();
 app.get("/stream/:serial", (req, res) => {
   const serial = req.params.serial;
@@ -188,9 +234,17 @@ async function refresh(){
       grid.dataset.sig=r.serials.join(','); grid.innerHTML='';
       for(const ser of r.serials){
         const d=document.createElement('div'); d.className='panel';
-        d.innerHTML='<h3>device '+ser+'</h3><img src="'+tk('/stream/'+ser)+'" alt="screen '+ser+'">';
+        // Round-21: poll /frame (completed request per frame) - the MJPEG
+        // /stream stalls behind the quick tunnel; see server.js /frame.
+        d.innerHTML='<h3>device '+ser+'</h3><img data-ser="'+ser+'" alt="screen '+ser+'" style="min-height:120px">';
+        const im=d.querySelector('img');
+        im.onload=()=>{ im.dataset.ok='1'; };
+        im.onerror=()=>{ im.dataset.ok='0'; }; // device gone: keep the last good frame
         grid.appendChild(d);
       }
+    }
+    for(const im of grid.querySelectorAll('img')){
+      if(im.dataset.ok!=='0') im.src=tk('/frame/'+im.dataset.ser)+'&t='+Date.now();
     }
     const tb=document.getElementById('tbl');
     const rows=Object.entries(s.tests).map(([id,t])=>

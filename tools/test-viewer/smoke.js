@@ -71,7 +71,12 @@ async function waitHealthy(proc) {
     assert.strictEqual(serials.status, 200, "/api/serials via cookie must 200");
     assert.ok(Array.isArray((await serials.json()).serials), "serials JSON shape");
 
-    log("6. MJPEG stream via cookie (headers only; frames flow when devices exist)");
+    log("5b. /frame via cookie (no devices here -> clean 404, not a hang)");
+    const frame = await fetch(`${BASE}/frame/no-device`, { headers: { cookie }, signal: T(8000) });
+    assert.strictEqual(frame.status, 404, "/frame without devices must 404 fast");
+    assert.ok((await frame.json()).error, "/frame 404 carries an error message");
+
+    log("6. MJPEG stream via cookie (direct-connection contract; headers only)");
     const stream = await fetch(`${BASE}/stream/smoke-fake`, { headers: { cookie }, signal: T(5000) });
     assert.strictEqual(stream.status, 200, "/stream via cookie must 200");
     assert.ok((stream.headers.get("content-type") || "").includes("multipart"), "multipart MJPEG");

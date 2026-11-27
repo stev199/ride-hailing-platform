@@ -289,3 +289,22 @@ one earlier attempt 45974823986 hung on a dead runner - cancelled).
 
 CI verdict: dispatch run 45969243836 @ 2d4c19e (viewer fix) FULL CI completed
 SUCCESS.
+
+
+## Round-21b (2026-11-27, same day): tunnel-proof device frames - /frame polling
+
+External verification through a REAL quick tunnel (spun up in the sandbox with
+the same pinned cloudflared 2026.11.2 + the viewer):
+- PASS: /?token= 200 + Set-Cookie; cookie-only /api/state, /api/serials,
+  POST /api/step (counters went passed=1 with the step visible); no-token 401.
+- FAIL DISCOVERED: the MJPEG /stream delivers ZERO bytes through a cloudflared
+  quick tunnel - not even response headers - EVEN WITH frames flowing every
+  ~850ms (fake adb emitting PNGs; localhost receives them, the tunnel does not).
+  So even in CI the tunneled page would have shown BLACK device panels.
+- FIX: GET /frame/<serial> = one screencap per COMPLETED request (same short
+  response shape as the JSON endpoints, proven to cross the tunnel), 500ms
+  coalesce cache, 5s hard timeout, clean 404 JSON when no device. The page now
+  polls /frame (~0.5 fps) and keeps the LAST GOOD frame when a device dies
+  (onerror guard). /stream stays for direct/localhost use. smoke.js: 8 checks
+  (added /frame 404-no-device). Local smoke PASS; tunnel test: 3/3 PNG frames +
+  serials + 401-no-token through the live URL.
