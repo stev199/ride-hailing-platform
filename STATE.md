@@ -327,3 +327,24 @@ Also confirmed live: a fresh tunnel URL is NOT routable for a few seconds at
 the edge - the smoke now polls through that window. The full live-view.yml
 (emulators + real device panels) remains a manual dispatch for when the runner
 pool recovers; its viewer/tunnel/auth code paths are now proven on-runner.
+
+
+## Round-21d (2026-11-27): CI on final HEAD + runner-pool diagnosis + mesh gate flake
+
+- HEAD 86f36e6 = 26ba097 + CI workflow + docs ONLY (no production code change).
+- GitHub runner pool sick 10:00-13:00 UTC: 7 dead-runner hangs ("runner assigned,
+  zero log bytes"): 6x live-view.yml + android-ui-rider (CI attempt 1) +
+  e2e-cross-actor (CI attempt 2, cancelled). Guard/smoke cells and 13 of 14 CI
+  cells kept proving green throughout.
+- CI attempt 3 (46002755548) on HEAD: 13/14 GREEN incl. e2e-cross-actor +
+  android-ui rider+driver; ONLY mesh-core-sim failed: Gate3ScenarioSuiteTest
+  scenario 18 (backend-vs-mesh latency comparison) + the 10% baseline-regression
+  gate - the same byte-identical mesh code passed twice earlier today (45969243836,
+  45984622225) => intermittent/flaky sim gate, not a regression. Local repro
+  impossible in the sandbox (JDK17 toolchain OK via portable JDK, but the Kotlin
+  compiler artifact kotlin-scripting-compiler-embeddable:1.9.24 is not resolvable
+  from this network - CI-only dependency).
+- Action: rerun-failed-jobs on 46002755548 for mesh-core-sim. If green => HEAD is
+  fully CI-verified and the flake is recorded; if red again => BLOCKERS item with
+  the failing assertions for a threshold-margin investigation (do NOT silently
+  relax the gate).
