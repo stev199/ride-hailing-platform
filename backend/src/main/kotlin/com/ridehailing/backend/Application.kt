@@ -31,6 +31,7 @@ import com.ridehailing.backend.rides.RideService
 import com.ridehailing.backend.rides.InMemoryRideStore
 import com.ridehailing.backend.rides.rideRoutes
 import com.ridehailing.backend.rides.driverRoutes
+import com.ridehailing.backend.rides.adminTripRoutes
 import com.ridehailing.backend.rbac.AdminService
 import com.ridehailing.backend.rbac.adminRoutes
 import com.ridehailing.backend.testprofile.testRoutes
@@ -70,6 +71,8 @@ private val ROUTE_METHODS: Map<String, String> = mapOf(
     "/v1/config" to "GET",
     "/v1/admin/config/login-methods" to "GET, PATCH",
     "/v1/admin/config/fares" to "GET, PATCH",
+    "/v1/admin/rides" to "GET",
+    "/v1/admin/rides/{id}" to "GET",
     "/v1/rides/estimate" to "POST",
     "/v1/rides" to "GET, POST",
     "/v1/rides/{id}" to "GET",
@@ -100,6 +103,7 @@ private fun allowFor(path: String): String = when {
     path.startsWith("/v1/admin/users/") && path.endsWith("/force-logout") -> "POST"
     path.startsWith("/v1/admin/users/") -> "GET, PATCH"
     path.startsWith("/v1/admin/config/fares") -> "GET, PATCH"
+    path.startsWith("/v1/admin/rides") -> "GET"
     path.startsWith("/v1/rides/") && path.endsWith("/cancel") -> "POST"
     // P5 driver action paths (must precede the generic /v1/rides/ rule).
     path.startsWith("/v1/rides/") && path.endsWith("/accept") -> "POST"
@@ -325,6 +329,7 @@ fun Application.module(
         fareRoutes(auth.service, auth.fareService, auth.config)
         rideRoutes(auth.service, auth.rideService, auth.config.publicKeyHex())
         driverRoutes(auth.service, auth.rideService)
+        adminTripRoutes(auth.service, auth.rideStore, auth.eventChain)
         if (testProfile) testRoutes(eventChain, configBundle, auth.devInbox)
         // Catch-all (registered LAST - earlier routes win at equal resolution quality):
         // Ktor answers 404 for a KNOWN path hit with an undeclared method, but the

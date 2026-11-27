@@ -167,6 +167,28 @@ class PgRideStore(private val connect: () -> Connection) : RideStore {
         }
     }
 
+    override fun listAll(status: RideStatus?, city: String?, limit: Int, offset: Int): List<Ride> = connect().use { c ->
+        // Dynamic WHERE - the only user-supplied fragments are bound parameters.
+        val where = buildList {
+            if (status != null) add("status = ?")
+            if (city != null) add("city = ?")
+        }.joinToString(" AND ").let { if (it.isEmpty()) "" else "WHERE $it" }
+        c.prepareStatement(
+            "SELECT * FROM rides $where ORDER BY created_at DESC, id LIMIT ? OFFSET ?",
+        ).use { ps ->
+            var i = 1
+            if (status != null) ps.setString(i++, status.name)
+            if (city != null) ps.setString(i++, city)
+            ps.setInt(i++, limit)
+            ps.setInt(i, offset)
+            ps.executeQuery().use { rs ->
+                val out = mutableListOf<Ride>()
+                while (rs.next()) out.add(rs.toRide())
+                out
+            }
+        }
+    }
+
     override fun forDriver(driverId: String, limit: Int, offset: Int): List<Ride> = connect().use { c ->
         c.prepareStatement(
             "SELECT * FROM rides WHERE driver_id = ?::uuid ORDER BY created_at DESC, id LIMIT ? OFFSET ?",

@@ -209,3 +209,31 @@ Round-19 (Phase 6 starter - fares editor):
   (parity pinned by the drift test), 4 RTL tests (grid render, read-only role,
   full-replace body, 400 verbatim + negative block). Local: typecheck + lint +
   32/32 vitest green. CI verdict: the push run's admin-web-test cell.
+
+## Round-20 (2026-11-27): Phase 6 continues - admin trips endpoints + TripsPage
+
+Backend (TRIPS_READ domain perm lands with its first consumer):
+- Perm.TRIPS_READ (Rbac.kt): every admin role; READ_ONLY includes it; RIDER/DRIVER
+  stay empty (driver blindness). admin-web permissions.ts + rbac-fixture re-pinned
+  in lockstep (parity test 8 roles x 13 perms).
+- RideStore.listAll(status, city, limit, offset) - newest first, offset pagination -
+  implemented on BOTH stores (InMemoryRideStore + PgRideStore; parameterized WHERE).
+- GET /v1/admin/rides (list; status/city filters, invalid_status + invalid_pagination
+  400s) + GET /v1/admin/rides/{id} (full ride + ride.* timeline from the hash-chained
+  event store, chain order). ROUTE_METHODS + catch-all entries (405/Allow contract);
+  openapi.yaml: +2 paths, +4 schemas (AdminRideListItem/List/Detail/TimelineEvent).
+- `origin` = the spec's admin-only field; constant "online" until mesh rides land
+  (Phase 10) - recorded in code, openapi description, and the UI badge.
+- Honest scope: NO admin cancel/edit/refund yet (money/ledger integration - the
+  ride state machine stays rider/driver-owned; the routes are read-only).
+- AdminTripsRoutesTest (2 tests): 401/403 split, newest-first order incl. the
+  same-second seq tiebreak, filters + pagination + contract 400s, READ_ONLY role
+  200, detail timeline (ride.requested first, payload carries rideId), 404 unknown.
+  Rides seeded through the PUBLIC booking API (register -> login -> POST /v1/rides).
+
+Admin-web (TripsPage):
+- /trips route + nav entry (TRIPS_READ gate); status select (9 RideStatus names) +
+  city filter + offset pagination; row click opens the detail dialog with the
+  timeline; origin badge. 4 RTL tests (list render newest-first + origin badges,
+  detail fetch + close, filter refetch query params, RIDER -> ForbiddenPerm).
+- Local: typecheck 0 errors, lint clean, 36/36 vitest.

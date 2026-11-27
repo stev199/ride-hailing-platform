@@ -66,5 +66,15 @@ class InMemoryRideStore : RideStore {
             .take(limit)
     }
 
+    override fun listAll(status: RideStatus?, city: String?, limit: Int, offset: Int): List<Ride> =
+        synchronized(lock) {
+            rides.values
+                .filter { status == null || it.status == status }
+                .filter { city == null || it.city == city }
+                .sortedWith(compareByDescending<Ride> { it.createdAtEpochSec }.thenByDescending { seq[it.id] ?: 0L })
+                .drop(offset)
+                .take(limit)
+        }
+
     fun newId(): String = Ids.newId()
 }

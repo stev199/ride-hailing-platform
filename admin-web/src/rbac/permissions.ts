@@ -21,6 +21,7 @@ export enum Perm {
   MESH_ADMIN = 'MESH_ADMIN',
   MONEY_READ = 'MONEY_READ',
   MONEY_WRITE = 'MONEY_WRITE',
+  TRIPS_READ = 'TRIPS_READ',
 }
 
 export const ALL_PERMS: Perm[] = [
@@ -36,6 +37,7 @@ export const ALL_PERMS: Perm[] = [
   Perm.MESH_ADMIN,
   Perm.MONEY_READ,
   Perm.MONEY_WRITE,
+  Perm.TRIPS_READ,
 ];
 
 const READ_ONLY: Perm[] = [
@@ -44,6 +46,7 @@ const READ_ONLY: Perm[] = [
   Perm.CONFIG_READ,
   Perm.MESH_READ,
   Perm.MONEY_READ,
+  Perm.TRIPS_READ,
 ];
 
 /** Byte-for-byte mirror of Rbac.kt BY_ROLE (see fixture test). */
@@ -63,6 +66,7 @@ export const PERMISSIONS_BY_ROLE: Record<Role, Perm[]> = {
     Perm.MESH_READ,
     Perm.MESH_ADMIN,
     Perm.MONEY_READ,
+    Perm.TRIPS_READ,
   ],
   ADMIN_SUPPORT: [
     Perm.USERS_READ,
@@ -70,6 +74,7 @@ export const PERMISSIONS_BY_ROLE: Record<Role, Perm[]> = {
     Perm.SESSIONS_ADMIN,
     Perm.AUDIT_READ,
     Perm.CONFIG_READ,
+    Perm.TRIPS_READ,
   ],
   ADMIN_FINANCE: [
     Perm.USERS_READ,
@@ -77,8 +82,9 @@ export const PERMISSIONS_BY_ROLE: Record<Role, Perm[]> = {
     Perm.CONFIG_READ,
     Perm.MONEY_READ,
     Perm.MONEY_WRITE,
+    Perm.TRIPS_READ,
   ],
-  ADMIN_VERIFIER: [Perm.USERS_READ, Perm.AUDIT_READ, Perm.CONFIG_READ],
+  ADMIN_VERIFIER: [Perm.USERS_READ, Perm.AUDIT_READ, Perm.CONFIG_READ, Perm.TRIPS_READ],
   ADMIN_READONLY: [...READ_ONLY],
 };
 

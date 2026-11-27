@@ -67,4 +67,11 @@ interface RideStore {
 
     /** Rides assigned to a driver, newest first. */
     fun forDriver(driverId: String, limit: Int, offset: Int): List<Ride>
+
+    /**
+     * Admin trips listing (Phase 6 "Trips: live and historical"): ALL rides newest
+     * first with optional status/city filters. Offset pagination (same contract
+     * as forRider). Read-only - the ride state machine stays driver/rider-owned.
+     */
+    fun listAll(status: RideStatus?, city: String?, limit: Int, offset: Int): List<Ride>
 }

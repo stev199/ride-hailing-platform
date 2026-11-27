@@ -503,6 +503,71 @@ paths:
         "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+  /v1/admin/rides:
+    get:
+      operationId: adminListRides
+      description: >-
+        ALL rides, newest first (TRIPS_READ). Optional status (RideStatus name) and city
+        filters; offset pagination (limit 1..500, default 50). Admin surface: carries
+        riderId/driverId (unlike the driver DTOs, which strip rider PII). `origin` is the
+        spec's admin-only field - "online" until mesh-originated rides land (Phase 10).
+      summary: List all rides (admin)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: { type: string, enum: [REQUESTED, ACCEPTED, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_TIMEOUT, EXPIRED] }
+        - name: city
+          in: query
+          required: false
+          schema: { type: string }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 500, default: 50 }
+        - name: offset
+          in: query
+          required: false
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Rides (newest first)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRideList"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+  /v1/admin/rides/{id}:
+    get:
+      operationId: adminGetRide
+      description: >-
+        One ride in full (TRIPS_READ) plus its ride.* timeline from the hash-chained
+        event store (ride.requested/accepted/arrived/in_progress/completed/cancelled/
+        expired), chain order oldest first. 404 for unknown ids.
+      summary: Ride detail with timeline (admin)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Ride + timeline
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRideDetail"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
   /v1/admin/config/fares:
     get:
       operationId: adminGetFares
@@ -817,7 +882,51 @@ components:
       scheme: bearer
       bearerFormat: JWT
   schemas:
-    DriverDutyRequest:
+    AdminRideListItem:
+      type: object
+      required: [id, status, city, rideType, riderId, driverId, origin, paymentMethod, quoteAmountMinor, quoteCurrency, pickupName, dropoffName, cancelFeeMinor, createdAtEpochSec, updatedAtEpochSec]
+      properties:
+        id: { type: string }
+        status: { type: string }
+        city: { type: string }
+        rideType: { type: string }
+        riderId: { type: string }
+        driverId: { type: [string, 'null'] }
+        origin: { type: string, description: '"online" until mesh rides land (Phase 10); "offline-mesh" will carry the mesh path' }
+        paymentMethod: { type: string }
+        quoteAmountMinor: { type: integer, format: int64 }
+        quoteCurrency: { type: string }
+        pickupName: { type: [string, 'null'] }
+        dropoffName: { type: [string, 'null'] }
+        cancelFeeMinor: { type: integer, format: int64 }
+        createdAtEpochSec: { type: integer, format: int64 }
+        updatedAtEpochSec: { type: integer, format: int64 }
+    AdminRideList:
+      type: object
+      required: [rides, limit, offset]
+      properties:
+        rides:
+          type: array
+          items: { $ref: "#/components/schemas/AdminRideListItem" }
+        limit: { type: integer, minimum: 1, maximum: 500 }
+        offset: { type: integer, minimum: 0 }
+    AdminTimelineEvent:
+      type: object
+      required: [seq, type, occurredAt, payloadJson]
+      properties:
+        seq: { type: integer, format: int64 }
+        type: { type: string }
+        occurredAt: { type: string }
+        payloadJson: { type: string }
+    AdminRideDetail:
+      type: object
+      required: [ride, timeline]
+      properties:
+        ride: { $ref: "#/components/schemas/AdminRideListItem" }
+        timeline:
+          type: array
+          items: { $ref: "#/components/schemas/AdminTimelineEvent" }
+
       type: object
       required: [online, lat, lon]
       properties:

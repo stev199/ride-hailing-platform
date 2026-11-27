@@ -18,6 +18,7 @@ const NAV: NavItem[] = [
   { to: '/audit', labelKey: 'nav.audit', perm: Perm.AUDIT_READ },
   { to: '/config', labelKey: 'nav.config', perm: Perm.CONFIG_READ },
   { to: '/fares', labelKey: 'nav.fares', perm: Perm.CONFIG_READ },
+  { to: '/trips', labelKey: 'nav.trips', perm: Perm.TRIPS_READ },
 ];
 
 export function useTheme(): [string, () => void] {
