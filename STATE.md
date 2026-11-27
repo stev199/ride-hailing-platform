@@ -256,3 +256,36 @@ Two bumps were needed and both are lessons, not flukes:
    paths, admin-web-test incl. TripsPage 4 tests, e2e-driver-flow re-verified
    on current main, booking/cross-actor/offline-maps, android rider+driver,
    lint/security/mesh/report/summary). Phase 6 trips view is CI-VERIFIED.
+
+## Round-21 (2026-11-27): live-viewer "stuck at loading" - FIXED + CI-verified viewer path
+
+User report: the Live View generated URL opened a page stuck at loading.
+ROOT CAUSE (two real bugs):
+1. The page's own requests were UNauthenticated: tunnel URL is <tunnel>?token=X;
+   the page load authenticated, but its JS fetches (/api/state, /api/serials) and
+   the MJPEG img src carried NO token -> every poll 401'd -> refresh() threw ->
+   counters stayed on "loading..." forever. (Earlier smoke tested endpoints WITH
+   explicit tokens - the browser-flow gap was invisible.)
+2. /stream wrote headers with writeHead but never FLUSHED them (headers go out
+   with the first frame write; with a dead/slow device the <img> hangs with no
+   response at all).
+
+Fixes (2d4c19e): server sets a viewer_token cookie after query/header auth and
+accepts cookie OR query OR header; page JS propagates ?token= onto every fetch/
+stream (belt and braces) and shows a VISIBLE error state instead of silent
+"loading..."; res.flushHeaders() starts the MJPEG response immediately.
+tools/test-viewer/smoke.js reproduces the browser flow (7 checks: no-token 401,
+wrong-token 401, page-with-token 200 + Set-Cookie, cookie-only state/serials/
+stream 200, query-token 200) and runs as a live-view.yml step BEFORE the tunnel
+(SMOKE PASS locally AND on CI run 45969240475 + 45972573348).
+
+Tunnel hardening (1b9b5f9): run 45969240475 hit "tunnel unavailable" with zero
+diagnostics -> retry once with --protocol http2 + dump cloudflared.log tail on
+failure. Run 45972573348 then produced a URL (ecommerce-file-presented-driving)
+- my live verification hit 60s AFTER the 10-min keep-alive tore it down
+(Cloudflare 1033), so the URL + window is proven generated; final open-browser
+verification re-dispatched with keep_alive_minutes=30 (run 45979011335;
+one earlier attempt 45974823986 hung on a dead runner - cancelled).
+
+CI verdict: dispatch run 45969243836 @ 2d4c19e (viewer fix) FULL CI completed
+SUCCESS.
