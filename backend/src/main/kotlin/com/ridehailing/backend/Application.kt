@@ -34,6 +34,8 @@ import com.ridehailing.backend.rides.driverRoutes
 import com.ridehailing.backend.rides.adminLiveRoutes
 import com.ridehailing.backend.rides.adminTripRoutes
 import com.ridehailing.backend.verification.verificationRoutes
+import com.ridehailing.backend.wallet.WalletService
+import com.ridehailing.backend.wallet.walletRoutes
 import com.ridehailing.backend.rbac.AdminService
 import com.ridehailing.backend.rbac.adminRoutes
 import com.ridehailing.backend.testprofile.testRoutes
@@ -76,6 +78,10 @@ private val ROUTE_METHODS: Map<String, String> = mapOf(
     "/v1/admin/rides" to "GET",
     "/v1/admin/rides/{id}" to "GET",
     "/v1/admin/live" to "GET",
+    "/v1/wallet" to "GET",
+    "/v1/wallet/transactions" to "GET",
+    "/v1/wallet/transfer" to "POST",
+    "/v1/admin/users/{id}/wallet-credit" to "POST",
     // P6-1 verification center (round-23: the fuzzer hit these - ST204 TRACE 404s +
     // ST205 wrong Allow from the generic else-fallthrough; every path needs its
     // exact method list here).
@@ -113,7 +119,11 @@ private fun allowFor(path: String): String = when {
     path.startsWith("/v1/me/sessions/") -> "DELETE"
     path.startsWith("/v1/admin/users/") && path.endsWith("/reset-password") -> "POST"
     path.startsWith("/v1/admin/users/") && path.endsWith("/force-logout") -> "POST"
+    path.startsWith("/v1/admin/users/") && path.endsWith("/wallet-credit") -> "POST"
     path.startsWith("/v1/admin/users/") -> "GET, PATCH"
+    path.startsWith("/v1/wallet/transactions") -> "GET"
+    path == "/v1/wallet" -> "GET"
+    path == "/v1/wallet/transfer" -> "POST"
     path.startsWith("/v1/admin/config/fares") -> "GET, PATCH"
     path.startsWith("/v1/admin/rides") -> "GET"
     path.startsWith("/v1/rides/") && path.endsWith("/cancel") -> "POST"
@@ -174,6 +184,18 @@ class AuthGraph(
     val ledger: com.ridehailing.backend.ledger.LedgerStore = com.ridehailing.backend.ledger.InMemoryLedgerStore(),
 ) {
     private val recorder = AuthService.EventChainRecorder { type, payload -> eventChain.append(type, payload) }
+
+    /** P7-1 wallet service (rides on the same ledger the CI PG job double-verifies). */
+    val walletService: WalletService by lazy {
+        WalletService(
+            ledger = ledger,
+            users = object : WalletService.UserDirectory {
+                override fun byPhone(phone: String) = users.findByPhone(phone)
+                override fun byId(id: String) = users.findById(id)
+            },
+            config = { config.walletConfig },
+        )
+    }
 
     /** P1-5a: the live config center - owns LoginMethodsConfig + signed bundle history. */
     val config: ConfigService = ConfigService(
@@ -359,6 +381,7 @@ fun Application.module(
         adminTripRoutes(auth.service, auth.rideStore, auth.eventChain)
         adminLiveRoutes(auth.service, auth.rideService, auth.rideStore)
         verificationRoutes(auth.service, auth.verification)
+        walletRoutes(auth.service, auth.walletService)
         if (testProfile) testRoutes(eventChain, configBundle, auth.devInbox)
         // Catch-all (registered LAST - earlier routes win at equal resolution quality):
         // Ktor answers 404 for a KNOWN path hit with an undeclared method, but the

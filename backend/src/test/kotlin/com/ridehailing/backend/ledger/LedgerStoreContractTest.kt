@@ -72,6 +72,9 @@ class LedgerStoreContractTest {
         override fun walletFor(ownerId: String, currency: String): Wallet? =
             delegate.walletFor(ownerId, currency)
 
+        override fun historyFor(walletId: String, limit: Int, offset: Int): List<LedgerHistoryItem> =
+            delegate.historyFor(walletId, limit, offset)
+
         override fun balance(walletId: String): Long = delegate.balance(walletId)
 
         override fun postTransaction(

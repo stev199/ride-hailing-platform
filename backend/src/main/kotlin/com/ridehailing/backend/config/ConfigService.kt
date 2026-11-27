@@ -52,6 +52,8 @@ class ConfigService(
     @Volatile private var currentMethods: LoginMethodsConfig = LoginMethodsConfig()
     /** P4-1: fares section of the device-visible bundle (D75 full-replace admin edits). */
     @Volatile private var currentFares: FareConfig = defaultFares()
+    /** P7-1: wallet section of the device-visible bundle (D75 full-replace admin edits). */
+    @Volatile private var currentWallet: WalletConfig = WalletConfig()
     @Volatile private var currentVersion: Long = 0L
     @Volatile private var currentSigned: SignedConfigBundle.SignedConfig? = null
     private val history = mutableListOf<VersionEntry>()
@@ -145,8 +147,33 @@ class ConfigService(
         }
     }
 
+/** Live wallet config snapshot for service consumers (provider-lambda pattern). */
+    val walletConfig: WalletConfig get() = synchronized(this) { currentWallet }
+
+    /**
+     * P7-1: replace the wallet section (D75 full-replace). Invalid configs never
+     * touch live state and never burn a version (fares pattern).
+     */
+    fun updateWallet(actorId: String, wallet: WalletConfig): UpdateResult {
+        val errs = wallet.validationErrors()
+        if (errs.isNotEmpty()) return UpdateResult.Invalid("wallet", errs.joinToString("; "))
+        synchronized(this) {
+            currentWallet = wallet
+            val entry = publishLocked(actorId, "wallet_updated")
+            eventRecorder?.append(
+                "config.wallet.updated",
+                mapOf(
+                    "actorId" to actorId,
+                    "version" to entry.version.toString(),
+                    "transferFeeBps" to wallet.transferFeeBps.toString(),
+                ),
+            )
+            return UpdateResult.Updated(entry)
+        }
+    }
+
     /** Canonical signed payload: login methods + fares (device-visible config). */
-    private fun configCanonicalJson(m: LoginMethodsConfig, f: FareConfig): String =
+    private fun configCanonicalJson(m: LoginMethodsConfig, f: FareConfig, w: WalletConfig): String =
         EventChain.canonicalJson(
             mapOf(
                 "loginMethods" to mapOf(
@@ -161,6 +188,11 @@ class ConfigService(
                     },
                 ),
                 "fares" to faresToCanonicalMap(f),
+                "wallet" to mapOf(
+                    "transferFeeBps" to w.transferFeeBps,
+                    "minTransferMinor" to w.minTransferMinor,
+                    "dailyTransferLimitMinor" to w.dailyTransferLimitMinor,
+                ),
             ),
         )
 
@@ -190,7 +222,7 @@ class ConfigService(
     private fun publishLocked(actorId: String, change: String): VersionEntry {
         val version = currentVersion + 1
         val issuedAt = clock().epochSecond
-        val canonical = configCanonicalJson(currentMethods, currentFares)
+        val canonical = configCanonicalJson(currentMethods, currentFares, currentWallet)
         val signed = bundle.sign(canonical, version, issuedAt)
             ?: throw IllegalStateException("config bundle has no private key (read-only bundle?)")
         currentVersion = version

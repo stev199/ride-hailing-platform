@@ -85,4 +85,27 @@ class InMemoryLedgerStore(private val nowEpochSec: () -> Long = { System.current
 
     override fun entriesFor(walletId: String, limit: Int): List<LedgerEntry> =
         entries.values.filter { it.walletId == walletId }.takeLast(limit)
+
+    /** Test/audit helper: walletId -> balance for EVERY wallet (closed-system sum). */
+    fun snapshotBalances(): Map<String, Long> = wallets.mapValues { it.value.balanceMinor }
+
+    override fun historyFor(walletId: String, limit: Int, offset: Int): List<LedgerHistoryItem> {
+        val newestFirst = entries.values
+            .filter { it.walletId == walletId }
+            .reversed()
+            .mapNotNull { e ->
+                val tx = transactions[e.transactionId] ?: return@mapNotNull null
+                LedgerHistoryItem(
+                    entryId = e.id,
+                    transactionId = e.transactionId,
+                    amountMinor = e.amountMinor,
+                    direction = e.direction,
+                    reason = tx.reason,
+                    refType = tx.refType,
+                    refId = tx.refId,
+                    createdAtEpochSec = tx.createdAtEpochSec,
+                )
+            }
+        return newestFirst.drop(offset.coerceAtLeast(0)).take(limit.coerceIn(0, 500))
+    }
 }

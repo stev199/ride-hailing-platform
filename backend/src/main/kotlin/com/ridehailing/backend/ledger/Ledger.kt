@@ -38,6 +38,18 @@ data class LedgerEntry(
     val direction: Direction,
 )
 
+/** One readable history row: the entry joined with its transaction metadata (P7-1). */
+data class LedgerHistoryItem(
+    val entryId: String,
+    val transactionId: String,
+    val amountMinor: Long,
+    val direction: Direction,
+    val reason: String,
+    val refType: String?,
+    val refId: String?,
+    val createdAtEpochSec: Long,
+)
+
 /** One intended per-wallet movement inside a transaction. */
 data class LedgerLeg(val walletId: String, val amountMinor: Long, val direction: Direction)
 
@@ -62,6 +74,14 @@ interface LedgerStore {
     fun postTransaction(legs: List<LedgerLeg>, refType: String?, refId: String?, reason: String): LedgerTransaction
 
     fun entriesFor(walletId: String, limit: Int = 50): List<LedgerEntry>
+
+    /**
+     * Newest-first transaction history for a wallet (P7-1): entries joined with
+     * their transaction metadata, offset-paginated (mirrors the admin list contract:
+     * a present limit/offset must be validated by the CALLER - the store clamps
+     * defensively but 400s are a routes concern).
+     */
+    fun historyFor(walletId: String, limit: Int = 50, offset: Int = 0): List<LedgerHistoryItem>
 }
 
 /** Validate + summarize legs; shared by every implementation. */
