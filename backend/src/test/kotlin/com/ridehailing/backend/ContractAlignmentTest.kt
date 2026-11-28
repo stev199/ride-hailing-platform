@@ -329,10 +329,11 @@ class ContractAlignmentTest {
             pattern("RideCreateRequest", "city").pattern,
             "booking and estimate share the city key shape",
         )
-        // Payment method: CASH-only enum (server: payment_method_unavailable otherwise).
+        // Payment method enum mirrors the server acceptance set (P7-2: CASH + WALLET;
+        // unknown methods stay payment_method_unavailable, metered+WALLET is 400).
         @Suppress("UNCHECKED_CAST")
         val pm = prop("RideCreateRequest", "paymentMethod")["enum"] as List<*>
-        assertEquals(listOf("CASH"), pm)
+        assertEquals(listOf("CASH", "WALLET"), pm)
         // Note length limit (server: note_too_long at >500).
         val note = prop("RideCreateRequest", "note")
         assertEquals(500, (note["maxLength"] as? Int) ?: (note["maxLength"] as? Long)?.toInt() ?: fail("note.maxLength missing"))
