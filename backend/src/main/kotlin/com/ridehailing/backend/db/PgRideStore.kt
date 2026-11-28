@@ -39,6 +39,8 @@ class PgRideStore(private val connect: () -> Connection) : RideStore {
         cancelFeeMinor = getLong("cancel_fee_minor"),
         createdAtEpochSec = getTimestamp("created_at").time / 1000,
         updatedAtEpochSec = getTimestamp("updated_at").time / 1000,
+        promoCode = getString("promo_code"),
+        discountMinor = getLong("discount_minor"),
     )
 
     override fun insert(ride: Ride): Ride = connect().use { c ->
@@ -48,8 +50,9 @@ class PgRideStore(private val connect: () -> Connection) : RideStore {
                 "INSERT INTO rides (id, rider_id, status, city, ride_type, payment_method, note, " +
                     "pickup_lat, pickup_lon, dropoff_lat, dropoff_lon, quote_json, quote_signature, " +
                     "quote_amount_minor, quote_currency, quote_mode, quote_metered_cap_minor, " +
-                    "quote_valid_until, quote_issued_at, cancel_fee_minor, created_at, updated_at) " +
-                    "VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_timestamp(?), to_timestamp(?))",
+                    "quote_valid_until, quote_issued_at, cancel_fee_minor, created_at, updated_at, " +
+                    "promo_code, discount_minor) " +
+                    "VALUES (?::uuid, ?::uuid, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, to_timestamp(?), to_timestamp(?), ?, ?)",
             ).use { ps ->
                 ps.setString(1, ride.id)
                 ps.setString(2, ride.riderId)
@@ -73,6 +76,8 @@ class PgRideStore(private val connect: () -> Connection) : RideStore {
                 ps.setLong(20, ride.cancelFeeMinor)
                 ps.setLong(21, ride.createdAtEpochSec)
                 ps.setLong(22, ride.updatedAtEpochSec)
+                ps.setString(23, ride.promoCode)
+                ps.setLong(24, ride.discountMinor)
                 ps.executeUpdate()
             }
             c.prepareStatement(
@@ -200,6 +205,19 @@ class PgRideStore(private val connect: () -> Connection) : RideStore {
                 val out = mutableListOf<Ride>()
                 while (rs.next()) out.add(rs.toRide())
                 out
+            }
+        }
+    }
+
+    override fun countPromoUses(code: String, riderId: String): Int = connect().use { c ->
+        c.prepareStatement(
+            "SELECT COUNT(*) FROM rides WHERE promo_code = ? AND rider_id = ?::uuid",
+        ).use { ps ->
+            ps.setString(1, code)
+            ps.setString(2, riderId)
+            ps.executeQuery().use { rs ->
+                rs.next()
+                rs.getInt(1)
             }
         }
     }

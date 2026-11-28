@@ -37,6 +37,8 @@ data class RideCreateRequest(
     val note: String? = null,
     val pickupName: String? = null,
     val dropoffName: String? = null,
+    /** P7-6: optional promo code - the server validates it and discounts the CHARGE. */
+    val promoCode: String? = null,
 )
 
 @Serializable
@@ -71,6 +73,12 @@ data class RideDto(
     val cancelFeeMinor: Long,
     val createdAtEpochSec: Long,
     val updatedAtEpochSec: Long,
+    /** P7-6: promo applied at booking (null = full fare). */
+    val promoCode: String? = null,
+    /** P7-6: platform-side reduction of the signed fare (minor units). */
+    val discountMinor: Long = 0,
+    /** The amount actually charged = quote.amountMinor - discountMinor. */
+    val chargeAmountMinor: Long,
 )
 
 @Serializable
@@ -107,6 +115,9 @@ private fun Ride.toDto(publicKeyHex: String) = RideDto(
     cancelFeeMinor = cancelFeeMinor,
     createdAtEpochSec = createdAtEpochSec,
     updatedAtEpochSec = updatedAtEpochSec,
+    promoCode = promoCode,
+    discountMinor = discountMinor,
+    chargeAmountMinor = chargeAmountMinor,
 )
 
 private fun err2(r: RideService.CreateResult.Invalid) = err(r.code, "Invalid ride request: ${r.field}")
@@ -121,11 +132,14 @@ fun Route.rideRoutes(service: AuthService, rides: RideService, publicKeyHex: Str
                 city = req.city, rideType = req.rideType,
                 paymentMethod = req.paymentMethod, note = req.note,
                 pickupName = req.pickupName, dropoffName = req.dropoffName,
+                promoCode = req.promoCode,
             ))) {
                 is RideService.CreateResult.Created ->
                     call.respond(HttpStatusCode.Created, r.ride.toDto(publicKeyHex))
                 is RideService.CreateResult.Invalid ->
                     call.respond(HttpStatusCode.BadRequest, err2(r))
+                is RideService.CreateResult.Conflict ->
+                    call.respond(HttpStatusCode.Conflict, err(r.code, "Ride request cannot be fulfilled"))
                 is RideService.CreateResult.Forbidden ->
                     call.respond(HttpStatusCode.Forbidden, err(r.code, "Only riders can book rides"))
             }

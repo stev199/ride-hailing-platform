@@ -34,6 +34,8 @@ class RideService(
     private val walletProvider: (() -> com.ridehailing.backend.wallet.WalletService)? = null,
     /** P7-2 commission source: the live wallet config section (provider-lambda pattern). */
     private val walletConfigProvider: (() -> com.ridehailing.backend.config.WalletConfig?)? = null,
+    /** P7-6 promo source: the live promo config section (provider-lambda pattern). */
+    private val promoConfigProvider: (() -> com.ridehailing.backend.config.PromoConfig?)? = null,
     private val osrm: OsrmRouteSource? = null,
     private val clock: () -> Instant = Instant::now,
     private val eventRecorder: EventRecorder? = null,
@@ -53,11 +55,14 @@ class RideService(
         val note: String? = null,
         val pickupName: String? = null,
         val dropoffName: String? = null,
+        /** P7-6: optional promo code (server validates; the charge is discounted). */
+        val promoCode: String? = null,
     )
 
     sealed class CreateResult {
         data class Created(val ride: Ride) : CreateResult()
         data class Invalid(val field: String, val code: String) : CreateResult()
+        data class Conflict(val code: String) : CreateResult()
         data class Forbidden(val code: String) : CreateResult()
     }
 
@@ -116,6 +121,35 @@ class RideService(
         if (req.paymentMethod == "WALLET" && quote.mode != "upfront_locked") {
             return CreateResult.Invalid("paymentMethod", "wallet_requires_upfront_quote")
         }
+        // P7-6: promo application (server-authoritative; the signed quote keeps covering
+        // the FULL fare - the promo is a platform-side reduction recorded on the ride
+        // and audited). Unknown/inactive/out-of-window/currency-mismatch -> 400 with a
+        // verbatim code; an exhausted per-user limit -> 409 promo_limit_reached.
+        var promoCodeApplied: String? = null
+        var discountMinor = 0L
+        val promoRequested = req.promoCode?.trim()?.uppercase()?.takeIf { it.isNotEmpty() }
+        if (promoRequested != null) {
+            // Openapi pattern is enforced here (D49 alignment: documented = validated).
+            if (!Regex("^[A-Z0-9]{3,24}$").matches(promoRequested)) {
+                return CreateResult.Invalid("promoCode", "promo_not_found")
+            }
+            val promo = promoConfigProvider?.invoke()?.byCode(promoRequested)
+                ?: return CreateResult.Invalid("promoCode", "promo_not_found")
+            if (!promo.active) return CreateResult.Invalid("promoCode", "promo_not_valid")
+            if (now.epochSecond < promo.validFromEpochSec || now.epochSecond > promo.validUntilEpochSec) {
+                return CreateResult.Invalid("promoCode", "promo_not_valid")
+            }
+            if (promo.kind == com.ridehailing.backend.config.PromoCodeConfig.KIND_AMOUNT &&
+                promo.currency != null && promo.currency != quote.currency
+            ) {
+                return CreateResult.Invalid("promoCode", "promo_not_valid")
+            }
+            if (store.countPromoUses(promo.code, rider.id) >= promo.perUserLimit) {
+                return CreateResult.Conflict("promo_limit_reached")
+            }
+            discountMinor = promo.discountFor(quote.amountMinor)
+            promoCodeApplied = promo.code
+        }
         val ride = Ride(
             id = com.ridehailing.backend.auth.Ids.newId(),
             riderId = rider.id,
@@ -141,6 +175,8 @@ class RideService(
             cancelFeeMinor = 0,
             createdAtEpochSec = now.epochSecond,
             updatedAtEpochSec = now.epochSecond,
+            promoCode = promoCodeApplied,
+            discountMinor = discountMinor,
         )
         store.insert(ride)
         eventRecorder?.append(
@@ -152,6 +188,8 @@ class RideService(
                 "rideType" to ride.rideType,
                 "amountMinor" to ride.quoteAmountMinor.toString(),
                 "quoteMode" to ride.quoteMode,
+                "promoCode" to ride.promoCode,
+                "discountMinor" to ride.discountMinor.toString(),
             ),
         )
         return CreateResult.Created(ride)
@@ -233,9 +271,9 @@ class RideService(
         val now = clock()
         ride.status.requireTransitionTo(RideStatus.CANCELLED_BY_ADMIN)
         var releaseOutcome = "not_applicable"
-        if (ride.paymentMethod == "WALLET") {
+        if (ride.paymentMethod == "WALLET" && ride.chargeAmountMinor > 0) {
             val wallet = walletProvider?.invoke()
-            val released = wallet?.release(ride.riderId, ride.quoteAmountMinor, "ride", ride.id)
+            val released = wallet?.release(ride.riderId, ride.chargeAmountMinor, "ride", ride.id)
             releaseOutcome = when (released) {
                 is com.ridehailing.backend.wallet.WalletService.HoldResult.Held -> "released"
                 is com.ridehailing.backend.wallet.WalletService.HoldResult.Invalid ->
@@ -350,9 +388,11 @@ class RideService(
         // (spec "wallet holds happen server-side at confirmation"). The hold is
         // attempted BEFORE the single-winner claim: a rider without funds never
         // burns the race window (409 keeps the ride on the board for funded drivers).
-        if (ride.paymentMethod == "WALLET") {
+        // P7-6: the hold covers the CHARGE (quote minus promo discount); a 100%-off
+        // promo makes the charge zero - nothing to hold, the accept proceeds freely.
+        if (ride.paymentMethod == "WALLET" && ride.chargeAmountMinor > 0) {
             val wallet = walletProvider?.invoke()
-            val held = wallet?.hold(ride.riderId, ride.quoteAmountMinor, "ride", ride.id)
+            val held = wallet?.hold(ride.riderId, ride.chargeAmountMinor, "ride", ride.id)
             if (wallet == null || held !is com.ridehailing.backend.wallet.WalletService.HoldResult.Held) {
                 return DriverActionResult.Error(409, "wallet_hold_failed")
             }
@@ -395,22 +435,43 @@ class RideService(
         // configured commission, platform fee wallet credited, ONE atomic transaction.
         // The hold was taken at accept; a hold that is somehow too small surfaces as
         // a money event (the trip itself still completes - the fare debt is tracked
-        // by the ledger, never by blocking a finished ride).
+        // by the ledger, never by blocking a finished ride). P7-6: the capture amount
+        // is the CHARGE (quote minus promo discount); a zero charge (100%-off promo)
+        // skips the ledger movement and records the promo application honestly.
         if (target == RideStatus.COMPLETED && ride.paymentMethod == "WALLET") {
             walletProvider?.invoke()?.let { wallet ->
                 val cfgNow = walletConfigProvider?.invoke()
                 val commissionBps = cfgNow?.commissionBps ?: 0
-                when (val c = wallet.captureWithCommission(ride.riderId, driver.id, ride.quoteAmountMinor, commissionBps, "ride.completed", ride.id)) {
-                    is com.ridehailing.backend.wallet.WalletService.HoldResult.Held ->
-                        eventRecorder?.append(
-                            "money.captured",
-                            mapOf("rideId" to rideId, "amountMinor" to ride.quoteAmountMinor.toString(), "commissionBps" to commissionBps.toString()),
-                        )
-                    is com.ridehailing.backend.wallet.WalletService.HoldResult.Invalid ->
-                        eventRecorder?.append(
-                            "money.capture_failed",
-                            mapOf("rideId" to rideId, "code" to c.code, "amountMinor" to ride.quoteAmountMinor.toString()),
-                        )
+                if (ride.chargeAmountMinor > 0) {
+                    when (val c = wallet.captureWithCommission(ride.riderId, driver.id, ride.chargeAmountMinor, commissionBps, "ride.completed", ride.id)) {
+                        is com.ridehailing.backend.wallet.WalletService.HoldResult.Held ->
+                            eventRecorder?.append(
+                                "money.captured",
+                                mapOf(
+                                    "rideId" to rideId,
+                                    "amountMinor" to ride.chargeAmountMinor.toString(),
+                                    "quoteAmountMinor" to ride.quoteAmountMinor.toString(),
+                                    "discountMinor" to ride.discountMinor.toString(),
+                                    "commissionBps" to commissionBps.toString(),
+                                ),
+                            )
+                        is com.ridehailing.backend.wallet.WalletService.HoldResult.Invalid ->
+                            eventRecorder?.append(
+                                "money.capture_failed",
+                                mapOf("rideId" to rideId, "code" to c.code, "amountMinor" to ride.chargeAmountMinor.toString()),
+                            )
+                    }
+                } else {
+                    eventRecorder?.append(
+                        "money.captured",
+                        mapOf(
+                            "rideId" to rideId,
+                            "amountMinor" to "0",
+                            "quoteAmountMinor" to ride.quoteAmountMinor.toString(),
+                            "discountMinor" to ride.discountMinor.toString(),
+                            "commissionBps" to commissionBps.toString(),
+                        ),
+                    )
                 }
             }
         }

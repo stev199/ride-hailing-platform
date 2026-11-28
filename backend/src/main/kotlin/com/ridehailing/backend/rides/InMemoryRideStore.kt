@@ -76,5 +76,9 @@ class InMemoryRideStore : RideStore {
                 .take(limit)
         }
 
+    override fun countPromoUses(code: String, riderId: String): Int = synchronized(lock) {
+        rides.values.count { it.promoCode == code && it.riderId == riderId }
+    }
+
     fun newId(): String = Ids.newId()
 }

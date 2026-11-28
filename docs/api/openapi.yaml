@@ -821,6 +821,57 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+  /v1/admin/config/promos:
+    get:
+      operationId: adminGetPromoConfig
+      description: >-
+        Promo codes section of the signed config bundle (CONFIG_READ). Codes are
+        uppercase A-Z0-9; kinds PERCENT (0<value<=100) and AMOUNT (minor units of a
+        currency); validity window + per-user limit + active flag per code.
+      summary: Get promo config (admin)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current promo section
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromoConfigSection"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    patch:
+      operationId: adminPatchPromoConfig
+      description: >-
+        D75 FULL-REPLACE (CONFIG_WRITE): the admin sends the edited document, the
+        server validates it completely (invalid configs never touch live state and
+        never burn a version). Accepted patches bump the signed bundle version and
+        append a config.promos.updated audit event.
+      summary: Replace promo config (admin)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PromoConfigSection"
+      responses:
+        "200":
+          description: Updated (version + config echo)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromoConfigUpdated"
+        "400":
+          description: invalid_body / invalid_promos
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
   /v1/admin/config/fares:
     get:
       operationId: adminGetFares
@@ -1323,6 +1374,9 @@ components:
         cancelFeeMinor: { type: integer, format: int64 }
         createdAtEpochSec: { type: integer, format: int64 }
         updatedAtEpochSec: { type: integer, format: int64 }
+        promoCode: { type: [string, 'null'], description: 'P7-6 promo applied at booking (null = full fare)' }
+        discountMinor: { type: integer, format: int64, description: 'P7-6 platform-side reduction of the signed fare' }
+        chargeAmountMinor: { type: integer, format: int64, description: 'quote minus discount = the amount actually charged/owed' }
     AdminRideAction:
       type: object
       required: [rideId, status]
@@ -1437,6 +1491,33 @@ components:
       properties:
         version: { type: integer, format: int64, minimum: 1 }
         config: { $ref: "#/components/schemas/WalletConfigSection" }
+    PromoConfigSection:
+      type: object
+      required: [codes]
+      properties:
+        codes:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [code, kind, value, validUntilEpochSec, perUserLimit]
+            additionalProperties: false
+            properties:
+              code: { type: string, pattern: '^[A-Z0-9]{3,24}$' }
+              kind: { type: string, enum: [PERCENT, AMOUNT] }
+              value: { type: number, exclusiveMinimum: 0 }
+              currency: { type: [string, 'null'], maxLength: 12 }
+              validFromEpochSec: { type: integer, format: int64, minimum: 0 }
+              validUntilEpochSec: { type: integer, format: int64, minimum: 1 }
+              perUserLimit: { type: integer, minimum: 1, maximum: 1000 }
+              active: { type: boolean }
+    PromoConfigUpdated:
+      type: object
+      required: [version, config]
+      additionalProperties: false
+      properties:
+        version: { type: integer, format: int64, minimum: 1 }
+        config: { $ref: "#/components/schemas/PromoConfigSection" }
     AdminLiveDriver:
       type: object
       required: [driverId, lat, lon, online, updatedAtEpochSec]
@@ -1561,6 +1642,7 @@ components:
         createdAtEpochSec: { type: integer, format: int64 }
         updatedAtEpochSec: { type: integer, format: int64 }
         distanceMeters: { type: number, format: double }
+        chargeAmountMinor: { type: integer, format: int64, description: 'P7-6 quote minus promo discount = what the rider pays' }
     DriverRideListDto:
       type: object
       required: [rides, limit, offset]
@@ -2248,6 +2330,10 @@ components:
           type: string
           pattern: '^[a-z][a-z0-9-]{0,31}$'
           description: Ride type offered in the city; unknown keys are 400 unknown_ride_type.
+        promoCode:
+          type: string
+          pattern: '^[A-Z0-9]{3,24}$'
+          description: Optional promo code (P7-6). Unknown/inactive/expired -> 400; exhausted per-user limit -> 409 promo_limit_reached.
         paymentMethod:
           type: string
           enum: [CASH, WALLET]
@@ -2347,6 +2433,19 @@ components:
         updatedAtEpochSec:
           type: integer
           format: int64
+        promoCode:
+          type: [string, "null"]
+          description: P7-6 promo applied at booking (null = full fare charged).
+        discountMinor:
+          type: integer
+          format: int64
+          minimum: 0
+          description: P7-6 platform-side reduction of the signed fare.
+        chargeAmountMinor:
+          type: integer
+          format: int64
+          minimum: 0
+          description: quote.amountMinor minus discountMinor = the amount actually charged (held/captured for WALLET, owed in cash for CASH).
     RideListDto:
       type: object
       required: [rides, limit, offset]

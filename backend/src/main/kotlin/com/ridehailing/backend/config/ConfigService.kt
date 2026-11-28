@@ -54,6 +54,8 @@ class ConfigService(
     @Volatile private var currentFares: FareConfig = defaultFares()
     /** P7-1: wallet section of the device-visible bundle (D75 full-replace admin edits). */
     @Volatile private var currentWallet: WalletConfig = WalletConfig()
+    /** P7-6: promo codes section of the device-visible bundle (D75 full-replace admin edits). */
+    @Volatile private var currentPromos: PromoConfig = PromoConfig()
     @Volatile private var currentVersion: Long = 0L
     @Volatile private var currentSigned: SignedConfigBundle.SignedConfig? = null
     private val history = mutableListOf<VersionEntry>()
@@ -150,6 +152,31 @@ class ConfigService(
 /** Live wallet config snapshot for service consumers (provider-lambda pattern). */
     val walletConfig: WalletConfig get() = synchronized(this) { currentWallet }
 
+    /** P7-6: live promo config snapshot (provider-lambda pattern). */
+    val promos: PromoConfig get() = synchronized(this) { currentPromos }
+
+    /**
+     * P7-6: replace the promo codes section (D75 full-replace). Invalid configs never
+     * touch live state and never burn a version.
+     */
+    fun updatePromos(actorId: String, promos: PromoConfig): UpdateResult {
+        val errs = promos.validationErrors()
+        if (errs.isNotEmpty()) return UpdateResult.Invalid("promos", errs.joinToString("; "))
+        synchronized(this) {
+            currentPromos = promos
+            val entry = publishLocked(actorId, "promos_updated")
+            eventRecorder?.append(
+                "config.promos.updated",
+                mapOf(
+                    "actorId" to actorId,
+                    "version" to entry.version.toString(),
+                    "codes" to promos.codes.size.toString(),
+                ),
+            )
+            return UpdateResult.Updated(entry)
+        }
+    }
+
     /**
      * P7-1: replace the wallet section (D75 full-replace). Invalid configs never
      * touch live state and never burn a version (fares pattern).
@@ -172,8 +199,8 @@ class ConfigService(
         }
     }
 
-    /** Canonical signed payload: login methods + fares (device-visible config). */
-    private fun configCanonicalJson(m: LoginMethodsConfig, f: FareConfig, w: WalletConfig): String =
+    /** Canonical signed payload: login methods + fares + wallet + promos (device-visible config). */
+    private fun configCanonicalJson(m: LoginMethodsConfig, f: FareConfig, w: WalletConfig, p: PromoConfig): String =
         EventChain.canonicalJson(
             mapOf(
                 "loginMethods" to mapOf(
@@ -192,6 +219,20 @@ class ConfigService(
                     "transferFeeBps" to w.transferFeeBps,
                     "minTransferMinor" to w.minTransferMinor,
                     "dailyTransferLimitMinor" to w.dailyTransferLimitMinor,
+                ),
+                "promos" to mapOf(
+                    "codes" to p.codes.map { c ->
+                        mapOf(
+                            "code" to c.code,
+                            "kind" to c.kind,
+                            "value" to c.value,
+                            "currency" to c.currency,
+                            "validFromEpochSec" to c.validFromEpochSec,
+                            "validUntilEpochSec" to c.validUntilEpochSec,
+                            "perUserLimit" to c.perUserLimit,
+                            "active" to c.active,
+                        )
+                    },
                 ),
             ),
         )
@@ -222,7 +263,7 @@ class ConfigService(
     private fun publishLocked(actorId: String, change: String): VersionEntry {
         val version = currentVersion + 1
         val issuedAt = clock().epochSecond
-        val canonical = configCanonicalJson(currentMethods, currentFares, currentWallet)
+        val canonical = configCanonicalJson(currentMethods, currentFares, currentWallet, currentPromos)
         val signed = bundle.sign(canonical, version, issuedAt)
             ?: throw IllegalStateException("config bundle has no private key (read-only bundle?)")
         currentVersion = version

@@ -136,4 +136,22 @@ class EarningsAggregatorTest {
         assertEquals(0L, s.weekWalletMinor)
         assertEquals(0, s.trips.size)
     }
+
+    @Test
+    fun promoDiscount_chargeIsTheEarningsBasis() {
+        // quote 1000, promo took 300 -> charge 700; the capture credit must match the
+        // CHARGE basis (700 minus commission), not the signed quote.
+        val ride = ride("r1", method = "WALLET", fareMinor = 1_000, updatedAtSec = day11_0001)
+            .copy(chargeAmountMinor = 700L)
+        val s = EarningsAggregator.summarize(
+            rides = listOf(ride),
+            history = listOf(capture("r1", amountMinor = 630, atSec = day11_0001)),
+            nowEpochSec = day11_0001,
+        )
+        val t = s.trips.single()
+        assertEquals(700L, t.fareMinor)
+        assertEquals(630L, t.walletCreditMinor)
+        assertEquals(70L, t.commissionMinor)
+        assertEquals(630L, s.todayWalletMinor)
+    }
 }

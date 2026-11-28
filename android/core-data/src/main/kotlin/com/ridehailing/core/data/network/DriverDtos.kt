@@ -47,6 +47,8 @@ data class DriverRideDto(
     val updatedAtEpochSec: Long,
     /** Straight-line distance from the driver's duty position (available board only). */
     val distanceMeters: Double? = null,
+    /** P7-6: quote minus promo discount = what the rider actually pays. */
+    val chargeAmountMinor: Long = 0,
 )
 
 @Serializable

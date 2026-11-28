@@ -69,6 +69,10 @@ data class AdminRideListItemDto(
     val cancelFeeMinor: Long,
     val createdAtEpochSec: Long,
     val updatedAtEpochSec: Long,
+    /** P7-6: promo + discount (admin surface sees the money truth). */
+    val promoCode: String? = null,
+    val discountMinor: Long = 0,
+    val chargeAmountMinor: Long,
 )
 
 @Serializable
@@ -109,6 +113,9 @@ private fun Ride.toAdminListItemDto() = AdminRideListItemDto(
     cancelFeeMinor = cancelFeeMinor,
     createdAtEpochSec = createdAtEpochSec,
     updatedAtEpochSec = updatedAtEpochSec,
+    promoCode = promoCode,
+    discountMinor = discountMinor,
+    chargeAmountMinor = chargeAmountMinor,
 )
 
 fun Route.adminTripRoutes(
@@ -173,11 +180,13 @@ fun Route.adminTripRoutes(
                     call.respond(HttpStatusCode.NotFound, err("ride_not_found", "No such ride"))
                     return@withPermission
                 }
-                if (ride.status != RideStatus.COMPLETED || ride.paymentMethod != "WALLET") {
+                if (ride.status != RideStatus.COMPLETED || ride.paymentMethod != "WALLET" || ride.chargeAmountMinor <= 0) {
                     call.respond(HttpStatusCode.Conflict, err("refund_not_allowed", "refund not allowed"))
                     return@withPermission
                 }
-                when (val res = wallet.refundCompletedRide(ride.riderId, ride.driverId ?: "", ride.id, ride.quoteAmountMinor)) {
+                // P7-6: refund the CHARGE (quote minus promo discount) - the capture reversal
+                // is exact, so the refund basis is what was actually charged.
+                when (val res = wallet.refundCompletedRide(ride.riderId, ride.driverId ?: "", ride.id, ride.chargeAmountMinor)) {
                     is com.ridehailing.backend.wallet.WalletService.RefundResult.Done -> {
                         eventChain.append(
                             "money.refunded",

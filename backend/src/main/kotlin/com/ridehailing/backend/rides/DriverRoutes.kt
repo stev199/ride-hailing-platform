@@ -67,6 +67,8 @@ data class DriverRideDto(
     val createdAtEpochSec: Long,
     val updatedAtEpochSec: Long,
     val distanceMeters: Double? = null,
+    /** P7-6: the amount actually charged/owed (quote minus promo discount). */
+    val chargeAmountMinor: Long,
 )
 
 private fun Ride.toDriverDto(distanceMeters: Double? = null) = DriverRideDto(
@@ -93,6 +95,7 @@ private fun Ride.toDriverDto(distanceMeters: Double? = null) = DriverRideDto(
     createdAtEpochSec = createdAtEpochSec,
     updatedAtEpochSec = updatedAtEpochSec,
     distanceMeters = distanceMeters,
+    chargeAmountMinor = chargeAmountMinor,
 )
 
 @Serializable

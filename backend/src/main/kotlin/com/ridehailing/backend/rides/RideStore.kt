@@ -32,7 +32,14 @@ data class Ride(
     val cancelFeeMinor: Long,
     val createdAtEpochSec: Long,
     val updatedAtEpochSec: Long,
-)
+    /** P7-6: promo code applied at booking (null = full fare charged). */
+    val promoCode: String? = null,
+    /** P7-6: platform-side reduction of the signed fare (charge = quote - discount). */
+    val discountMinor: Long = 0,
+) {
+    /** The amount actually charged (held/captured for WALLET, owed for CASH). */
+    val chargeAmountMinor: Long get() = quoteAmountMinor - discountMinor
+}
 
 interface RideStore {
     /** Insert a new ride (status REQUESTED) with its pickup/dropoff stop rows. */
@@ -74,4 +81,7 @@ interface RideStore {
      * as forRider). Read-only - the ride state machine stays driver/rider-owned.
      */
     fun listAll(status: RideStatus?, city: String?, limit: Int, offset: Int): List<Ride>
+
+    /** P7-6: how many rides THIS rider already booked with THIS promo code (per-user limit). */
+    fun countPromoUses(code: String, riderId: String): Int
 }

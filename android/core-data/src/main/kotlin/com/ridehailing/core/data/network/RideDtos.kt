@@ -19,6 +19,8 @@ data class RideCreateRequestDto(
     val note: String? = null,
     val pickupName: String? = null,
     val dropoffName: String? = null,
+    /** P7-6: optional promo code - the server validates and discounts the charge. */
+    val promoCode: String? = null,
 )
 
 @Serializable
@@ -52,6 +54,11 @@ data class RideDto(
     val cancelFeeMinor: Long,
     val createdAtEpochSec: Long,
     val updatedAtEpochSec: Long,
+    /** P7-6: promo applied at booking (null = full fare). */
+    val promoCode: String? = null,
+    val discountMinor: Long = 0,
+    /** quote.amountMinor - discountMinor = the amount actually charged. */
+    val chargeAmountMinor: Long = 0,
 )
 
 @Serializable

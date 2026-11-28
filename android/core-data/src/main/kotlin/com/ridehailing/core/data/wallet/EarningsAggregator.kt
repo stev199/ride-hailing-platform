@@ -60,15 +60,19 @@ object EarningsAggregator {
             .filter { it.status == "COMPLETED" }
             .sortedByDescending { it.updatedAtEpochSec }
             .map { ride ->
+                // P7-6: the CHARGE (quote minus promo discount) is the money basis -
+                // the credit capture used it; a legacy 0 value (older wire) falls
+                // back to the signed quote.
+                val fareBasis = ride.chargeAmountMinor.takeIf { it > 0 } ?: ride.quote.amountMinor
                 val credit = if (ride.paymentMethod == "WALLET") credits[ride.id]?.amountMinor else null
                 TripEarning(
                     rideId = ride.id,
                     city = ride.city,
                     rideType = ride.rideType,
                     paymentMethod = ride.paymentMethod,
-                    fareMinor = ride.quote.amountMinor,
+                    fareMinor = fareBasis,
                     walletCreditMinor = credit,
-                    commissionMinor = if (credit != null) maxOf(0L, ride.quote.amountMinor - credit) else 0L,
+                    commissionMinor = if (credit != null) maxOf(0L, fareBasis - credit) else 0L,
                     completedAtEpochSec = ride.updatedAtEpochSec,
                 )
             }

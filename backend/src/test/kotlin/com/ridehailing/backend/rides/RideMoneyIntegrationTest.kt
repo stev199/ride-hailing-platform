@@ -71,13 +71,15 @@ class RideMoneyIntegrationTest {
 
     private suspend fun HttpResponse.json() = Json.parseToJsonElement(bodyAsText()).jsonObject
 
-    private suspend fun HttpClient.bookRide(token: String, paymentMethod: String): HttpResponse =
-        postJson(
+    private suspend fun HttpClient.bookRide(token: String, paymentMethod: String, promoCode: String? = null): HttpResponse {
+        val promo = promoCode?.let { ",\"promoCode\":\"$it\"" } ?: ""
+        return postJson(
             "/v1/rides",
             """{"pickupLat":43.7384,"pickupLon":7.4246,"dropoffLat":43.7543,"dropoffLon":7.4312,
-                "city":"monaco","rideType":"standard","paymentMethod":"$paymentMethod"}""",
+                "city":"monaco","rideType":"standard","paymentMethod":"$paymentMethod"$promo}""",
             token,
         )
+    }
 
     @Test
     fun `wallet ride lifecycle - hold at accept, capture with commission at completion`() = withApp { client, graph ->
@@ -238,6 +240,72 @@ class RideMoneyIntegrationTest {
         val cashRefund = client.postJson("/v1/admin/rides/$cashId/refund", "{}", financeToken)
         assertEquals(HttpStatusCode.Conflict, cashRefund.status)
         assertEquals("refund_not_allowed", cashRefund.json()["code"]!!.jsonPrimitive.content)
+
+        val store = graph.ledger as com.ridehailing.backend.ledger.InMemoryLedgerStore
+        assertEquals(0L, store.snapshotBalances().values.sum(), "double-entry conservation")
+    }
+
+    @Test
+    fun `P7-6 promo percent discounts the charge at booking, hold and capture use it`() = withApp { client, graph ->
+        val rider = createUserIn(graph, "33440000051", Role.RIDER)
+        val riderToken = client.getToken("33440000051", "password-1")
+        val driver = createUserIn(graph, "33440000052", Role.DRIVER)
+        val driverToken = client.getToken("33440000052", "password-1")
+
+        graph.walletService.adminCredit(rider.id, 10_000, "seed")
+        graph.config.updateWallet("test", graph.config.walletConfig.copy(commissionBps = 1000))
+        // 50%-off promo, one use per user.
+        graph.config.updatePromos(
+            "test",
+            com.ridehailing.backend.config.PromoConfig(
+                codes = listOf(
+                    com.ridehailing.backend.config.PromoCodeConfig(
+                        code = "HALFOFF", kind = com.ridehailing.backend.config.PromoCodeConfig.KIND_PERCENT,
+                        value = 50.0, validUntilEpochSec = 4_000_000_000L, perUserLimit = 1,
+                    ),
+                ),
+            ),
+        )
+
+        val booking = client.bookRide(riderToken, "WALLET", promoCode = "HALFOFF")
+        assertEquals(HttpStatusCode.Created, booking.status, booking.bodyAsText())
+        val body = booking.json()
+        val rideId = body["id"]!!.jsonPrimitive.content
+        val fareMinor = body["quote"]!!.jsonObject["amountMinor"]!!.jsonPrimitive.content.toLong()
+        val chargeMinor = body["chargeAmountMinor"]!!.jsonPrimitive.content.toLong()
+        val discountMinor = body["discountMinor"]!!.jsonPrimitive.content.toLong()
+        assertEquals("HALFOFF", body["promoCode"]!!.jsonPrimitive.content)
+        assertEquals(fareMinor / 2, chargeMinor, "50% off")
+        assertEquals(fareMinor - chargeMinor, discountMinor)
+
+        // Accept holds the CHARGE (not the signed fare).
+        assertEquals(HttpStatusCode.OK, client.postJson("/v1/rides/$rideId/accept", "{}", driverToken).status)
+        assertEquals(10_000L - chargeMinor, graph.walletService.balances(rider.id)[WalletService.POINTS], "seed minus charge hold")
+        assertEquals(chargeMinor, graph.walletService.held(rider.id))
+
+        // Complete: capture of the charge with commission.
+        for (target in listOf("arrive", "start")) {
+            assertEquals(HttpStatusCode.OK, client.postJson("/v1/rides/$rideId/$target", "{}", driverToken).status)
+        }
+        assertEquals(HttpStatusCode.OK, client.postJson("/v1/rides/$rideId/complete", "{}", driverToken).status)
+        val commission = chargeMinor * 1_000 / 10_000
+        assertEquals(chargeMinor - commission, graph.walletService.balances(driver.id)[WalletService.POINTS])
+        assertEquals(commission, graph.walletService.balances(WalletService.PLATFORM_FEE_OWNER)[WalletService.POINTS])
+
+        // Per-user limit exhausted: second booking WITH the same code -> 409.
+        val second = client.bookRide(riderToken, "WALLET", promoCode = "HALFOFF")
+        assertEquals(HttpStatusCode.Conflict, second.status, second.bodyAsText())
+        assertEquals("promo_limit_reached", second.json()["code"]!!.jsonPrimitive.content)
+
+        // Unknown code -> 400 verbatim.
+        val bad = client.postJson(
+            "/v1/rides",
+            """{"pickupLat":43.7384,"pickupLon":7.4246,"dropoffLat":43.7543,"dropoffLon":7.4312,
+                "city":"monaco","rideType":"standard","paymentMethod":"CASH","promoCode":"NOSUCH"}""",
+            riderToken,
+        )
+        assertEquals(HttpStatusCode.BadRequest, bad.status)
+        assertEquals("promo_not_found", bad.json()["code"]!!.jsonPrimitive.content)
 
         val store = graph.ledger as com.ridehailing.backend.ledger.InMemoryLedgerStore
         assertEquals(0L, store.snapshotBalances().values.sum(), "double-entry conservation")
