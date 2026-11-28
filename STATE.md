@@ -1,6 +1,6 @@
 # STATE - ride-hailing-platform
 
-Last updated: 2026-11-28 (rounds 25-28: PHASE 6 GATE CLOSED @ 06c9053; P7-1 wallet core + P7-2 ride money CI-VERIFIED forced full run dc3f2fd 16/16 green after 4 schemathesis hardening rounds (24a-24d); next: P7-3 rider wallet UI)
+Last updated: 2026-11-28 (round 29 batch: P7-3 rider wallet UI 56e27d9 + P7-4 driver earnings 564b255 + P7-5a admin cancel/refund backend 5f81c33 + P7-5b admin-web money UI f6c85be; task-tier green everywhere (core-data 15 new tests, backend 199, admin-web vitest 51/tsc/eslint); batch CI on f6c85be in flight; next: P7-6 promos, then the Phase 7 gate)
 
 Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
 Current phase: 4 (rider booking happy path) - P4-1 fare engine + P4-2 rides API committed (178e400, b3fcabc); round-11 contract run caught 3 violations (offset=null accepted, GET estimate 404-not-405 via {id} shadowing, partial fare PATCH silently default-resetting straightLine/quote) - ALL FIXED this batch, CI verification in flight. Phase 3 code complete; P3-2 offline-map e2e verification re-dispatched (previous run 45593853432 CANCELLED by concurrency before any job ran).
@@ -54,13 +54,13 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 - CI runs green: ...45507128835 (P0-C FORMAL CLOSE: all jobs green incl. 6/6 android-ui on google_apis with real pixel evidence + e2e-cross-actor finally on REAL emulators; gallery filmstrip + videos served), 45494296659/45492000401 (rounds 9/8), 45462273542 (first full-pipeline green), 45407895919 (P1-CONTRACT); Pages /latest HTTP 200
 - Fix attempts used this turn: the P2-3 evidence chain consumed ~15 CI iterations (WAY over the D23 3-attempt budget, recorded honestly): a CHAIN of 8 root causes, each closed with hard log evidence before the next surfaced (no blind retries): (1) AGP post-test uninstall wipes app dirs, (2) UiAutomation shell = app uid on aosp_atd, (3) scoped storage denies cross-app pulls, (4) INTERNET permission missing, (5) cleartext HTTP policy blocked the viewer POST, (6) guest screenrecord dead + ATD display pipeline off by design -> google_apis, (7) gallery media never copied into _site (PRE-EXISTING: every gallery image ever 404'd), (8) e2e-cross-actor ran hollow-green (PRE-EXISTING: no SDK on the job + degraded exit-0). Video+storyboard evidence now real and served
 
-## Next 5 tasks
+## Next 5 tasks (round 29 refresh, 2026-11-28)
 
-1. Verify CI run on 0992dec (P6-3 FK fix + P6-4 live map backend/UI + round-23 ST205/ST204/ST201 fixes): every job expected (backend+admin-web paths touched); fix red, re-dispatch (D29 override if the docs-only HEAD skips jobs)
-2. Phase 6 gate: on full green - tag phase-6-gate citing the run, gate table row, then immediately scope Phase 7 (money/ledger services per Part B plan; backend mesh-gateway seam per D73) with BACKLOG entries (NON-STOP D74)
-3. live-view (user directive "make sure web-view works"): last dispatch GREEN 46006321083 @ b77e6db (round-21 smoke chain); re-dispatch after the P6-4/round-23 batch only if CI surfaces regressions
-4. Dependabot branch 6ed9ae4 (lockfile bump) CI red - triage at next batch if still open (expected: PR-only job matrix)
-5. Keep P4-3/P4-4 backlog rows honest: P4-1..P4-5 CI-verified rounds 14-19 (phase-4-gate re-tagged on real full green); P5 gate CLOSED (phase-5-gate tag)
+1. Verify the round-29 batch CI run on f6c85be (P7-3 wallet UI + P7-4 earnings + P7-5a/b admin money): every affected job expected (backend, android, admin-web, contract); fix red, re-dispatch (D29 override if the docs-only HEAD skips jobs)
+2. P7-6 promos: promo-code config section (percent/amount, validity window, per-user limit), booking apply + discount inside the quote math, admin editor (LAST Phase 7 item)
+3. Phase 7 gate: on full green - tag phase-7-gate citing the run + gate table row (NON-STOP D74: gate = short report then straight to Phase 8)
+4. live-view (user directive "make sure web-view works"): dispatch GREEN 46107881216 @ 9dfd5ad verified THIS session (round-21 smoke chain); re-dispatch after the Phase 7 batch only if CI surfaces regressions
+5. Keep the ledger honesty invariant: any money work must assert closed-system conservation in tests (snapshotBalances sum == 0) - carried through P7-5a refund tests
 
 ## Session environment (2026-11-25 recycle #5 recovery)
 
