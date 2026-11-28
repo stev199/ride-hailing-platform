@@ -14,6 +14,7 @@ import io.ktor.server.routing.patch
 import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
@@ -43,6 +44,13 @@ import kotlinx.serialization.json.longOrNull
  *   leniency (PromoCodeConfig.amountValueInMoneyCap): shortest-repr floats one step
  *   above the cap (1.0000000000000001e+18) are the cap at double precision and clamp
  *   to it; integer text above the cap keeps the exact round-24c guard.
+ *
+ * Round-36 contract lesson (schemathesis runs 46126361252/46131229495, cases
+ * Ze60ry/3Ce4Ls): an EXPLICIT "currency": null reaches decodedCode() as JsonNull,
+ * which IS a JsonPrimitive with isString=false - the old `null ->` arm only caught
+ * the ABSENT key, so schema-valid currency:null codes 400'd with invalid_body.
+ * JsonNull is now folded into the schema-valid null arm (the AMOUNT then-branch
+ * keeps pinning currency to type:string, so AMOUNT+null stays schema-invalid).
  */
 private fun err(code: String, message: String) = ErrorDto(code = code, message = message)
 
@@ -63,7 +71,10 @@ private fun JsonObject.decodedCode(): PromoCodeConfig? {
     val code = (this["code"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
     val kind = (this["kind"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
     val currency = when (val c = this["currency"]) {
-        null -> null // JSON null is schema-valid ([string, 'null'])
+        // Round-36: ABSENT key returns null, but an EXPLICIT JSON null arrives as
+        // JsonNull (a JsonPrimitive, isString=false) - both are schema-valid
+        // ([string, 'null']) and must decode to null currency.
+        null, is JsonNull -> null
         is JsonPrimitive -> if (c.isString) c.content else return null // number/bool -> schema-invalid
         else -> return null // arrays/objects -> schema-invalid
     }

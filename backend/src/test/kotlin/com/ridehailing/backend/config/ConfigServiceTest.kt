@@ -20,6 +20,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
@@ -302,6 +303,27 @@ class ConfigServiceTest {
         assertEquals(HttpStatusCode.OK, ok.status, ok.bodyAsText())
         val echoed = ok.json()["config"]!!.jsonObject["codes"]!!.jsonArray.single().jsonObject["currency"]!!.jsonPrimitive.content
         assertEquals("ABCDEFGHIJKL", echoed)
+    }
+
+    @Test
+    fun `promos PATCH accepts an explicit currency null (round-36 ST202 Ze60ry-3Ce4Ls)`() = withApp { client, graph ->
+        createAdminIn(graph, "33610000023", Role.ADMIN_SUPER)
+        val token = client.getToken("33610000023", "admin-password-1")
+        // The EXACT CI case Ze60ry/3Ce4Ls: an EXPLICIT "currency": null reaches the
+        // decoder as JsonNull (a JsonPrimitive with isString=false), which the old
+        // absent-key-only arm rejected -> schema-valid [string, 'null'] must decode
+        // and pass. Subnormal 5e-324 rides along as a bonus boundary (finite double).
+        val body = """{"codes":[{"active":false,"code":"000","currency":null,"kind":"PERCENT","perUserLimit":1,"validFromEpochSec":0,"validUntilEpochSec":1,"value":5e-324}]}"""
+        val ok = client.patchJson("/v1/admin/config/promos", body, token)
+        assertEquals(HttpStatusCode.OK, ok.status, ok.bodyAsText())
+        val echoed = ok.json()["config"]!!.jsonObject["codes"]!!.jsonArray.single().jsonObject["currency"]
+        assertTrue(echoed is JsonNull, "explicit null must round-trip as null: ${ok.bodyAsText()}")
+        // AMOUNT + explicit currency null stays schema-invalid: the AMOUNT then-branch
+        // pins currency to type:string, so the server 400s on the required-currency rule.
+        val amount = """{"codes":[{"code":"BIG","kind":"AMOUNT","value":100.0,"currency":null,"validUntilEpochSec":2000000000,"perUserLimit":1}]}"""
+        val bad = client.patchJson("/v1/admin/config/promos", amount, token)
+        assertEquals(HttpStatusCode.BadRequest, bad.status, bad.bodyAsText())
+        assertEquals("invalid_promos", bad.errCode())
     }
 
     // ---------- helpers (file-local mirrors of the AdminRoutesTest ones) ----------
