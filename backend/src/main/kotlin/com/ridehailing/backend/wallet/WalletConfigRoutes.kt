@@ -77,7 +77,7 @@ fun Route.walletConfigRoutes(service: AuthService, config: ConfigService) {
                     is ConfigService.UpdateResult.Updated ->
                         call.respond(HttpStatusCode.OK, WalletConfigUpdatedDto(version = res.entry.version, config = config.walletConfig.toDto()))
                     is ConfigService.UpdateResult.Invalid ->
-                        call.respond(HttpStatusCode.BadRequest, err(res.code, res.code.replace('_', ' ')))
+                        call.respond(HttpStatusCode.BadRequest, err("invalid_wallet", res.code))
                 }
             }
         }

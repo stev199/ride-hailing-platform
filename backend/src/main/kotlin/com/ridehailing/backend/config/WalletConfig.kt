@@ -23,6 +23,10 @@ data class WalletConfig(
         val errs = mutableListOf<String>()
         if (transferFeeBps < 0 || transferFeeBps > 1000) errs += "transferFeeBps: 0..1000 required"
         if (minTransferMinor < 1) errs += "minTransferMinor: >= 1 required"
+        // Maximums mirror the schema (round-24d: a PATCH above the documented cap
+        // was accepted and then ECHOED in GET/PATCH responses = ST108/ST201).
+        if (minTransferMinor > 1_000_000_000_000_000_000L) errs += "minTransferMinor: <= 1000000000000000000 required"
+        if (dailyTransferLimitMinor > 1_000_000_000_000_000_000L) errs += "dailyTransferLimitMinor: <= 1000000000000000000 required"
         // Per-field bounds only (D49 generator precision): the cross-field
         // daily>=min rule is NOT enforced - the spec cannot express it, and a
         // rule the spec cannot express would reject schema-valid fuzz bodies

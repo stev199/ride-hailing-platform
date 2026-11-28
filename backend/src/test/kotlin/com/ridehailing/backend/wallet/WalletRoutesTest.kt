@@ -155,6 +155,14 @@ class WalletRoutesTest {
             setBody("""{"transferFeeBps":5000,"minTransferMinor":10,"dailyTransferLimitMinor":1000}""")
         }
         assertEquals(HttpStatusCode.BadRequest, bad.status)
+        assertEquals("invalid_wallet", bad.json()["code"]!!.jsonPrimitive.content)
+        // Above the documented cap -> 400 (the value would be ECHOED in responses otherwise).
+        val overCap = client.patch("/v1/admin/config/wallet") {
+            header(HttpHeaders.ContentType, "application/json")
+            header(HttpHeaders.Authorization, "Bearer $opsToken")
+            setBody("""{"transferFeeBps":0,"minTransferMinor":1,"dailyTransferLimitMinor":1000000000000000001}""")
+        }
+        assertEquals(HttpStatusCode.BadRequest, overCap.status)
 
         val after = client.authed("/v1/admin/config/wallet", opsToken)
         assertEquals("150", after.json()["transferFeeBps"]!!.jsonPrimitive.content, "patched value stays live")
