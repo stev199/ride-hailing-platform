@@ -56,6 +56,8 @@ class ConfigService(
     @Volatile private var currentWallet: WalletConfig = WalletConfig()
     /** P7-6: promo codes section of the device-visible bundle (D75 full-replace admin edits). */
     @Volatile private var currentPromos: PromoConfig = PromoConfig()
+    /** P8-1: cancellation section of the device-visible bundle (D75 full-replace admin edits). */
+    @Volatile private var currentCancellation: CancellationConfig = CancellationConfig()
     @Volatile private var currentVersion: Long = 0L
     @Volatile private var currentSigned: SignedConfigBundle.SignedConfig? = null
     private val history = mutableListOf<VersionEntry>()
@@ -155,6 +157,9 @@ class ConfigService(
     /** P7-6: live promo config snapshot (provider-lambda pattern). */
     val promos: PromoConfig get() = synchronized(this) { currentPromos }
 
+    /** P8-1: live cancellation config snapshot for the RideService provider lambda. */
+    val cancellationConfig: CancellationConfig get() = synchronized(this) { currentCancellation }
+
     /**
      * P7-6: replace the promo codes section (D75 full-replace). Invalid configs never
      * touch live state and never burn a version.
@@ -199,8 +204,38 @@ class ConfigService(
         }
     }
 
-    /** Canonical signed payload: login methods + fares + wallet + promos (device-visible config). */
-    private fun configCanonicalJson(m: LoginMethodsConfig, f: FareConfig, w: WalletConfig, p: PromoConfig): String =
+    /**
+     * P8-1: replace the cancellation section (D75 full-replace). Invalid configs never
+     * touch live state and never burn a version (fares/wallet/promos pattern).
+     */
+    fun updateCancellation(actorId: String, cfg: CancellationConfig): UpdateResult {
+        val errs = cfg.validationErrors()
+        if (errs.isNotEmpty()) return UpdateResult.Invalid("cancellation", errs.joinToString("; "))
+        synchronized(this) {
+            currentCancellation = cfg
+            val entry = publishLocked(actorId, "cancellation_updated")
+            eventRecorder?.append(
+                "config.cancellation.updated",
+                mapOf(
+                    "actorId" to actorId,
+                    "version" to entry.version.toString(),
+                    "freeCancelWindowSec" to cfg.freeCancelWindowSec.toString(),
+                    "riderReasons" to cfg.riderReasons.size.toString(),
+                    "driverReasons" to cfg.driverReasons.size.toString(),
+                ),
+            )
+            return UpdateResult.Updated(entry)
+        }
+    }
+
+    /** Canonical signed payload: login methods + fares + wallet + promos + cancellation (device-visible config). */
+    private fun configCanonicalJson(
+        m: LoginMethodsConfig,
+        f: FareConfig,
+        w: WalletConfig,
+        p: PromoConfig,
+        c: CancellationConfig,
+    ): String =
         EventChain.canonicalJson(
             mapOf(
                 "loginMethods" to mapOf(
@@ -221,18 +256,25 @@ class ConfigService(
                     "dailyTransferLimitMinor" to w.dailyTransferLimitMinor,
                 ),
                 "promos" to mapOf(
-                    "codes" to p.codes.map { c ->
+                    "codes" to p.codes.map { pc ->
                         mapOf(
-                            "code" to c.code,
-                            "kind" to c.kind,
-                            "value" to c.value,
-                            "currency" to c.currency,
-                            "validFromEpochSec" to c.validFromEpochSec,
-                            "validUntilEpochSec" to c.validUntilEpochSec,
-                            "perUserLimit" to c.perUserLimit,
-                            "active" to c.active,
+                            "code" to pc.code,
+                            "kind" to pc.kind,
+                            "value" to pc.value,
+                            "currency" to pc.currency,
+                            "validFromEpochSec" to pc.validFromEpochSec,
+                            "validUntilEpochSec" to pc.validUntilEpochSec,
+                            "perUserLimit" to pc.perUserLimit,
+                            "active" to pc.active,
                         )
                     },
+                ),
+                // P8-1 cancellation section - IDENTICAL shape to the admin PATCH body
+                // (zero drift by construction, fares-section pattern).
+                "cancellation" to mapOf(
+                    "freeCancelWindowSec" to c.freeCancelWindowSec,
+                    "riderReasons" to c.riderReasons,
+                    "driverReasons" to c.driverReasons,
                 ),
             ),
         )
@@ -263,7 +305,7 @@ class ConfigService(
     private fun publishLocked(actorId: String, change: String): VersionEntry {
         val version = currentVersion + 1
         val issuedAt = clock().epochSecond
-        val canonical = configCanonicalJson(currentMethods, currentFares, currentWallet, currentPromos)
+        val canonical = configCanonicalJson(currentMethods, currentFares, currentWallet, currentPromos, currentCancellation)
         val signed = bundle.sign(canonical, version, issuedAt)
             ?: throw IllegalStateException("config bundle has no private key (read-only bundle?)")
         currentVersion = version

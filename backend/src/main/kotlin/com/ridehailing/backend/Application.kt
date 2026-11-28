@@ -22,6 +22,7 @@ import com.ridehailing.backend.auth.authRoutes
 import com.ridehailing.backend.config.ConfigService
 import com.ridehailing.backend.config.SignedConfigBundle
 import com.ridehailing.backend.config.configRoutes
+import com.ridehailing.backend.config.cancellationConfigRoutes
 import com.ridehailing.backend.config.promoConfigRoutes
 import com.ridehailing.backend.fares.FareService
 import com.ridehailing.backend.fares.OsrmClient
@@ -79,6 +80,7 @@ private val ROUTE_METHODS: Map<String, String> = mapOf(
     "/v1/admin/config/fares" to "GET, PATCH",
     "/v1/admin/config/wallet" to "GET, PATCH",
     "/v1/admin/config/promos" to "GET, PATCH",
+    "/v1/admin/config/cancellation" to "GET, PATCH",
     "/v1/admin/rides" to "GET",
     "/v1/admin/rides/{id}" to "GET",
     "/v1/admin/rides/{id}/cancel" to "POST",
@@ -133,6 +135,7 @@ private fun allowFor(path: String): String = when {
     path.startsWith("/v1/admin/config/fares") -> "GET, PATCH"
     path.startsWith("/v1/admin/config/wallet") -> "GET, PATCH"
     path.startsWith("/v1/admin/config/promos") -> "GET, PATCH"
+    path.startsWith("/v1/admin/config/cancellation") -> "GET, PATCH"
     path.startsWith("/v1/admin/rides/") && path.endsWith("/cancel") -> "POST"
     path.startsWith("/v1/admin/rides/") && path.endsWith("/refund") -> "POST"
     path.startsWith("/v1/admin/rides") -> "GET"
@@ -247,6 +250,7 @@ class AuthGraph(
         walletProvider = { walletService },
         walletConfigProvider = { config.walletConfig },
         promoConfigProvider = { config.promos },
+        cancellationConfigProvider = { config.cancellationConfig },
         osrm = osrm,
         eventRecorder = { type, payload -> eventChain.append(type, payload) },
     )
@@ -397,6 +401,7 @@ fun Application.module(
         walletRoutes(auth.service, auth.walletService)
         walletConfigRoutes(auth.service, auth.config)
         promoConfigRoutes(auth.service, auth.config)
+        cancellationConfigRoutes(auth.service, auth.config)
         if (testProfile) testRoutes(eventChain, configBundle, auth.devInbox)
         // Catch-all (registered LAST - earlier routes win at equal resolution quality):
         // Ktor answers 404 for a KNOWN path hit with an undeclared method, but the

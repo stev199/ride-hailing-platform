@@ -107,13 +107,109 @@ class RideRoutesTest {
         assertEquals(HttpStatusCode.OK, list.status)
         assertTrue(id in list.bodyAsText())
 
-        // Cancel own ride: 200 + CANCELLED_BY_RIDER + configured fee (3.0 EUR = 300 minor).
+        // Cancel own ride: 200 + CANCELLED_BY_RIDER. P8-1: an IMMEDIATE cancel is inside
+        // the default 60s free window, so cancelFeeMinor echoes 0 (fee-free).
         val cancelled = client.postJson("/v1/rides/$id/cancel", "{}", tokenA)
         assertEquals(HttpStatusCode.OK, cancelled.status, cancelled.bodyAsText())
         assertEquals("CANCELLED_BY_RIDER", cancelled.json()["status"]!!.jsonPrimitive.content)
-        assertEquals(300L, cancelled.json()["cancelFeeMinor"]!!.jsonPrimitive.content.toLong())
+        assertEquals(0L, cancelled.json()["cancelFeeMinor"]!!.jsonPrimitive.content.toLong(), "inside the free window the cancel is fee-free (P8-1)")
         // Cancel again: terminal -> 409.
         assertEquals(HttpStatusCode.Conflict, client.postJson("/v1/rides/$id/cancel", "{}", tokenA).status)
+    }
+
+    @Test
+    fun `post-accept rider cancel always charges the fee and carries the reason - P8-1`() = withApp { client, graph ->
+        val rider = createUserIn(graph, "33630000008", Role.RIDER)
+        val riderToken = client.getToken("33630000008", "password-1")
+        createUserIn(graph, "33630000009", Role.DRIVER)
+        val driverToken = client.getToken("33630000009", "password-1")
+
+        val id = client.postJson("/v1/rides", bookingBody, riderToken).json()["id"]!!.jsonPrimitive.content
+        assertEquals(HttpStatusCode.OK, client.postJson("/v1/rides/$id/accept", "{}", driverToken).status)
+
+        // Post-accept: the fee ALWAYS applies (no free window once the driver en route).
+        val cancelled = client.postJson("/v1/rides/$id/cancel", """{"reason":"booked the wrong city"}""", riderToken)
+        assertEquals(HttpStatusCode.OK, cancelled.status, cancelled.bodyAsText())
+        assertEquals("CANCELLED_BY_RIDER", cancelled.json()["status"]!!.jsonPrimitive.content)
+        assertEquals(300L, cancelled.json()["cancelFeeMinor"]!!.jsonPrimitive.content.toLong(), "post-accept = always fee")
+    }
+
+    @Test
+    fun `rider cancel reason against a published catalog - member ok, non-member 400 - P8-1`() = withApp { client, graph ->
+        val rider = createUserIn(graph, "33630000010", Role.RIDER)
+        val riderToken = client.getToken("33630000010", "password-1")
+        // Publish a rider catalog through the admin config (live provider wiring).
+        graph.config.updateCancellation(
+            "test",
+            com.ridehailing.backend.config.CancellationConfig(
+                freeCancelWindowSec = 60,
+                riderReasons = listOf("changed_plans", "booked_wrong_city"),
+            ),
+        )
+        val id = client.postJson("/v1/rides", bookingBody, riderToken).json()["id"]!!.jsonPrimitive.content
+        assertEquals(
+            "cancel_reason_not_allowed",
+            client.postJson("/v1/rides/$id/cancel", """{"reason":"i just felt like it"}""", riderToken).errCode(),
+        )
+        val ok = client.postJson("/v1/rides/$id/cancel", """{"reason":"booked_wrong_city"}""", riderToken)
+        assertEquals(HttpStatusCode.OK, ok.status, ok.bodyAsText())
+        // A too-long reason answers the documented 400 verbatim.
+        val id2 = client.postJson("/v1/rides", bookingBody, riderToken).json()["id"]!!.jsonPrimitive.content
+        val long = client.postJson("/v1/rides/$id2/cancel", """{"reason":"${"x".repeat(201)}"}""", riderToken)
+        assertEquals(HttpStatusCode.BadRequest, long.status)
+        assertEquals("cancel_reason_too_long", long.errCode())
+    }
+
+    @Test
+    fun `driver cancel flow - fee-free, reason rules, rider token never reaches the driver flow - P8-1`() = withApp { client, graph ->
+        val rider = createUserIn(graph, "33630000011", Role.RIDER)
+        val riderToken = client.getToken("33630000011", "password-1")
+        val driver = createUserIn(graph, "33630000012", Role.DRIVER)
+        val driverToken = client.getToken("33630000012", "password-1")
+        // Publish a driver catalog (reason becomes REQUIRED).
+        graph.config.updateCancellation(
+            "test",
+            com.ridehailing.backend.config.CancellationConfig(
+                freeCancelWindowSec = 60,
+                driverReasons = listOf("vehicle_issue"),
+            ),
+        )
+
+        val id = client.postJson("/v1/rides", bookingBody, riderToken).json()["id"]!!.jsonPrimitive.content
+        client.postJson("/v1/driver/duty", """{"online":true,"lat":43.7384,"lon":7.4246}""", driverToken)
+        assertEquals(HttpStatusCode.OK, client.postJson("/v1/rides/$id/accept", "{}", driverToken).status)
+
+        // A rider token on the shared route goes to the RIDER flow - it can never
+        // reach the driver cancel (and the ride is the rider's own REQUESTED/ACCEPTED
+        // ride: the rider cancel answers, never driver_role_required).
+        val riderFlow = client.postJson("/v1/rides/$id/cancel", "{}", riderToken)
+        assertEquals(HttpStatusCode.OK, riderFlow.status, "rider token cancels via the rider flow")
+
+        // Driver flow: reason required (catalog non-empty) -> 400 verbatim.
+        val id2 = client.postJson("/v1/rides", bookingBody, riderToken).json()["id"]!!.jsonPrimitive.content
+        client.postJson("/v1/rides/$id2/accept", "{}", driverToken)
+        val missing = client.postJson("/v1/rides/$id2/cancel", "{}", driverToken)
+        assertEquals(HttpStatusCode.BadRequest, missing.status, missing.bodyAsText())
+        assertEquals("cancel_reason_required", missing.errCode())
+        val nonMember = client.postJson("/v1/rides/$id2/cancel", """{"reason":"wrong way"}""", driverToken)
+        assertEquals("cancel_reason_not_allowed", nonMember.errCode())
+        // Member reason: 200 + CANCELLED_BY_DRIVER + fee 0 (rider never charged).
+        val ok = client.postJson("/v1/rides/$id2/cancel", """{"reason":"vehicle_issue"}""", driverToken)
+        assertEquals(HttpStatusCode.OK, ok.status, ok.bodyAsText())
+        assertEquals("CANCELLED_BY_DRIVER", ok.json()["status"]!!.jsonPrimitive.content)
+        assertEquals(0L, ok.json()["cancelFeeMinor"]!!.jsonPrimitive.content.toLong())
+        // The driver DTO parity: no rider PII on the response.
+        assertTrue(!ok.bodyAsText().contains("riderId"), "driver DTO carries no rider PII")
+
+        // IN_PROGRESS: 409 for the driver flow.
+        val id3 = client.postJson("/v1/rides", bookingBody, riderToken).json()["id"]!!.jsonPrimitive.content
+        client.postJson("/v1/rides/$id3/accept", "{}", driverToken)
+        client.postJson("/v1/rides/$id3/arrive", "{}", driverToken)
+        client.postJson("/v1/rides/$id3/start", "{}", driverToken)
+        val mid = client.postJson("/v1/rides/$id3/cancel", """{"reason":"vehicle_issue"}""", driverToken)
+        assertEquals(HttpStatusCode.Conflict, mid.status)
+        assertEquals("cancel_not_allowed", mid.errCode())
+        assertTrue(rider.role == Role.RIDER)
     }
 
     @Test

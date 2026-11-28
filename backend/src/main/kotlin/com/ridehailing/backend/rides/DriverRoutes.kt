@@ -21,6 +21,13 @@ import kotlinx.serialization.Serializable
  * - GET /v1/driver/rides - rides assigned to THIS driver, newest first.
  * - POST /v1/rides/{id}/accept|arrive|start|complete - driver-owned trip transitions;
  *   accept is the ATOMIC single-winner claim (409 already_accepted for the loser).
+ * - POST /v1/rides/{id}/cancel (P8-1) - driver abort of an ACCEPTED/ARRIVED ride,
+ *   FEE-FREE for the rider (hold released, rider never charged): the REGISTRATION is
+ *   shared with the rider cancel in RideRoutes.kt - Ktor resolves the FIRST route at
+ *   equal quality (the module catch-all comment documents the same rule), so a second
+ *   registration here would be dead code. The route-level role dispatch sends DRIVER
+ *   tokens to [respondDriverCancel]; RideService.driverCancel re-checks the role
+ *   (403 driver_role_required) so a rider token can never reach the driver flow.
  *
  * DRIVER-DTO PARITY (spec verification item 2): driver DTOs carry NO rider PII - no
  * riderId, no contact data. The quote the rider agreed to rides verbatim (amount,
@@ -113,6 +120,27 @@ private suspend fun actionResult(call: io.ktor.server.application.ApplicationCal
                 HttpStatusCode.fromValue(r.status),
                 err(r.code, "Driver action refused: ${r.code}"),
             )
+    }
+}
+
+/**
+ * P8-1 driver-cancel mapping (called from the SHARED POST /v1/rides/{id}/cancel
+ * registration in RideRoutes.kt - see the file KDoc for the single-winner Ktor
+ * resolution rationale). Responds the DRIVER DTO (no rider PII); a rider token
+ * dispatched here by a future routing change would still be stopped by the service
+ * role guard (403 driver_role_required).
+ */
+internal suspend fun respondDriverCancel(
+    call: io.ktor.server.application.ApplicationCall,
+    rides: RideService,
+    driver: com.ridehailing.backend.auth.User,
+    id: String,
+    reason: String?,
+) {
+    when (val r = rides.driverCancel(driver, id, reason)) {
+        is RideService.CancelResult.Cancelled -> call.respond(HttpStatusCode.OK, r.ride.toDriverDto())
+        is RideService.CancelResult.Error ->
+            call.respond(HttpStatusCode.fromValue(r.status), err(r.code, "Driver action refused: ${r.code}"))
     }
 }
 

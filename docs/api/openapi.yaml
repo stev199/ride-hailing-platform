@@ -929,6 +929,60 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+  /v1/admin/config/cancellation:
+    get:
+      operationId: adminGetCancellationConfig
+      description: >-
+        Cancellation section of the signed config bundle (CONFIG_READ): the fee-free
+        cancel window (freeCancelWindowSec, measured from BOOKING time) and the
+        rider/driver reason catalogs. Catalog membership is enforced only when a
+        catalog is non-empty (P8-1: empty = free-text reasons accepted).
+      summary: Read cancellation config
+      tags: [config]
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current cancellation section
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CancellationConfigSection"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+    patch:
+      operationId: adminPatchCancellationConfig
+      description: >-
+        Replace the cancellation section (CONFIG_WRITE, D75 full-replace; invalid
+        configs never touch live state and never burn a version). Bumps the signed
+        bundle version and appends a config.cancellation.updated audit event.
+        Rules the section drives (P8-1): a REQUESTED ride cancelled INSIDE
+        freeCancelWindowSec of its booking is fee-free, OUTSIDE it pays the ride
+        type's cancelFee; a post-accept rider cancel (ACCEPTED/ARRIVED) pays the fee
+        ALWAYS (driver en route - no free window after accept); a DRIVER cancel is
+        fee-free - the rider is never charged. Validation failures answer 400
+        invalid_cancellation and never burn a version.
+      summary: Replace cancellation config (publishes a new signed version)
+      tags: [config]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancellationConfigSection"
+      responses:
+        "200":
+          description: New version + applied config
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CancellationConfigUpdated"
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
   /v1/rides:
     get:
       operationId: listMyRides
@@ -1015,24 +1069,55 @@ paths:
     post:
       operationId: cancelMyRide
       description: >-
-        Rider-owned cancel of a REQUESTED ride (409 cancel_not_allowed once accepted/
-        terminal - post-accept rules arrive with the driver app, Phase 5). Applies the
-        ride type's configured cancel fee to the double-entry ledger (rider DEBIT,
-        platform CREDIT; ride.cancelled audit event) and returns the cancelled ride.
-      summary: Cancel my ride (pre-accept)
+        P8-1 cancel, ONE route role-dispatched (the caller's token role decides the
+        flow; the service re-checks the role, so a rider token can never reach the
+        driver flow and vice versa). Body is OPTIONAL for riders; the driver app
+        always sends {"reason": "..."} (400 cancel_reason_required when the driver
+        catalog is non-empty and the reason is absent).
+        RIDER rules: a REQUESTED ride cancelled INSIDE the configured free window
+        (freeCancelWindowSec, measured from booking time, admin config section
+        "cancellation") is fee-free (freeWindowApplied=true); OUTSIDE the window the
+        ride type's configured cancelFee posts to the double-entry ledger (rider
+        DEBIT, platform CREDIT; ride.cancelled audit event). A POST-ACCEPT cancel
+        (ACCEPTED/ARRIVED - driver en route) pays the fee ALWAYS (no free window
+        exists after the driver committed); for WALLET rides the pending hold is
+        released first and the fee rides the ledger separately. IN_PROGRESS and
+        terminal rides answer 409 cancel_not_allowed (only the platform may abort an
+        in-progress trip - see /v1/admin/rides/{id}/cancel).
+        DRIVER rules: only the assigned driver, only ACCEPTED/ARRIVED (409
+        cancel_not_allowed otherwise; unassigned 404, another driver's ride 403
+        not_your_ride); FEE-FREE - the rider is NEVER charged, the pending WALLET
+        hold is released; a reason is REQUIRED against the driver catalog when that
+        catalog is non-empty.
+        REASON rules (both flows): trimmed server-side; > 200 chars = 400
+        cancel_reason_too_long; when the caller's role catalog (riderReasons /
+        driverReasons) is non-empty the reason must be a member (400
+        cancel_reason_not_allowed) - an EMPTY catalog accepts free text (P8-1
+        decision).
+      summary: Cancel a ride (rider-owned or driver-owned)
       tags: [rides]
       security:
         - bearerAuth: []
       parameters:
         - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelRequest"
       responses:
         "200":
-          description: Cancelled ride
+          description: Cancelled ride (RideDto for the rider flow, DriverRideDto for the driver flow)
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/RideDto"
+                anyOf:
+                  - $ref: "#/components/schemas/RideDto"
+                  - $ref: "#/components/schemas/DriverRideDto"
+        "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
         "409": { $ref: "#/components/responses/Conflict" }
   /v1/driver/duty:
@@ -1568,6 +1653,57 @@ components:
       properties:
         version: { type: integer, format: int64, minimum: 1 }
         config: { $ref: "#/components/schemas/PromoConfigSection" }
+    CancellationConfigSection:
+      type: object
+      required: [freeCancelWindowSec, riderReasons, driverReasons]
+      additionalProperties: false
+      properties:
+        freeCancelWindowSec:
+          type: integer
+          format: int64
+          minimum: 0
+          description: >-
+            Fee-free cancel window in seconds, measured from BOOKING time
+            (createdAtEpochSec): a REQUESTED ride cancelled inside the window is
+            free, outside it pays the ride type's cancelFee. Post-accept cancels
+            (ACCEPTED/ARRIVED) always pay (no free window after the driver
+            committed); driver cancels are always fee-free.
+        riderReasons:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 2, maxLength: 120 }
+          description: >-
+            Rider cancel reason catalog. P8-1 decision: membership is enforced ONLY
+            when the catalog is non-empty - an EMPTY catalog accepts free-text
+            reasons (200-char per-request cap).
+        driverReasons:
+          type: array
+          maxItems: 20
+          items: { type: string, minLength: 2, maxLength: 120 }
+          description: >-
+            Driver cancel reason catalog. When NON-EMPTY a driver cancel reason is
+            REQUIRED (400 cancel_reason_required) and must be a member; empty =
+            free-text accepted. A driver cancel never charges the rider.
+    CancellationConfigUpdated:
+      type: object
+      required: [version, config]
+      additionalProperties: false
+      properties:
+        version: { type: integer, format: int64, minimum: 1 }
+        config: { $ref: "#/components/schemas/CancellationConfigSection" }
+    CancelRequest:
+      type: object
+      description: >-
+        P8-1 optional cancel body (POST /v1/rides/{id}/cancel): the whole body may
+        be absent (rider flow); a driver cancel carries {"reason": "..."} - 400
+        cancel_reason_required when the driver catalog is non-empty and the reason
+        is absent. The reason is trimmed server-side: > 200 chars = 400
+        cancel_reason_too_long; when the caller's role catalog is non-empty it must
+        be a member (400 cancel_reason_not_allowed).
+      properties:
+        reason:
+          type: string
+          maxLength: 200
     AdminLiveDriver:
       type: object
       required: [driverId, lat, lon, online, updatedAtEpochSec]
@@ -2043,7 +2179,12 @@ components:
           format: int64
         config:
           type: string
-          description: The exact canonical JSON string the signature covers (verify verbatim; do not re-serialize a parsed object).
+          description: >-
+            The exact canonical JSON string the signature covers (verify verbatim; do not
+            re-serialize a parsed object). It aggregates the device-visible sections:
+            loginMethods, fares, wallet, promos and (P8-1) cancellation -
+            freeCancelWindowSec/riderReasons/driverReasons, mirrored by the
+            CancellationConfigSection component.
         signature:
           type: string
           description: Ed25519 signature over "version|config|issuedAtEpochSec", hex-encoded.

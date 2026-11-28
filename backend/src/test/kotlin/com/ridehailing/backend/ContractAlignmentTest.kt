@@ -2,6 +2,7 @@ package com.ridehailing.backend
 
 import com.ridehailing.backend.auth.Identifiers
 import com.ridehailing.backend.auth.PasswordService
+import com.ridehailing.backend.config.CancellationConfig
 import com.ridehailing.backend.config.PromoCodeConfig
 import com.ridehailing.backend.config.PromoConfig
 import org.yaml.snakeyaml.Yaml
@@ -522,6 +523,90 @@ class ContractAlignmentTest {
         assertTrue(amountBase.copy(currency = "   ").validationErrors().isNotEmpty(), "whitespace-only AMOUNT currency is schema-invalid AND rejected")
         assertTrue(amountBase.copy(currency = "A B").validationErrors().isEmpty(), "spaced AMOUNT currency is schema-valid AND accepted")
         assertTrue(base.copy(currency = "   ").validationErrors().isEmpty(), "PERCENT + whitespace-only currency is schema-valid AND accepted (length-only rule)")
+    }
+
+    /**
+     * P8-1 pin: the CancellationConfigSection bounds equal the CancellationConfig
+     * server rules (documented = enforced, D49) - the single write path keeps the
+     * store in-bounds so GET can never echo an out-of-bounds value.
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Test
+    fun `cancellation section bounds mirror the CancellationConfig server validation - P8-1`() {
+        val section = schemas["CancellationConfigSection"] as? Map<String, Any> ?: fail("CancellationConfigSection missing")
+        val props = section["properties"] as? Map<String, Any> ?: fail("CancellationConfigSection.properties missing")
+        assertEquals(
+            listOf("freeCancelWindowSec", "riderReasons", "driverReasons"),
+            section["required"],
+            "all three keys are schema-required (presence-strict decode, promos codes pattern)",
+        )
+        assertEquals(false, section["additionalProperties"], "additionalProperties false = unknown section keys are schema violations (documented = enforced)")
+
+        val window = props["freeCancelWindowSec"] as? Map<String, Any> ?: fail("freeCancelWindowSec missing")
+        assertEquals(0, window["minimum"], "server: freeCancelWindowSec >= 0 (minimum 0)")
+
+        for (name in listOf("riderReasons", "driverReasons")) {
+            val list = props[name] as? Map<String, Any> ?: fail("$name missing")
+            assertEquals(20, list["maxItems"], "server: $name at most 20 reasons")
+            val item = list["items"] as? Map<String, Any> ?: fail("$name.items missing")
+            assertEquals(2, item["minLength"], "server: each reason >= 2 chars")
+            assertEquals(120, item["maxLength"], "server: each reason <= 120 chars")
+        }
+
+        // Server-side mirror: validationErrors flips EXACTLY at the documented edges
+        // (schema-valid accepted, schema-invalid rejected with 400 invalid_cancellation).
+        val base = CancellationConfig()
+        assertTrue(base.validationErrors().isEmpty(), "the bootstrap default is schema-valid")
+        assertTrue(base.copy(freeCancelWindowSec = -1).validationErrors().isNotEmpty(), "freeCancelWindowSec -1 is schema-invalid AND rejected")
+        assertTrue(base.copy(freeCancelWindowSec = 0).validationErrors().isEmpty(), "window 0 (minimum) is schema-valid AND accepted")
+        val atBound = List(20) { i -> "reason-$i" }
+        assertTrue(base.copy(riderReasons = atBound, driverReasons = atBound).validationErrors().isEmpty(), "20-entry catalogs (maxItems) are schema-valid AND accepted")
+        assertTrue(base.copy(riderReasons = List(21) { i -> "reason-$i" }).validationErrors().isNotEmpty(), "21 rider reasons is schema-invalid AND rejected")
+        assertTrue(base.copy(driverReasons = listOf("x")).validationErrors().isNotEmpty(), "1-char driver reason (minLength 2) is schema-invalid AND rejected")
+        assertTrue(base.copy(riderReasons = listOf("a".repeat(121))).validationErrors().isNotEmpty(), "121-char rider reason (maxLength 120) is schema-invalid AND rejected")
+        assertTrue(base.copy(riderReasons = listOf("a".repeat(120))).validationErrors().isEmpty(), "120-char rider reason is schema-valid AND accepted")
+    }
+
+    /**
+     * P8-1 pin: the shared cancel path documents the 400/409 codes and the
+     * CancelRequest 200-char cap; the /v1/config bundle component carries the
+     * cancellation section (the CanonicalConfigDto equivalent); the admin
+     * cancellation PATCH documents invalid_cancellation.
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Test
+    fun `cancel codes, CancelRequest cap and the bundle cancellation section - P8-1`() {
+        // CancelRequest.reason: the 200-char per-request cap (trim happens server-side).
+        assertEquals(200, int("CancelRequest", "reason", "maxLength"), "server: reason trimmed then capped at 200 chars (cancel_reason_too_long)")
+
+        // The 400/409 codes are documented on the shared cancel path (rider AND driver
+        // flows ride the same POST /v1/rides/{id}/cancel registration).
+        val op = ((rootSpec["paths"] as? Map<String, Any>)?.get("/v1/rides/{id}/cancel") as? Map<String, Any>)
+            ?.get("post") as? Map<String, Any> ?: fail("/v1/rides/{id}/cancel POST missing")
+        val responses = op["responses"] as? Map<String, Any> ?: fail("cancel responses missing")
+        for (code in listOf("400", "409")) {
+            assertTrue(responses.containsKey(code), "$code must be documented on the cancel path (cancel_reason_* / cancel_not_allowed)")
+        }
+        val desc = op["description"] as? String ?: fail("cancel description missing")
+        for (code in listOf("cancel_reason_not_allowed", "cancel_reason_required", "cancel_reason_too_long", "cancel_not_allowed")) {
+            assertTrue(desc.contains(code), "the cancel path description documents $code verbatim")
+        }
+        // The optional-body contract: rider = optional, driver = always sends {reason}.
+        assertTrue(desc.contains("OPTIONAL"), "the rider body is optional; the driver reason rule is documented in the description")
+
+        // The /v1/config bundle component carries the cancellation section (the
+        // CanonicalConfigDto equivalent: the canonical JSON string aggregates it).
+        val bundleConfig = prop("ConfigBundle", "config")
+        val bundleDesc = bundleConfig["description"] as? String ?: fail("ConfigBundle.config.description missing")
+        assertTrue(bundleDesc.contains("cancellation"), "the canonical payload enumerates the cancellation section")
+
+        // Admin section path: GET/PATCH with the documented invalid_cancellation 400.
+        val patch = ((rootSpec["paths"] as? Map<String, Any>)?.get("/v1/admin/config/cancellation") as? Map<String, Any>)
+            ?.get("patch") as? Map<String, Any> ?: fail("/v1/admin/config/cancellation PATCH missing")
+        val patchResponses = patch["responses"] as? Map<String, Any> ?: fail("cancellation PATCH responses missing")
+        assertTrue(patchResponses.containsKey("400"), "invalid_cancellation 400 documented")
+        assertTrue((patch["description"] as? String ?: "").contains("invalid_cancellation"), "invalid_cancellation documented verbatim")
+        assertTrue(patchResponses.containsKey("415"), "415 mirrors the other config sections")
     }
 
     /**

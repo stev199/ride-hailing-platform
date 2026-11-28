@@ -357,6 +357,94 @@ class ConfigServiceTest {
         assertEquals(HttpStatusCode.OK, ok.status, ok.bodyAsText())
     }
 
+    // ---------- P8-1 cancellation section ----------
+
+    @Test
+    fun `cancellation PATCH echoes a valid section, rejects bounds with 400, leaves the store untouched (P8-1)`() = withApp { client, graph ->
+        createAdminIn(graph, "33610000030", Role.ADMIN_SUPER)
+        val token = client.getToken("33610000030", "admin-password-1")
+
+        // The version only publishes lazily on first read - bootstrap, then the patch.
+        assertEquals(1L, client.get("/v1/config").json()["version"]!!.jsonPrimitive.content.toLong())
+        // Valid echo (D75 full-replace): version bumps, section round-trips.
+        val ok = client.patchJson(
+            "/v1/admin/config/cancellation",
+            """{"freeCancelWindowSec":120,"riderReasons":["changed_plans","booked_wrong_city"],"driverReasons":["vehicle_issue"]}""",
+            token,
+        )
+        assertEquals(HttpStatusCode.OK, ok.status, ok.bodyAsText())
+        val echoed = ok.json()["config"]!!.jsonObject
+        assertEquals("120", echoed["freeCancelWindowSec"]!!.jsonPrimitive.content)
+        assertEquals(2, echoed["riderReasons"]!!.jsonArray.size)
+        assertEquals("vehicle_issue", echoed["driverReasons"]!!.jsonArray.single().jsonPrimitive.content)
+        assertEquals(2L, ok.json()["version"]!!.jsonPrimitive.content.toLong())
+
+        // Out-of-bounds freeCancelWindowSec -> 400 invalid_cancellation (documented = enforced).
+        val badWindow = client.patchJson(
+            "/v1/admin/config/cancellation",
+            """{"freeCancelWindowSec":-1,"riderReasons":[],"driverReasons":[]}""",
+            token,
+        )
+        assertEquals(HttpStatusCode.BadRequest, badWindow.status, badWindow.bodyAsText())
+        assertEquals("invalid_cancellation", badWindow.errCode())
+
+        // 21 reasons -> 400 invalid_cancellation (schema maxItems 20).
+        val tooMany = client.patchJson(
+            "/v1/admin/config/cancellation",
+            """{"freeCancelWindowSec":60,"riderReasons":[${List(21) { "\"reason-$it\"" }.joinToString(",")}],"driverReasons":[]}""",
+            token,
+        )
+        assertEquals(HttpStatusCode.BadRequest, tooMany.status)
+        assertEquals("invalid_cancellation", tooMany.errCode())
+
+        // A 1-char reason (schema minLength 2) -> 400 invalid_cancellation.
+        val short = client.patchJson(
+            "/v1/admin/config/cancellation",
+            """{"freeCancelWindowSec":60,"riderReasons":["x"],"driverReasons":[]}""",
+            token,
+        )
+        assertEquals(HttpStatusCode.BadRequest, short.status)
+        assertEquals("invalid_cancellation", short.errCode())
+
+        // Schema-invalid SHAPES -> 400 invalid_body (presence-strict decode):
+        // missing required key, fractional integer, non-string entry, unknown key.
+        assertEquals(HttpStatusCode.BadRequest, client.patchJson("/v1/admin/config/cancellation", """{"freeCancelWindowSec":60}""", token).status)
+        assertEquals(HttpStatusCode.BadRequest, client.patchJson("/v1/admin/config/cancellation", """{"freeCancelWindowSec":0.5,"riderReasons":[],"driverReasons":[]}""", token).status)
+        assertEquals(HttpStatusCode.BadRequest, client.patchJson("/v1/admin/config/cancellation", """{"freeCancelWindowSec":60,"riderReasons":[7],"driverReasons":[]}""", token).status)
+        assertEquals(HttpStatusCode.BadRequest, client.patchJson("/v1/admin/config/cancellation", """{"freeCancelWindowSec":60,"riderReasons":[],"driverReasons":[],"extra":1}""", token).status)
+
+        // The store is untouched by every rejection: GET still serves the last
+        // ACCEPTED config and no further version was burned.
+        val after = client.authed("/v1/admin/config/cancellation", token)
+        assertEquals(HttpStatusCode.OK, after.status)
+        assertEquals("120", after.json()["freeCancelWindowSec"]!!.jsonPrimitive.content)
+        assertEquals(2, after.json()["riderReasons"]!!.jsonArray.size)
+        assertEquals(1, after.json()["driverReasons"]!!.jsonArray.size)
+        assertEquals(2L, client.get("/v1/config").json()["version"]!!.jsonPrimitive.content.toLong())
+    }
+
+    @Test
+    fun `signed config bundle carries the cancellation section (P8-1)`() = withApp { client, _ ->
+        val bundle = client.get("/v1/config").json()
+        val canonical = bundle["config"]!!.jsonPrimitive.content
+        val parsed = Json.parseToJsonElement(canonical).jsonObject
+        assertTrue(parsed.containsKey("cancellation"), "canonical bundle must carry the cancellation section: $canonical")
+        val section = parsed["cancellation"]!!.jsonObject
+        assertTrue(section.containsKey("freeCancelWindowSec"))
+        assertTrue(section.containsKey("riderReasons"))
+        assertTrue(section.containsKey("driverReasons"))
+    }
+
+    @Test
+    fun `cancellation endpoints - 401 anonymous, 200 ops, section drives the free window live (P8-1)`() = withApp { client, graph ->
+        createAdminIn(graph, "33610000031", Role.ADMIN_OPS)
+        val opsToken = client.getToken("33610000031", "admin-password-1")
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/v1/admin/config/cancellation").status)
+        val read = client.authed("/v1/admin/config/cancellation", opsToken)
+        assertEquals(HttpStatusCode.OK, read.status)
+        assertEquals("60", read.json()["freeCancelWindowSec"]!!.jsonPrimitive.content, "bootstrap default")
+    }
+
     // ---------- helpers (file-local mirrors of the AdminRoutesTest ones) ----------
 
     private fun hexBytes(hex: String): ByteArray =

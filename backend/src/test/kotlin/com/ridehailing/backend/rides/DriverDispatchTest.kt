@@ -6,6 +6,7 @@ import com.ridehailing.backend.auth.User
 import com.ridehailing.backend.auth.UserStatus
 import com.ridehailing.backend.config.SignedConfigBundle
 import com.ridehailing.backend.ledger.InMemoryLedgerStore
+import com.ridehailing.backend.wallet.WalletService
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -184,16 +185,144 @@ class DriverDispatchTest {
     }
 
     @Test
-    fun `rider cancel is refused once a driver accepted`() {
+    fun `rider cancel of an ACCEPTED ride now pays the fee - driver cancel is fee-free (P8-1)`() {
         val svc = service()
         val ride = book(svc)
         val driver = user(role = Role.DRIVER)
         goOnline(svc, driver)
         acceptOk(svc, driver, ride)
+        // P8-1: post-accept rider cancel is allowed and ALWAYS charged (no free window).
+        val r = svc.cancel(ride.riderId, ride.id)
+        assertTrue(r is RideService.CancelResult.Cancelled, "got $r")
+        assertEquals(300L, r.ride.cancelFeeMinor, "no free window after accept")
+
+        // The driver cancel is the fee-free abort path (rider never charged).
+        val ride2 = book(svc)
+        acceptOk(svc, driver, ride2)
+        val d = svc.driverCancel(driver, ride2.id, "vehicle_issue")
+        assertTrue(d is RideService.CancelResult.Cancelled, "got $d")
+        assertEquals(0L, d.ride.cancelFeeMinor, "driver cancel never charges the rider")
+    }
+
+    @Test
+    fun `driver cancel guards - role, ownership, state and reason catalog (P8-1)`() {
+        val svc = service()
+        val ride = book(svc)
+        val driver = user(role = Role.DRIVER)
+        goOnline(svc, driver)
+        assertEquals(
+            RideService.CancelResult.Error(404, "ride_not_found"),
+            svc.driverCancel(driver, ride.id, "unassigned stays invisible (404, no leak)"),
+        )
+        acceptOk(svc, driver, ride)
+        // Role guard: a rider token in the driver flow is 403 driver_role_required.
+        assertEquals(
+            RideService.CancelResult.Error(403, "driver_role_required"),
+            svc.driverCancel(user(role = Role.RIDER), ride.id, "x"),
+        )
+        // Another driver's accepted ride: 403 not_your_ride.
+        assertEquals(
+            RideService.CancelResult.Error(403, "not_your_ride"),
+            svc.driverCancel(user(role = Role.DRIVER), ride.id, "x"),
+        )
+        // Happy path: CANCELLED_BY_DRIVER, fee 0 (rider never charged).
+        val d = svc.driverCancel(driver, ride.id, "vehicle_issue")
+        assertTrue(d is RideService.CancelResult.Cancelled, "got $d")
+        assertEquals(RideStatus.CANCELLED_BY_DRIVER, d.ride.status)
+        assertEquals(0L, d.ride.cancelFeeMinor)
+        // Terminal: no second cancel.
         assertEquals(
             RideService.CancelResult.Error(409, "cancel_not_allowed"),
-            svc.cancel(ride.riderId, ride.id),
+            svc.driverCancel(driver, ride.id, "again"),
         )
+        // IN_PROGRESS is beyond the driver's cancel authority (409).
+        val ride2 = book(svc)
+        acceptOk(svc, driver, ride2)
+        svc.driverAction(driver, ride2.id, RideStatus.ARRIVED)
+        svc.driverAction(driver, ride2.id, RideStatus.IN_PROGRESS)
+        assertEquals(
+            RideService.CancelResult.Error(409, "cancel_not_allowed"),
+            svc.driverCancel(driver, ride2.id, "mid-trip"),
+        )
+    }
+
+    @Test
+    fun `driver cancel reason is required against a non-empty catalog, free text when empty (P8-1)`() {
+        val svc = service()
+        val ride = book(svc)
+        val driver = user(role = Role.DRIVER)
+        goOnline(svc, driver)
+        acceptOk(svc, driver, ride)
+        // Default config: empty catalog -> free text accepted.
+        val d = svc.driverCancel(driver, ride.id, "personal emergency")
+        assertTrue(d is RideService.CancelResult.Cancelled, "empty catalog accepts free text, got $d")
+
+        // Non-empty catalog: absent reason 400 cancel_reason_required, non-member 400
+        // cancel_reason_not_allowed, member accepted.
+        val strict = RideService(
+            store = InMemoryRideStore(), fares = { com.ridehailing.backend.config.defaultFares() },
+            bundle = SignedConfigBundle.inMemoryDevKeys(), ledger = InMemoryLedgerStore(), osrm = null,
+            clock = { t0 },
+            cancellationConfigProvider = { com.ridehailing.backend.config.CancellationConfig(driverReasons = listOf("vehicle_issue", "wrong_pickup")) },
+        )
+        val ride2 = book(strict)
+        val driver2 = user(role = Role.DRIVER)
+        goOnline(strict, driver2)
+        acceptOk(strict, driver2, ride2)
+        assertEquals(
+            RideService.CancelResult.Error(400, "cancel_reason_required"),
+            strict.driverCancel(driver2, ride2.id, null),
+            "non-empty catalog makes a driver reason REQUIRED",
+        )
+        assertEquals(
+            RideService.CancelResult.Error(400, "cancel_reason_required"),
+            strict.driverCancel(driver2, ride2.id, "   "),
+            "blank folds to absent",
+        )
+        assertEquals(
+            RideService.CancelResult.Error(400, "cancel_reason_not_allowed"),
+            strict.driverCancel(driver2, ride2.id, "bad vibes"),
+        )
+        assertEquals(
+            RideService.CancelResult.Error(400, "cancel_reason_too_long"),
+            strict.driverCancel(driver2, ride2.id, "x".repeat(201)),
+            "the 200-char per-request cap applies to drivers too",
+        )
+        assertTrue(strict.driverCancel(driver2, ride2.id, "vehicle_issue") is RideService.CancelResult.Cancelled)
+    }
+
+    @Test
+    fun `driver cancel of a WALLET ride releases the hold fee-free and conserves value (P8-1)`() {
+        val ledger = InMemoryLedgerStore()
+        val riderUser = user(role = Role.RIDER)
+        val driverUser = user(role = Role.DRIVER)
+        val wallet = WalletService(
+            ledger = ledger,
+            users = object : WalletService.UserDirectory {
+                override fun byPhone(phone: String) = null
+                override fun byId(id: String) = listOf(riderUser, driverUser).firstOrNull { it.id == id }
+            },
+            config = { com.ridehailing.backend.config.WalletConfig() },
+        )
+        val svc = RideService(
+            store = InMemoryRideStore(), fares = { com.ridehailing.backend.config.defaultFares() },
+            bundle = SignedConfigBundle.inMemoryDevKeys(), ledger = ledger, osrm = null,
+            walletProvider = { wallet }, clock = { t0 },
+        )
+        wallet.adminCredit(riderUser.id, 10_000, "seed")
+        val ride = (svc.create(riderUser, booking.copy(paymentMethod = "WALLET")) as RideService.CreateResult.Created).ride
+        val charge = ride.chargeAmountMinor
+        goOnline(svc, driverUser)
+        acceptOk(svc, driverUser, ride)
+        assertEquals(charge, wallet.held(riderUser.id), "hold at accept")
+
+        val d = svc.driverCancel(driverUser, ride.id, "vehicle_issue")
+        assertTrue(d is RideService.CancelResult.Cancelled, "got $d")
+        assertEquals(0L, d.ride.cancelFeeMinor, "no fee transaction on a driver cancel")
+        assertEquals(0L, wallet.held(riderUser.id), "hold released")
+        assertEquals(10_000L, wallet.balances(riderUser.id)[WalletService.POINTS], "rider money whole")
+        assertEquals(null, ledger.walletFor(RideService.PLATFORM_ACCOUNT, "EUR"), "no fee ledger movement at all")
+        assertEquals(0L, ledger.snapshotBalances().values.sum(), "double-entry conservation")
     }
 
     @Test

@@ -11,19 +11,27 @@ import java.time.Instant
 
 /**
  * P4-2 ride service: booking (server-SIGNED final quote per spec §pricing),
- * rider-owned reads with lazy quote-expiry transition, pre-accept cancellation
- * with the configured cancel fee posted to the double-entry ledger.
+ * rider-owned reads with lazy quote-expiry transition, cancellation with the
+ * configured cancel fee posted to the double-entry ledger (P8-1: free window,
+ * reason catalogs, post-accept + driver cancels).
  *
  * Active v1 surface (Phase 4 = rider booking happy path):
  * - create: RIDER role only (drivers drive, admins administer; 403 booking_role_required).
- *   CASH only (wallet/points become bookable in Phase 7; 400 payment_method_unavailable).
+ *   CASH and WALLET (P7-2: WALLET requires an upfront_locked quote; unknown methods 400
+ *   payment_method_unavailable).
  * - get/list: rider-owned rows; a REQUESTED ride past its quote validity transitions
  *   to EXPIRED on read (deterministic, clock-injected; event ride.expired).
- * - cancel: REQUESTED only (409 cancel_not_allowed otherwise; post-accept cancel
- *   rules arrive with the driver app in Phase 5). Cancel fee from the ride type's
- *   configured cancelFee posts to the ledger (rider CASH wallet may go negative per
- *   the P1-5 schema; the fee is the honest record of what the rider owes; Phase 7
- *   reconciliation owns settlement).
+ * - cancel (P8-1): REQUESTED rides are fee-free INSIDE the configured
+ *   freeCancelWindowSec (measured from booking time) and charged the ride type's
+ *   cancelFee outside it; ACCEPTED/ARRIVED rides (driver en route) always pay the
+ *   fee (no free window after accept) with the pending WALLET hold released first;
+ *   IN_PROGRESS/terminal are 409 cancel_not_allowed (IN_PROGRESS only the platform
+ *   may abort, adminCancel). Reason validation follows the P8-1 decision: catalog
+ *   membership enforced ONLY when the published catalog is non-empty (empty =
+ *   free-text accepted, 200-char cap either way).
+ * - driverCancel (P8-1): assigned driver aborts an ACCEPTED/ARRIVED ride fee-free -
+ *   the rider is NEVER charged (hold released); a reason is REQUIRED when the
+ *   driver catalog is non-empty.
  */
 class RideService(
     private val store: RideStore,
@@ -36,6 +44,8 @@ class RideService(
     private val walletConfigProvider: (() -> com.ridehailing.backend.config.WalletConfig?)? = null,
     /** P7-6 promo source: the live promo config section (provider-lambda pattern). */
     private val promoConfigProvider: (() -> com.ridehailing.backend.config.PromoConfig?)? = null,
+    /** P8-1 cancellation source: the live cancellation config section (provider-lambda pattern). */
+    private val cancellationConfigProvider: (() -> com.ridehailing.backend.config.CancellationConfig?)? = null,
     private val osrm: OsrmRouteSource? = null,
     private val clock: () -> Instant = Instant::now,
     private val eventRecorder: EventRecorder? = null,
@@ -72,6 +82,36 @@ class RideService(
         data class Cancelled(val ride: Ride) : CancelResult()
         data class Error(val status: Int, val code: String) : CancelResult()
     }
+
+    /**
+     * P8-1 shared cancel-reason validation (rider + driver flows): trim, 200-char
+     * cap (400 cancel_reason_too_long), and catalog membership ONLY when the
+     * catalog is non-empty (400 cancel_reason_not_allowed). Blank reasons fold to
+     * absent (the create() note-trim pattern) - membership then simply does not
+     * apply. Returns the trimmed reason or the first refusing Error.
+     */
+    private fun validatedReason(
+        reason: String?,
+        catalog: List<String>,
+        required: Boolean,
+    ): kotlin.Pair<String?, CancelResult.Error?> {
+        val trimmed = reason?.trim()?.ifEmpty { null }
+        if (trimmed != null && trimmed.length > com.ridehailing.backend.config.CancellationConfig.MAX_REQUEST_REASON_CHARS) {
+            return null to CancelResult.Error(400, "cancel_reason_too_long")
+        }
+        if (catalog.isNotEmpty()) {
+            if (trimmed == null) {
+                if (required) return null to CancelResult.Error(400, "cancel_reason_required")
+            } else if (trimmed !in catalog) {
+                return null to CancelResult.Error(400, "cancel_reason_not_allowed")
+            }
+        }
+        return trimmed to null
+    }
+
+    /** The live cancellation section with the safe free-text default (provider may be absent in minimal graphs). */
+    private fun cancellationCfg(): com.ridehailing.backend.config.CancellationConfig =
+        cancellationConfigProvider?.invoke() ?: com.ridehailing.backend.config.CancellationConfig()
 
     fun create(rider: User, req: CreateRequest): CreateResult {
         if (rider.role != Role.RIDER) return CreateResult.Forbidden("booking_role_required")
@@ -221,17 +261,53 @@ class RideService(
     fun forDriver(driverId: String, limit: Int, offset: Int): List<Ride> =
         store.forDriver(driverId, limit.coerceIn(1, 100), offset.coerceAtLeast(0))
 
-    fun cancel(riderId: String, rideId: String): CancelResult {
+    /**
+     * P8-1 rider cancel. REQUESTED rides honor the configured free window
+     * (freeCancelWindowSec from createdAtEpochSec - inside = fee-free, outside =
+     * the ride type's cancelFee); ACCEPTED/ARRIVED rides (driver en route) ALWAYS
+     * pay the configured fee - no free window exists after the driver committed -
+     * and a pending WALLET hold is RELEASED first (adminCancel's outcome pattern;
+     * P7-2 honest semantics: the hold covered the CHARGE, the fee is separate and
+     * rides the ledger afterwards). IN_PROGRESS/terminal -> 409 cancel_not_allowed
+     * (only the platform may abort an in-progress trip, adminCancel). The reason is
+     * validated against the rider catalog when that catalog is non-empty; the
+     * ride.cancelled event gains reason (when present), freeWindowApplied and the
+     * walletRelease outcome, keeping by: rider.
+     */
+    fun cancel(riderId: String, rideId: String, reason: String? = null): CancelResult {
         val ride = store.byId(rideId) ?: return CancelResult.Error(404, "ride_not_found")
         if (ride.riderId != riderId) return CancelResult.Error(404, "ride_not_found")
-        if (ride.status != RideStatus.REQUESTED) return CancelResult.Error(409, "cancel_not_allowed")
+        val postAccept = ride.status == RideStatus.ACCEPTED || ride.status == RideStatus.ARRIVED
+        if (ride.status != RideStatus.REQUESTED && !postAccept) return CancelResult.Error(409, "cancel_not_allowed")
+        val cfg = cancellationCfg()
+        val (reasonTrim, reasonErr) = validatedReason(reason, cfg.riderReasons, required = false)
+        if (reasonErr != null) return reasonErr
         val now = clock()
         ride.status.requireTransitionTo(RideStatus.CANCELLED_BY_RIDER)
 
         // Cancel fee from the CURRENT config for the booked ride type (the fee the
         // rider agreed to at booking; an admin price change mid-ride applies forward).
         val fee = fares().cities[ride.city]?.rideTypes?.get(ride.rideType)?.cancelFee ?: 0.0
-        val feeMinor = if (fee > 0.0) Math.round(fee * 100.0) else 0L
+        val configuredFeeMinor = if (fee > 0.0) Math.round(fee * 100.0) else 0L
+        val insideFreeWindow = !postAccept &&
+            now.epochSecond - ride.createdAtEpochSec <= cfg.freeCancelWindowSec
+        val feeMinor = if (insideFreeWindow) 0L else configuredFeeMinor
+
+        // P8-1 post-accept: the driver is committed, so FIRST release the pending
+        // WALLET hold (the charge returns to the rider) and record the outcome; the
+        // fee then posts separately (P7-2: the hold was chargeAmountMinor = quote
+        // minus promo discount - release and fee are two independent movements).
+        var releaseOutcome = "not_applicable"
+        if (postAccept && ride.paymentMethod == "WALLET" && ride.chargeAmountMinor > 0) {
+            val wallet = walletProvider?.invoke()
+            val released = wallet?.release(ride.riderId, ride.chargeAmountMinor, "ride", ride.id)
+            releaseOutcome = when (released) {
+                is com.ridehailing.backend.wallet.WalletService.HoldResult.Held -> "released"
+                is com.ridehailing.backend.wallet.WalletService.HoldResult.Invalid ->
+                    "release_failed:${released.code}"
+                null -> "wallet_absent"
+            }
+        }
         if (feeMinor > 0 && ledger != null) {
             // DEBIT the rider's cash wallet (CASH may go negative per the P1-5 schema),
             // CREDIT the platform cash account. Double-entry: legs sum to zero.
@@ -244,19 +320,79 @@ class RideService(
                 ),
                 refType = "ride.cancelled",
                 refId = ride.id,
-                reason = "cancellation fee for $ride.city/$ride.rideType (rider cancel before accept)",
+                reason = if (postAccept) {
+                    "cancellation fee for $ride.city/$ride.rideType (rider cancel after accept)"
+                } else {
+                    "cancellation fee for $ride.city/$ride.rideType (rider cancel before accept, outside free window)"
+                },
             )
         }
         val cancelled = store.updateStatus(rideId, RideStatus.CANCELLED_BY_RIDER, now.epochSecond, feeMinor)!!
-        eventRecorder?.append(
-            "ride.cancelled",
-            mapOf(
-                "rideId" to rideId,
-                "riderId" to riderId,
-                "cancelFeeMinor" to feeMinor.toString(),
-                "by" to "rider",
-            ),
+        val payload = mutableMapOf(
+            "rideId" to rideId,
+            "riderId" to riderId,
+            "cancelFeeMinor" to feeMinor.toString(),
+            "by" to "rider",
+            "freeWindowApplied" to insideFreeWindow.toString(),
+            "walletRelease" to releaseOutcome,
         )
+        reasonTrim?.let { payload["reason"] = it }
+        eventRecorder?.append("ride.cancelled", payload)
+        return CancelResult.Cancelled(cancelled)
+    }
+
+    /**
+     * P8-1 driver cancel: the assigned driver aborts an ACCEPTED/ARRIVED ride (409
+     * cancel_not_allowed otherwise). Fee-free for the rider - a driver cancellation
+     * NEVER charges the rider: the pending WALLET hold is released (adminCancel's
+     * outcome pattern) and no fee transaction posts. Role/ownership guards mirror
+     * driverAction: 403 driver_role_required, unassigned -> 404 (no existence leak),
+     * another driver's ride -> 403 not_your_ride. A reason is REQUIRED against the
+     * driver catalog when that catalog is non-empty (400 cancel_reason_required /
+     * cancel_reason_not_allowed); the event carries by: driver + reason +
+     * walletRelease.
+     */
+    fun driverCancel(driver: User, rideId: String, reason: String?): CancelResult {
+        if (driver.role != Role.DRIVER) return CancelResult.Error(403, "driver_role_required")
+        val ride = store.byId(rideId) ?: return CancelResult.Error(404, "ride_not_found")
+        if (ride.driverId != driver.id) {
+            // Unassigned rides stay invisible (404); another driver's ride is 403.
+            return if (ride.driverId == null) {
+                CancelResult.Error(404, "ride_not_found")
+            } else {
+                CancelResult.Error(403, "not_your_ride")
+            }
+        }
+        if (ride.status != RideStatus.ACCEPTED && ride.status != RideStatus.ARRIVED) {
+            return CancelResult.Error(409, "cancel_not_allowed")
+        }
+        val cfg = cancellationCfg()
+        val (reasonTrim, reasonErr) = validatedReason(reason, cfg.driverReasons, required = true)
+        if (reasonErr != null) return reasonErr
+        val now = clock()
+        ride.status.requireTransitionTo(RideStatus.CANCELLED_BY_DRIVER)
+        var releaseOutcome = "not_applicable"
+        if (ride.paymentMethod == "WALLET" && ride.chargeAmountMinor > 0) {
+            val wallet = walletProvider?.invoke()
+            val released = wallet?.release(ride.riderId, ride.chargeAmountMinor, "ride", ride.id)
+            releaseOutcome = when (released) {
+                is com.ridehailing.backend.wallet.WalletService.HoldResult.Held -> "released"
+                is com.ridehailing.backend.wallet.WalletService.HoldResult.Invalid ->
+                    "release_failed:${released.code}"
+                null -> "wallet_absent"
+            }
+        }
+        val cancelled = store.updateStatus(rideId, RideStatus.CANCELLED_BY_DRIVER, now.epochSecond, 0L)!!
+        val payload = mutableMapOf(
+            "rideId" to rideId,
+            "riderId" to ride.riderId,
+            "driverId" to driver.id,
+            "cancelFeeMinor" to "0",
+            "by" to "driver",
+            "walletRelease" to releaseOutcome,
+        )
+        reasonTrim?.let { payload["reason"] = it }
+        eventRecorder?.append("ride.cancelled", payload)
         return CancelResult.Cancelled(cancelled)
     }
 
