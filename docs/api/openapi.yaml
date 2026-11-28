@@ -872,6 +872,7 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        "415": { $ref: "#/components/responses/UnsupportedMediaType" }
   /v1/admin/config/fares:
     get:
       operationId: adminGetFares
@@ -975,6 +976,11 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
+        "404":
+          description: Unknown promo code (promo_not_found)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /v1/rides/{id}:
     get:
       operationId: getMyRide
