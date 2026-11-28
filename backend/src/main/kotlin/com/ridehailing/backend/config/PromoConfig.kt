@@ -1,5 +1,6 @@
 package com.ridehailing.backend.config
 
+import com.ridehailing.backend.lengthInCodePoints
 import kotlinx.serialization.Serializable
 
 /**
@@ -84,7 +85,7 @@ data class PromoCodeConfig(
         // round-24c-era check guarded AMOUNT only, so a PERCENT code could STORE a
         // schema-invalid currency and ECHO it in GET/PATCH responses (the round-33
         // perUserLimit lesson: the single write path must keep the store in-bounds).
-        if (currency != null && currency.length > 12) errs += "currency: <= 12 chars required"
+        if (currency != null && currency.lengthInCodePoints() > 12) errs += "currency: <= 12 chars required" // round-37: code points, not UTF-16 units (IbYD7y)
         if (validFromEpochSec < 0) errs += "validFromEpochSec: >= 0 required"
         // Round-31 ST202 (round-24b parity): NO cross-field window rule - the openapi
         // schema cannot express validUntil > validFrom, and a rule the spec cannot

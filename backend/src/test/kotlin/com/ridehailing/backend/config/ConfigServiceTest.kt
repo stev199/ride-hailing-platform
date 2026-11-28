@@ -5,6 +5,7 @@ import com.ridehailing.backend.auth.Ids
 import com.ridehailing.backend.auth.Role
 import com.ridehailing.backend.auth.User
 import com.ridehailing.backend.auth.UserStatus
+import com.ridehailing.backend.lengthInCodePoints
 import com.ridehailing.backend.module
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
@@ -443,6 +444,26 @@ class ConfigServiceTest {
         val read = client.authed("/v1/admin/config/cancellation", opsToken)
         assertEquals(HttpStatusCode.OK, read.status)
         assertEquals("60", read.json()["freeCancelWindowSec"]!!.jsonPrimitive.content, "bootstrap default")
+    }
+
+    @Test
+    fun `promos PATCH surrogate currency counts code points (round-37 ST202 IbYD7y)`() = withApp { client, graph ->
+        createAdminIn(graph, "33610000025", Role.ADMIN_SUPER)
+        val token = client.getToken("33610000025", "admin-password-1")
+        // The EXACT CI case IbYD7y: currency "000000000" + 2 surrogate pairs =
+        // 11 UNICODE CODE POINTS (13 Kotlin chars). JSON Schema maxLength counts
+        // code points -> schema-valid; the old .length check 400'd it.
+        val pair = "\uD800\uDC00"
+        val body = "{\"codes\": [{\"code\": \"000\", \"currency\": \"000000000" + pair + pair + "\", \"kind\": \"AMOUNT\", \"perUserLimit\": 1, \"validUntilEpochSec\": 1, \"value\": 1.0}]}"
+        assertEquals(11, "000000000$pair$pair".lengthInCodePoints())
+        assertEquals(13, "000000000$pair$pair".length)
+        val ok = client.patchJson("/v1/admin/config/promos", body, token)
+        assertEquals(HttpStatusCode.OK, ok.status, ok.bodyAsText())
+        // 13 code points (17 units) is schema-invalid -> 400 invalid_promos.
+        val over = "{\"codes\": [{\"code\": \"000\", \"currency\": \"000000000" + pair + pair + pair + pair + "\", \"kind\": \"AMOUNT\", \"perUserLimit\": 1, \"validUntilEpochSec\": 1, \"value\": 1.0}]}"
+        val bad = client.patchJson("/v1/admin/config/promos", over, token)
+        assertEquals(HttpStatusCode.BadRequest, bad.status, bad.bodyAsText())
+        assertEquals("invalid_promos", bad.errCode())
     }
 
     // ---------- helpers (file-local mirrors of the AdminRoutesTest ones) ----------

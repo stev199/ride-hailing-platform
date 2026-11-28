@@ -1,5 +1,6 @@
 package com.ridehailing.backend.config
 
+import com.ridehailing.backend.lengthInCodePoints
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -78,6 +79,30 @@ class PromoConfigTest {
                 .validationErrors().isEmpty(),
         )
         assertTrue(code(currency = "POINTS").validationErrors().isEmpty())
+    }
+
+    @Test
+    fun `currency length counts code points not UTF-16 units (round-37 IbYD7y)`() {
+        // JSON Schema maxLength counts UNICODE CODE POINTS; Kotlin .length counts
+        // UTF-16 units. The exact CI case: 9 digits + 2 astral chars = 11 code
+        // points (13 units) - schema-valid at maxLength 12 and now accepted.
+        val surrogatePair = "\ud800\udc00"
+        val elevenCpThirteenUnits = "000000000" + surrogatePair + surrogatePair
+        assertEquals(11, elevenCpThirteenUnits.lengthInCodePoints())
+        assertEquals(13, elevenCpThirteenUnits.length)
+        assertTrue(
+            code(currency = elevenCpThirteenUnits).validationErrors().isEmpty(),
+            "11 code points (13 UTF-16 units) is schema-valid AND accepted",
+        )
+        // 13 code points (17 units): schema-invalid AND rejected (each astral pair
+        // adds 2 units but only 1 code point).
+        val thirteenCp = "000000000" + surrogatePair + surrogatePair + surrogatePair + surrogatePair
+        assertEquals(13, thirteenCp.lengthInCodePoints())
+        assertEquals(17, thirteenCp.length)
+        assertTrue(
+            code(currency = thirteenCp).validationErrors().any { it.contains("currency") },
+            "13 code points is schema-invalid AND rejected",
+        )
     }
 
     @Test

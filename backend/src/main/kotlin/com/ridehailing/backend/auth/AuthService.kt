@@ -1,5 +1,7 @@
 package com.ridehailing.backend.auth
 
+import com.ridehailing.backend.lengthInCodePoints
+
 /**
  * Authentication orchestrator (P1-2). Owns registration, password login, OTP flows
  * (login or auto-register), token issuance/rotation and logout. All mutations are
@@ -61,7 +63,8 @@ class AuthService(
         // semantics identical (Java interprets \v as the vertical-whitespace CLASS),
         // which ContractAlignmentTest asserts so schema and code cannot drift.
         val displayName = displayNameRaw.trim(' ', '\t', '\n', '\u000B', '\u000C', '\r')
-        if (displayNameRaw.length !in 2..64 || displayName.isEmpty()) {
+        // Round-37: code points, not UTF-16 units (documented 2..64).
+        if (displayNameRaw.lengthInCodePoints() !in 2..64 || displayName.isEmpty()) {
             return RegisterResult.Invalid("displayName", "invalid_display_name")
         }
         val policy = passwords.policyViolation(passwordRaw)
@@ -163,7 +166,7 @@ class AuthService(
             return OtpVerifyResult.Success(existing, sessionFor(existing, now, deviceLabel), created = false)
         }
         if (!loginMethods().otpAutoRegister) return OtpVerifyResult.Failed("registration_disabled")
-        val displayName = displayNameRaw?.trim()?.takeIf { it.length in 2..64 } ?: "Rider"
+        val displayName = displayNameRaw?.trim()?.takeIf { it.lengthInCodePoints() in 2..64 } ?: "Rider"
         val user = User(
             id = Ids.newId(),
             phone = phone,

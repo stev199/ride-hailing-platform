@@ -1,5 +1,6 @@
 package com.ridehailing.backend.config
 
+import com.ridehailing.backend.lengthInCodePoints
 import kotlinx.serialization.Serializable
 
 /**
@@ -47,7 +48,9 @@ data class CancellationConfig(
             val (name, reasons) = list
             if (reasons.size > MAX_REASONS) errs += "$name: at most $MAX_REASONS reasons"
             for (r in reasons) {
-                if (r.length < MIN_REASON_CHARS || r.length > MAX_REASON_CHARS) {
+                // Round-37: code points, not UTF-16 units (surrogate pairs shrink
+                // the code-point count below the unit count).
+                if (r.lengthInCodePoints() < MIN_REASON_CHARS || r.lengthInCodePoints() > MAX_REASON_CHARS) {
                     errs += "$name: each reason must be $MIN_REASON_CHARS..$MAX_REASON_CHARS chars"
                 }
             }

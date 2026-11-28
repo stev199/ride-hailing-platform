@@ -5,6 +5,7 @@ import com.ridehailing.backend.auth.Ids
 import com.ridehailing.backend.auth.Role
 import com.ridehailing.backend.auth.User
 import com.ridehailing.backend.auth.UserStatus
+import com.ridehailing.backend.lengthInCodePoints
 import com.ridehailing.backend.module
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
@@ -117,6 +118,21 @@ class WalletRoutesTest {
         val page = client.authed("/v1/wallet/transactions?limit=1", riderToken)
         assertEquals(HttpStatusCode.OK, page.status)
         assertTrue(page.json()["items"].toString().contains("wallet.admin_credit"), "history records the credit")
+
+        // Round-37: the transfer note is documented maxLength 120 CODE POINTS - a
+        // schema-invalid note is rejected (note_too_long), never silently truncated
+        // (the old service-side take(120) stored a DIFFERENT value than sent).
+        val longNote = "x".repeat(121)
+        val tooLong = client.postJson("/v1/wallet/transfer", """{"toPhone":"33220000003","amountMinor":100,"note":"$longNote"}""", riderToken)
+        assertEquals(HttpStatusCode.BadRequest, tooLong.status, tooLong.bodyAsText())
+        assertEquals("note_too_long", tooLong.json()["code"]!!.jsonPrimitive.content)
+        // 120 code points made of 140 UTF-16 units (20 surrogate pairs) is schema-valid.
+        val pair = "\uD800\uDC00"
+        val astralNote = "a".repeat(100) + pair.repeat(20)
+        assertEquals(120, astralNote.lengthInCodePoints())
+        assertEquals(140, astralNote.length)
+        val astral = client.postJson("/v1/wallet/transfer", """{"toPhone":"33220000003","amountMinor":100,"note":"$astralNote"}""", riderToken)
+        assertTrue(astral.status != HttpStatusCode.BadRequest, "120 code points (130 units) is schema-valid: ${astral.bodyAsText()}")
     }
 
     @Test

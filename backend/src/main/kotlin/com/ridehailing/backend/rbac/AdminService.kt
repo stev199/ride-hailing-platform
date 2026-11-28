@@ -8,6 +8,7 @@ import com.ridehailing.backend.auth.Role
 import com.ridehailing.backend.auth.User
 import com.ridehailing.backend.auth.UserStatus
 import com.ridehailing.backend.auth.UserStore
+import com.ridehailing.backend.lengthInCodePoints
 
 /**
  * Admin user management (P1-3). Every mutation appends an audit event to the
@@ -60,7 +61,8 @@ class AdminService(
     fun createUser(actor: User, displayName: String, phone: String?, email: String?, role: Role, password: String?, locale: String?): CreateResult {
         if (role.isAdmin && actor.role != Role.ADMIN_SUPER) return CreateResult.Forbidden
         val name = displayName.trim(' ', '\t', '\n', '\u000B', '\u000C', '\r')
-        if (name.length !in 2..64 || name.isEmpty()) return CreateResult.Invalid("displayName", "invalid_display_name")
+        // Round-37: code points, not UTF-16 units (documented 2..64).
+        if (name.lengthInCodePoints() !in 2..64 || name.isEmpty()) return CreateResult.Invalid("displayName", "invalid_display_name")
         val normalizedPhone = phone?.let { com.ridehailing.backend.auth.Identifiers.normalizePhone(it) }
             ?: if (phone != null) return CreateResult.Invalid("phone", "invalid_phone") else null
         val normalizedEmail = email?.let { com.ridehailing.backend.auth.Identifiers.normalizeEmail(it) }
@@ -107,7 +109,7 @@ class AdminService(
             return UpdateResult.Forbidden // no self role/status change (lockout protection)
         }
         val name = fields.displayName?.trim(' ', '\t', '\n', '\u000B', '\u000C', '\r')
-        if (name != null && (name.length !in 2..64 || name.isEmpty())) {
+        if (name != null && (name.lengthInCodePoints() !in 2..64 || name.isEmpty())) {
             return UpdateResult.Invalid("displayName", "invalid_display_name")
         }
         if (fields.locale != null && fields.locale !in setOf("en", "fr", "ar")) {

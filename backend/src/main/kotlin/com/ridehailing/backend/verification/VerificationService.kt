@@ -3,6 +3,7 @@ package com.ridehailing.backend.verification
 import com.ridehailing.backend.auth.AuthService
 import com.ridehailing.backend.auth.Role
 import com.ridehailing.backend.auth.User
+import com.ridehailing.backend.lengthInCodePoints
 
 /**
  * Verification workflow service (P6-1). Business rules the ROUTES do not know:
@@ -45,11 +46,12 @@ class VerificationService(
         if (actor.role != Role.DRIVER) return SubmitResult.NotADriver
         val license = fields.licenseNumber.trim()
         val plate = fields.vehiclePlate.trim()
-        if (license.isEmpty() || license.length > 64 || plate.isEmpty() || plate.length > 32) {
+        // Round-37: code points, not UTF-16 units (documented 1..64 / 1..32).
+        if (license.isEmpty() || license.lengthInCodePoints() > 64 || plate.isEmpty() || plate.lengthInCodePoints() > 32) {
             return SubmitResult.Invalid
         }
         val docs = fields.declaredDocs.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
-        if (docs.isEmpty() || docs.size > 16 || docs.any { it.length > 64 }) return SubmitResult.Invalid
+        if (docs.isEmpty() || docs.size > 16 || docs.any { it.lengthInCodePoints() > 64 }) return SubmitResult.Invalid
         val latest = store.latestForUser(actor.id)
         if (latest?.status == VerificationStatus.PENDING || latest?.status == VerificationStatus.APPROVED) {
             return SubmitResult.AlreadyPending
@@ -90,7 +92,8 @@ class VerificationService(
 
     fun reject(actor: User, id: String, reason: String): ReviewResult {
         val trimmed = reason.trim()
-        if (trimmed.isEmpty() || trimmed.length > 512) return ReviewResult.Invalid
+        // Round-37: code points, not UTF-16 units (documented 1..512).
+        if (trimmed.isEmpty() || trimmed.lengthInCodePoints() > 512) return ReviewResult.Invalid
         return review(actor, id, VerificationStatus.REJECTED, trimmed)
     }
 

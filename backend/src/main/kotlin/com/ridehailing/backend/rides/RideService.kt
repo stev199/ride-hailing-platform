@@ -5,6 +5,7 @@ import com.ridehailing.backend.auth.User
 import com.ridehailing.backend.config.SignedConfigBundle
 import com.ridehailing.backend.fares.FareMath
 import com.ridehailing.backend.fares.OsrmRouteSource
+import com.ridehailing.backend.lengthInCodePoints
 import com.ridehailing.backend.ledger.LedgerLeg
 import com.ridehailing.backend.ledger.LedgerStore
 import java.time.Instant
@@ -96,7 +97,7 @@ class RideService(
         required: Boolean,
     ): kotlin.Pair<String?, CancelResult.Error?> {
         val trimmed = reason?.trim()?.ifEmpty { null }
-        if (trimmed != null && trimmed.length > com.ridehailing.backend.config.CancellationConfig.MAX_REQUEST_REASON_CHARS) {
+        if (trimmed != null && trimmed.lengthInCodePoints() > com.ridehailing.backend.config.CancellationConfig.MAX_REQUEST_REASON_CHARS) {
             return null to CancelResult.Error(400, "cancel_reason_too_long")
         }
         if (catalog.isNotEmpty()) {
@@ -129,7 +130,12 @@ class RideService(
         if (req.paymentMethod != "CASH" && req.paymentMethod != "WALLET") {
             return CreateResult.Invalid("paymentMethod", "payment_method_unavailable")
         }
-        if (req.note != null && req.note.length > 500) return CreateResult.Invalid("note", "note_too_long")
+        // Round-37: ALL documented length bounds count code points (IbYD7y).
+        if (req.note != null && req.note.lengthInCodePoints() > 500) return CreateResult.Invalid("note", "note_too_long")
+        // pickupName/dropoffName are documented maxLength 200 (RideCreate) - the
+        // store-anything pre-P8 behavior accepted schema-invalid long names.
+        if (req.pickupName != null && req.pickupName.lengthInCodePoints() > 200) return CreateResult.Invalid("pickupName", "pickup_name_too_long")
+        if (req.dropoffName != null && req.dropoffName.lengthInCodePoints() > 200) return CreateResult.Invalid("dropoffName", "dropoff_name_too_long")
 
         val now = clock()
         // Route input: OSRM when reachable (null/throw -> degrade to the calibrated

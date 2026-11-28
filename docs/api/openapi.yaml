@@ -718,7 +718,9 @@ paths:
         are first-class). The fee (bps from the signed wallet config) is taken from
         the RECEIVED amount and posted to the platform fee wallet in the SAME
         double-entry transaction, so money always conserves. Errors: 400
-        invalid_amount/below_minimum/self_transfer, 404 (uniform not_found body -
+        invalid_amount/below_minimum/self_transfer/note_too_long (round-37: the note
+        is documented maxLength 120 code points - a schema-invalid note is rejected,
+        never silently truncated), 404 (uniform not_found body -
         existence-leak prevention; the phone does not resolve), 409
         insufficient_balance/daily_limit_exceeded.
       summary: Transfer points by phone
@@ -1017,6 +1019,10 @@ paths:
         WALLET (unknown methods - 400
         payment_method_unavailable). Coordinates/city/rideType validation mirrors the
         estimate endpoint (invalid_coordinates / unknown_city / unknown_ride_type).
+        Round-37: documented length bounds count UNICODE CODE POINTS (a string with
+        surrogate pairs has FEWER code points than UTF-16 units); note > 500 code
+        points -> 400 note_too_long, pickupName/dropoffName > 200 code points -> 400
+        pickup_name_too_long / dropoff_name_too_long.
       summary: Book a ride
       tags: [rides]
       security:

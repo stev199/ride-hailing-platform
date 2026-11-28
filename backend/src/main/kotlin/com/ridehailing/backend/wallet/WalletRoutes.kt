@@ -3,6 +3,7 @@ package com.ridehailing.backend.wallet
 import com.ridehailing.backend.ErrorDto
 import com.ridehailing.backend.auth.AuthService
 import com.ridehailing.backend.auth.Role
+import com.ridehailing.backend.lengthInCodePoints
 import com.ridehailing.backend.rbac.Perm
 import com.ridehailing.backend.rbac.withPermission
 import io.ktor.http.HttpStatusCode
@@ -162,7 +163,13 @@ fun Route.walletRoutes(service: AuthService, wallet: WalletService) {
                 if (amountMinor > MONEY_AMOUNT_CAP) {
                     return@withUser call.respond(HttpStatusCode.BadRequest, err("invalid_amount", "amountMinor exceeds the documented maximum"))
                 }
+                // Round-37: the transfer note is documented maxLength 120 (schema truth)
+                // - the old service-side take(120) silently truncated schema-invalid
+                // notes into a DIFFERENT stored value. Reject instead (code points).
                 val note = obj.stringField("note")
+                if (note != null && note.lengthInCodePoints() > 120) {
+                    return@withUser call.respond(HttpStatusCode.BadRequest, err("note_too_long", "note is limited to 120 characters"))
+                }
                 when (val res = wallet.transferPoints(user, toPhone, amountMinor, note)) {
                     is WalletService.TransferResult.Done -> {
                         val balances = wallet.balances(user.id)
@@ -195,7 +202,8 @@ fun Route.walletRoutes(service: AuthService, wallet: WalletService) {
                     call.respond(HttpStatusCode.BadRequest, err("invalid_reason", "reason is required for admin credit"))
                     return@withPermission
                 }
-                if (reason.length > 120) {
+                // Round-37: code points, not UTF-16 units.
+                if (reason.lengthInCodePoints() > 120) {
                     call.respond(HttpStatusCode.BadRequest, err("invalid_reason", "reason is limited to 120 characters"))
                     return@withPermission
                 }
