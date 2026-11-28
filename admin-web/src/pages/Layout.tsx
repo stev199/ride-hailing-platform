@@ -19,6 +19,7 @@ const NAV: NavItem[] = [
   { to: '/config', labelKey: 'nav.config', perm: Perm.CONFIG_READ },
   { to: '/fares', labelKey: 'nav.fares', perm: Perm.CONFIG_READ },
   { to: '/trips', labelKey: 'nav.trips', perm: Perm.TRIPS_READ },
+  { to: '/wallet', labelKey: 'nav.wallet', perm: Perm.MONEY_READ },
   { to: '/verification', labelKey: 'nav.verification', perm: Perm.VERIFICATION_READ },
   { to: '/live', labelKey: 'nav.live', perm: Perm.TRIPS_READ },
 ];

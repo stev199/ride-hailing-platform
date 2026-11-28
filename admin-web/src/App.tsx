@@ -9,6 +9,7 @@ import AuditPage from './pages/AuditPage';
 import ConfigPage from './pages/ConfigPage';
 import FaresPage from './pages/FaresPage';
 import TripsPage from './pages/TripsPage';
+import WalletCreditPage from './pages/WalletCreditPage';
 import VerificationPage from './pages/VerificationPage';
 import LiveMapPage from './pages/LiveMapPage';
 
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="/config" element={<ConfigPage />} />
             <Route path="/fares" element={<FaresPage />} />
             <Route path="/trips" element={<TripsPage />} />
+            <Route path="/wallet" element={<WalletCreditPage />} />
             <Route path="/verification" element={<VerificationPage />} />
             <Route path="/live" element={<LiveMapPage />} />
           </Route>

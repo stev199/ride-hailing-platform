@@ -22,6 +22,8 @@ export enum Perm {
   MONEY_READ = 'MONEY_READ',
   MONEY_WRITE = 'MONEY_WRITE',
   TRIPS_READ = 'TRIPS_READ',
+  /** P7-5a: platform trip actions (admin cancel) - mirror of Rbac.kt TRIPS_WRITE. */
+  TRIPS_WRITE = 'TRIPS_WRITE',
   VERIFICATION_READ = 'VERIFICATION_READ',
   VERIFICATION_WRITE = 'VERIFICATION_WRITE',
 }
@@ -40,6 +42,7 @@ export const ALL_PERMS: Perm[] = [
   Perm.MONEY_READ,
   Perm.MONEY_WRITE,
   Perm.TRIPS_READ,
+  Perm.TRIPS_WRITE,
   Perm.VERIFICATION_READ,
   Perm.VERIFICATION_WRITE,
 ];
@@ -72,6 +75,7 @@ export const PERMISSIONS_BY_ROLE: Record<Role, Perm[]> = {
     Perm.MESH_ADMIN,
     Perm.MONEY_READ,
     Perm.TRIPS_READ,
+    Perm.TRIPS_WRITE,
     Perm.VERIFICATION_READ,
     Perm.VERIFICATION_WRITE,
   ],

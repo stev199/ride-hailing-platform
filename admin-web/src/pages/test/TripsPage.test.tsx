@@ -38,8 +38,16 @@ const DETAIL: TripDetail = {
 
 interface FetchCall { url: string; method: string }
 
-/** Stubbed backend (same harness as FaresPage.test): /v1/me + the two trips endpoints. */
-function renderPage(role: string) {
+const RIDE_C: TripListResponse['rides'][number] = {
+  ...RIDE_A,
+  id: 'cccccccc-1111-2222-3333-444444444444', status: 'COMPLETED', paymentMethod: 'WALLET',
+  driverId: 'driver-7',
+};
+
+const REFUNDABLE_LIST: TripListResponse = { rides: [RIDE_C], limit: 25, offset: 0 };
+
+/** Stubbed backend (same harness as FaresPage.test): /v1/me + the trips endpoints. */
+function renderPage(role: string, list: TripListResponse = LIST) {
   const calls: FetchCall[] = [];
   vi.stubGlobal(
     'fetch',
@@ -57,11 +65,19 @@ function renderPage(role: string) {
       if (url.includes('/v1/me')) {
         return Promise.resolve(new Response(JSON.stringify({ ...ADMIN, role }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
       }
+      if (url.includes('/cancel')) {
+        const id = url.split('/v1/admin/rides/')[1]?.split('/cancel')[0] ?? '';
+        return Promise.resolve(new Response(JSON.stringify({ rideId: id, status: 'CANCELLED_BY_ADMIN' }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      }
+      if (url.includes('/refund')) {
+        const id = url.split('/v1/admin/rides/')[1]?.split('/refund')[0] ?? '';
+        return Promise.resolve(new Response(JSON.stringify({ rideId: id, riderGotMinor: 1250, driverDebitedMinor: 1125, commissionReversedMinor: 125 }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+      }
       if (url.includes('/v1/admin/rides/')) {
         return Promise.resolve(new Response(JSON.stringify(DETAIL), { status: 200, headers: { 'Content-Type': 'application/json' } }));
       }
       if (url.includes('/v1/admin/rides')) {
-        return Promise.resolve(new Response(JSON.stringify(LIST), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        return Promise.resolve(new Response(JSON.stringify(list), { status: 200, headers: { 'Content-Type': 'application/json' } }));
       }
       return Promise.resolve(new Response(JSON.stringify({ code: 'not_found', message: 'x', traceId: null }), { status: 404, headers: { 'Content-Type': 'application/json' } }));
     }),
@@ -125,5 +141,37 @@ describe('TripsPage (Phase 6 trips admin)', () => {
     await waitFor(() => expect(screen.getByTestId('forbidden-perm')).toBeTruthy());
     // No trips call ever leaves the page.
     expect(screen.queryByTestId('trips-table')).toBeNull();
+  });
+
+  it('P7-5b ADMIN_OPS sees Cancel on the non-terminal row and cancel posts + refreshes', async () => {
+    const { calls } = renderPage('ADMIN_OPS');
+    await waitFor(() => expect(screen.getByTestId('trips-table')).toBeTruthy());
+    // REQUESTED row: cancel available. COMPLETED row: no cancel (terminal).
+    expect(screen.getByTestId(`trips-cancel-${RIDE_A.id}`)).toBeTruthy();
+    expect(screen.queryByTestId(`trips-cancel-${RIDE_B.id}`)).toBeNull();
+    // ADMIN_OPS has NO MONEY_WRITE -> no refund button anywhere.
+    expect(screen.queryByTestId(`trips-refund-${RIDE_B.id}`)).toBeNull();
+    await userEvent.click(screen.getByTestId(`trips-cancel-${RIDE_A.id}`));
+    await waitFor(() => expect(screen.getByTestId('trips-action-notice')).toBeTruthy());
+    expect(calls.some((c) => c.method === 'POST' && c.url.includes(`/v1/admin/rides/${RIDE_A.id}/cancel`))).toBe(true);
+    expect(screen.getByTestId('trips-action-notice').textContent).toContain('CANCELLED_BY_ADMIN');
+  });
+
+  it('P7-5b ADMIN_READONLY sees no action buttons at all', async () => {
+    renderPage('ADMIN_READONLY');
+    await waitFor(() => expect(screen.getByTestId('trips-table')).toBeTruthy());
+    expect(screen.queryByTestId(`trips-cancel-${RIDE_A.id}`)).toBeNull();
+    expect(screen.queryByTestId('trips-detail-cancel')).toBeNull();
+  });
+
+  it('P7-5b ADMIN_FINANCE sees Refund only on COMPLETED WALLET rows; refund posts', async () => {
+    const { calls } = renderPage('ADMIN_FINANCE', REFUNDABLE_LIST);
+    await waitFor(() => expect(screen.getByTestId('trips-table')).toBeTruthy());
+    // COMPLETED WALLET row: refund available, cancel NOT (terminal + no TRIPS_WRITE).
+    expect(screen.getByTestId(`trips-refund-${RIDE_C.id}`)).toBeTruthy();
+    expect(screen.queryByTestId(`trips-cancel-${RIDE_C.id}`)).toBeNull();
+    await userEvent.click(screen.getByTestId(`trips-refund-${RIDE_C.id}`));
+    await waitFor(() => expect(screen.getByTestId('trips-action-notice')).toBeTruthy());
+    expect(calls.some((c) => c.method === 'POST' && c.url.includes(`/v1/admin/rides/${RIDE_C.id}/refund`))).toBe(true);
   });
 });

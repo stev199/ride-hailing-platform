@@ -11,9 +11,15 @@ import { ForbiddenPerm } from './UsersPage';
  * a row opens GET /v1/admin/rides/{id} - the full ride plus the ride.* timeline
  * from the hash-chained event store. The `origin` field is the spec's admin-only
  * "online / offline-mesh" marker ("online" until mesh rides land, Phase 10).
- * Read-only by design: admin cancel/edit/refund needs the money/ledger work and
- * is NOT pretended here.
+ *
+ * P7-5b money actions (server is the authority; the buttons are UX only):
+ * - Cancel (TRIPS_WRITE): any non-terminal ride, fee-free; a pending WALLET hold is
+ *   released server-side.
+ * - Refund (MONEY_WRITE): COMPLETED WALLET rides only - exact capture reversal.
+ * Errors surface VERBATIM (code + message).
  */
+
+const NON_TERMINAL = new Set(['REQUESTED', 'ACCEPTED', 'ARRIVED', 'IN_PROGRESS']);
 
 export interface TripListItem {
   id: string;
@@ -51,6 +57,20 @@ export interface TripListResponse {
   offset: number;
 }
 
+/** P7-5a POST /v1/admin/rides/{id}/cancel response. */
+export interface TripActionResponse {
+  rideId: string;
+  status: string;
+}
+
+/** P7-5a POST /v1/admin/rides/{id}/refund response. */
+export interface TripRefundResponse {
+  rideId: string;
+  riderGotMinor: number;
+  driverDebitedMinor: number;
+  commissionReversedMinor: number;
+}
+
 /** The backend RideStatus enum names (mirror of RideStatus.kt). */
 const STATUS_FILTERS = [
   'REQUESTED',
@@ -84,8 +104,12 @@ export default function TripsPage() {
   const [loadedOnce, setLoadedOnce] = useState(false);
   const [detail, setDetail] = useState<TripDetail | null>(null);
   const [detailBusy, setDetailBusy] = useState(false);
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null);
+  const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   const canRead = !!me && can(me.role, Perm.TRIPS_READ);
+  const canCancel = !!me && can(me.role, Perm.TRIPS_WRITE);
+  const canRefund = !!me && can(me.role, Perm.MONEY_WRITE);
 
   const load = useCallback(async () => {
     if (!canRead) return;
@@ -124,12 +148,53 @@ export default function TripsPage() {
     }
   };
 
+  const cancelRide = async (id: string) => {
+    setActionBusyId(id);
+    setError(null);
+    setActionNotice(null);
+    try {
+      const res = await api.post<TripActionResponse>(`/v1/admin/rides/${id}/cancel`);
+      setActionNotice(t('trips.cancelled', { id: res.rideId.slice(0, 8), status: res.status }));
+      await load();
+    } catch (err) {
+      setError(err as ApiError);
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  const refundRide = async (id: string) => {
+    setActionBusyId(id);
+    setError(null);
+    setActionNotice(null);
+    try {
+      const res = await api.post<TripRefundResponse>(`/v1/admin/rides/${id}/refund`);
+      setActionNotice(
+        t('trips.refunded', {
+          rider: String(res.riderGotMinor),
+          driver: String(res.driverDebitedMinor),
+          commission: String(res.commissionReversedMinor),
+        }),
+      );
+      await load();
+    } catch (err) {
+      setError(err as ApiError);
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
   return (
     <div>
       <h1 className="page-title">{t('trips.title')}</h1>
       {error && (
         <div className="error-banner" data-testid="trips-error">
           {error.code}: {error.message}
+        </div>
+      )}
+      {actionNotice && (
+        <div className="card" role="status" data-testid="trips-action-notice">
+          {actionNotice}
         </div>
       )}
       <div className="search-row">
@@ -179,6 +244,7 @@ export default function TripsPage() {
               <th>{t('trips.quote')}</th>
               <th>{t('trips.origin')}</th>
               <th>{t('trips.driver')}</th>
+              {(canCancel || canRefund) && <th>{t('trips.actions')}</th>}
             </tr>
           </thead>
           <tbody>
@@ -198,11 +264,33 @@ export default function TripsPage() {
                   <span className="badge">{r.origin}</span>
                 </td>
                 <td>{r.driverId ? r.driverId.slice(0, 8) + '…' : '—'}</td>
+                {(canCancel || canRefund) && (
+                  <td onClick={(e) => e.stopPropagation()}>
+                    {canCancel && NON_TERMINAL.has(r.status) && (
+                      <button
+                        onClick={() => void cancelRide(r.id)}
+                        disabled={actionBusyId === r.id}
+                        data-testid={`trips-cancel-${r.id}`}
+                      >
+                        {t('trips.cancel')}
+                      </button>
+                    )}{' '}
+                    {canRefund && r.status === 'COMPLETED' && r.paymentMethod === 'WALLET' && (
+                      <button
+                        onClick={() => void refundRide(r.id)}
+                        disabled={actionBusyId === r.id}
+                        data-testid={`trips-refund-${r.id}`}
+                      >
+                        {t('trips.refund')}
+                      </button>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
             {rides.length === 0 && (
               <tr>
-                <td colSpan={7} className="muted" data-testid="trips-empty">
+                <td colSpan={8} className="muted" data-testid="trips-empty">
                   {t('trips.empty')}
                 </td>
               </tr>
@@ -250,6 +338,26 @@ export default function TripsPage() {
               <button onClick={() => setDetail(null)} data-testid="trips-detail-close">
                 {t('trips.close')}
               </button>
+              {canCancel && NON_TERMINAL.has(detail.ride.status) && (
+                <button
+                  onClick={() => void cancelRide(detail.ride.id)}
+                  disabled={actionBusyId === detail.ride.id}
+                  style={{ marginLeft: 8 }}
+                  data-testid="trips-detail-cancel"
+                >
+                  {t('trips.cancel')}
+                </button>
+              )}
+              {canRefund && detail.ride.status === 'COMPLETED' && detail.ride.paymentMethod === 'WALLET' && (
+                <button
+                  onClick={() => void refundRide(detail.ride.id)}
+                  disabled={actionBusyId === detail.ride.id}
+                  style={{ marginLeft: 8 }}
+                  data-testid="trips-detail-refund"
+                >
+                  {t('trips.refund')}
+                </button>
+              )}
             </>
           )}
         </div>
