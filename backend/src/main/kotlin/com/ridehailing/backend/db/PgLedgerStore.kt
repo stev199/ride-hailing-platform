@@ -3,6 +3,7 @@ package com.ridehailing.backend.db
 import com.ridehailing.backend.ledger.Direction
 import com.ridehailing.backend.ledger.InsufficientBalanceException
 import com.ridehailing.backend.ledger.LedgerEntry
+import com.ridehailing.backend.ledger.LedgerHistoryItem
 import com.ridehailing.backend.ledger.LedgerLeg
 import com.ridehailing.backend.ledger.LedgerRules
 import com.ridehailing.backend.ledger.LedgerStore
@@ -147,6 +148,38 @@ class PgLedgerStore(private val connect: () -> Connection) : LedgerStore {
                 throw UnbalancedLedgerTransactionException("database rejected the transaction: ${e.message}")
             } finally {
                 runCatching { c.autoCommit = true }
+            }
+        }
+    }
+
+    override fun historyFor(walletId: String, limit: Int, offset: Int): List<LedgerHistoryItem> = connect().use { c ->
+        c.prepareStatement(
+            "SELECT e.id AS entry_id, e.transaction_id, e.amount, e.direction, " +
+                "t.reason, t.ref_type, t.ref_id, t.created_at " +
+                "FROM ledger_entry e JOIN ledger_transaction t ON t.id = e.transaction_id " +
+                "WHERE e.wallet_id = ?::uuid " +
+                "ORDER BY t.created_at DESC, e.created_at DESC, e.id ASC LIMIT ? OFFSET ?",
+        ).use { ps ->
+            ps.setString(1, walletId)
+            ps.setInt(2, limit.coerceIn(0, 500))
+            ps.setInt(3, offset.coerceAtLeast(0))
+            ps.executeQuery().use { rs ->
+                val out = ArrayList<LedgerHistoryItem>()
+                while (rs.next()) {
+                    out.add(
+                        LedgerHistoryItem(
+                            entryId = rs.getString("entry_id"),
+                            transactionId = rs.getString("transaction_id"),
+                            amountMinor = rs.getLong("amount"),
+                            direction = Direction.valueOf(rs.getString("direction")),
+                            reason = rs.getString("reason"),
+                            refType = rs.getString("ref_type"),
+                            refId = rs.getString("ref_id"),
+                            createdAtEpochSec = rs.getTimestamp("created_at").toInstant().epochSecond,
+                        ),
+                    )
+                }
+                out
             }
         }
     }
