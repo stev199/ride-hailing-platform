@@ -36,5 +36,19 @@
     <string name="wallet_history_title">النشاط الأخير</string>
     <string name="wallet_history_empty">لا توجد معاملات بعد.</string>
     <string name="wallet_topup_note">الشحن v1: يحصل على الأرصاد من المشغل (المشرف). القسائم ووكلاء النقد واردون مع عمل موفر الخدمة.</string>
+    <string name="earnings_sign_in_prompt">سجّل الدخول في علامة الإعدادات لمشاهدة أرباحك.</string>
+    <string name="earnings_today">اليوم</string>
+    <string name="earnings_week">هذا الأسبوع</string>
+    <string name="earnings_cash">نقدي</string>
+    <string name="earnings_wallet">المحفظة</string>
+    <string name="earnings_trips_count">%1$s رحلات</string>
+    <string name="earnings_breakdown_title">تفصيل لكل رحلة</string>
+    <string name="earnings_empty">لا توجد رحلات مكتملة بعد.</string>
+    <string name="earnings_cash_label">رحلة نقدية (تحصل عليها نقدياً)</string>
+    <string name="earnings_credit_pending">رحلة محفظة - الرصيد غير ظاهر بعد</string>
+    <string name="earnings_trip_commission">العمولة %1$s</string>
+    <string name="earnings_no_commission">دون عمولة</string>
+    <string name="earnings_payout_note">الدفعات v1: السجلات قابلة للقراءة فقط هنا - قائمة الدفع تقع في مركز المشرف (عمل موفر الخدمة قادم).</string>
 </resources>
+
 

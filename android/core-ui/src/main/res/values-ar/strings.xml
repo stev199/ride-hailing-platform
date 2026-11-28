@@ -7,4 +7,5 @@
     <string name="core_body_home">الواجهة جاهزة. الخرائط والحجز وصندوق الرسائل الصادر في P2-2/1c.</string>
     <string name="core_body_settings">الثيمة واللغة وإعدادات الحساب مع واجهة تسجيل الدخول (P2-4).</string>
     <string name="core_nav_wallet">المحفظة</string>
+    <string name="core_nav_earnings">الأرباح</string>
 </resources>

@@ -36,5 +36,19 @@
     <string name="wallet_history_title">Activité récente</string>
     <string name="wallet_history_empty">Aucune transaction pour le moment.</string>
     <string name="wallet_topup_note">Rechargement v1 : les crédits sont émis par l’opérateur (admin). Les bons et agents de caisse arrivent avec le travail prestataire.</string>
+    <string name="earnings_sign_in_prompt">Connectez-vous dans l’onglet Réglages pour voir vos gains.</string>
+    <string name="earnings_today">Aujourd’hui</string>
+    <string name="earnings_week">Cette semaine</string>
+    <string name="earnings_cash">Espèces</string>
+    <string name="earnings_wallet">Portefeuille</string>
+    <string name="earnings_trips_count">%1$s courses</string>
+    <string name="earnings_breakdown_title">Détail par course</string>
+    <string name="earnings_empty">Aucune course terminée pour le moment.</string>
+    <string name="earnings_cash_label">Course en espèces (encaissées en espèces)</string>
+    <string name="earnings_credit_pending">Course portefeuille - crédit pas encore visible</string>
+    <string name="earnings_trip_commission">Commission %1$s</string>
+    <string name="earnings_no_commission">Sans commission</string>
+    <string name="earnings_payout_note">Paiements v1 : les enregistrements sont en lecture seule ici - la file des paiements se trouve dans le centre d’administration (travail prestataire à venir).</string>
 </resources>
+
 

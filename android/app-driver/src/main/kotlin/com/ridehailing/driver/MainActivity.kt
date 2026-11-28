@@ -14,6 +14,7 @@ import com.ridehailing.core.map.MapConfig
 import androidx.compose.foundation.layout.Column
 import com.ridehailing.core.map.OfflineMapCard
 import com.ridehailing.core.map.PlacesCard
+import com.ridehailing.core.screens.DriverEarningsScreen
 import com.ridehailing.core.screens.SessionScreen
 import com.ridehailing.core.ui.AppMode
 import com.ridehailing.core.ui.ModeNavApp
@@ -78,6 +79,8 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                     },
+                    // P7-4 driver earnings tab (rider shell passes nothing - stays wallet-only).
+                    earningsBody = { DriverEarningsScreen() },
                 )
             }
         }

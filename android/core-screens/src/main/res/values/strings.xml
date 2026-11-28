@@ -37,4 +37,18 @@
     <string name="wallet_history_title">Recent activity</string>
     <string name="wallet_history_empty">No transactions yet.</string>
     <string name="wallet_topup_note">Top-up v1: credits are issued by the operator (admin). Vouchers and cash agents arrive with the provider work.</string>
+    <string name="earnings_sign_in_prompt">Sign in on the Settings tab to see your earnings.</string>
+    <string name="earnings_today">Today</string>
+    <string name="earnings_week">This week</string>
+    <string name="earnings_cash">Cash</string>
+    <string name="earnings_wallet">Wallet</string>
+    <string name="earnings_trips_count">%1$s trips</string>
+    <string name="earnings_breakdown_title">Per-trip breakdown</string>
+    <string name="earnings_empty">No completed trips yet.</string>
+    <string name="earnings_cash_label">Cash fare (collected in cash)</string>
+    <string name="earnings_credit_pending">Wallet fare - credit not visible yet</string>
+    <string name="earnings_trip_commission">Commission %1$s</string>
+    <string name="earnings_no_commission">No commission</string>
+    <string name="earnings_payout_note">Payouts v1: records are read-only here - the payout queue lives in the admin center (provider work pending).</string>
 </resources>
+

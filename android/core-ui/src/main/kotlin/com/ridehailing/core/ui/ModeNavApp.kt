@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -39,6 +40,7 @@ object TabRoutes {
     const val HOME: String = "home"
     const val SETTINGS: String = "settings"
     const val WALLET: String = "wallet"
+    const val EARNINGS: String = "earnings"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,6 +55,8 @@ fun ModeNavApp(
     },
     /** P7-3: optional wallet tab - null keeps the shell two-tab (driver app unchanged). */
     walletBody: (@Composable () -> Unit)? = null,
+    /** P7-4: optional driver earnings tab - null keeps the shell two-tab (rider app unchanged). */
+    earningsBody: (@Composable () -> Unit)? = null,
 ) {
     val titleRes = when (mode) {
         AppMode.RIDER -> R.string.core_title_rider
@@ -90,6 +94,15 @@ fun ModeNavApp(
                         modifier = Modifier.semantics { testTag = "tab_wallet" },
                     )
                 }
+                if (earningsBody != null) {
+                    NavigationBarItem(
+                        selected = currentRoute == TabRoutes.EARNINGS,
+                        onClick = { navController.navigateSingleTop(TabRoutes.EARNINGS) },
+                        icon = { Icon(Icons.Filled.List, contentDescription = null) },
+                        label = { Text(stringResource(R.string.core_nav_earnings)) },
+                        modifier = Modifier.semantics { testTag = "tab_earnings" },
+                    )
+                }
             }
         },
     ) { padding ->
@@ -112,6 +125,11 @@ fun ModeNavApp(
                 if (walletBody != null) {
                     composable(TabRoutes.WALLET) {
                         walletBody()
+                    }
+                }
+                if (earningsBody != null) {
+                    composable(TabRoutes.EARNINGS) {
+                        earningsBody()
                     }
                 }
             }
