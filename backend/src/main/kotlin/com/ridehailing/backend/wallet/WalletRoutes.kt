@@ -10,6 +10,9 @@ import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.call
 import io.ktor.server.request.header
 import io.ktor.server.request.receive
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
@@ -63,6 +66,25 @@ data class AdminWalletCreditRequest(val amountMinor: Long, val reason: String)
 
 @Serializable
 data class AdminWalletCreditDto(val balances: Map<String, Long>)
+
+/**
+ * D49 generator precision: JSON Schema treats 0.0 as a valid integer (zero
+ * fractional part), but kotlinx cannot decode a float literal into a Long/Int
+ * field -> schema-valid fuzz bodies were rejected with 400 (ST202). These wallet
+ * bodies therefore decode through [JsonObject] with integral-number leniency:
+ * 0.0 == 0 accepted, 0.5 rejected (it is schema-invalid anyway).
+ */
+private fun JsonObject.integralLong(name: String): Long? {
+    val v = this[name] as? kotlinx.serialization.json.JsonPrimitive ?: return null
+    if (v.isString) return null
+    return v.longOrNull ?: v.doubleOrNull?.takeIf { it == kotlin.math.floor(it) && it.isFinite() }?.toLong()
+}
+
+private fun JsonObject.stringField(name: String): String? {
+    val v = this[name] as? kotlinx.serialization.json.JsonPrimitive ?: return null
+    if (!v.isString) return null
+    return v.content
+}
 
 /** Pagination contract copied from AdminTripRoutes (D49): present-but-malformed = 400. */
 private suspend fun ApplicationCall.paginationOr400(defaultLimit: Int, maxLimit: Int): Pair<Int, Int>? {
@@ -127,8 +149,13 @@ fun Route.walletRoutes(service: AuthService, wallet: WalletService) {
         }
         post("/transfer") {
             call.withUser(service) { user ->
-                val body = call.receive<WalletTransferRequest>()
-                when (val res = wallet.transferPoints(user, body.toPhone, body.amountMinor, body.note)) {
+                val obj = call.receive<kotlinx.serialization.json.JsonObject>()
+                val toPhone = obj.stringField("toPhone")
+                    ?: return@withUser call.respond(HttpStatusCode.BadRequest, err("invalid_body", "toPhone must be a string"))
+                val amountMinor = obj.integralLong("amountMinor")
+                    ?: return@withUser call.respond(HttpStatusCode.BadRequest, err("invalid_body", "amountMinor must be an integer"))
+                val note = obj.stringField("note")
+                when (val res = wallet.transferPoints(user, toPhone, amountMinor, note)) {
                     is WalletService.TransferResult.Done -> {
                         val balances = wallet.balances(user.id)
                         call.respond(
@@ -149,12 +176,15 @@ fun Route.walletRoutes(service: AuthService, wallet: WalletService) {
     route("/v1/admin/users/{id}/wallet-credit") {
         post {
             call.withPermission(service, Perm.MONEY_WRITE) { _ ->
-                val body = call.receive<AdminWalletCreditRequest>()
-                if (body.reason.isBlank()) {
+                val obj = call.receive<kotlinx.serialization.json.JsonObject>()
+                val amountMinor = obj.integralLong("amountMinor")
+                    ?: return@withPermission call.respond(HttpStatusCode.BadRequest, err("invalid_body", "amountMinor must be an integer"))
+                val reason = obj.stringField("reason") ?: ""
+                if (reason.isBlank()) {
                     call.respond(HttpStatusCode.BadRequest, err("invalid_reason", "reason is required for admin credit"))
                     return@withPermission
                 }
-                when (val res = wallet.adminCredit(call.parameters["id"] ?: "", body.amountMinor, body.reason)) {
+                when (val res = wallet.adminCredit(call.parameters["id"] ?: "", amountMinor, reason)) {
                     is WalletService.TransferResult.Done ->
                         call.respond(HttpStatusCode.OK, AdminWalletCreditDto(balances = wallet.balances(call.parameters["id"] ?: "")))
                     is WalletService.TransferResult.Invalid ->

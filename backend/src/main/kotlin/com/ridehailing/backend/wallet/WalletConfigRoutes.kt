@@ -9,6 +9,9 @@ import com.ridehailing.backend.rbac.withPermission
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.request.receive
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
@@ -51,8 +54,24 @@ fun Route.walletConfigRoutes(service: AuthService, config: ConfigService) {
         }
         patch {
             call.withPermission(service, Perm.CONFIG_WRITE) { user ->
-                val body = call.receive<WalletConfigDto>()
-                when (val res = config.updateWallet(user.id, body.toConfig())) {
+                val obj = call.receive<kotlinx.serialization.json.JsonObject>()
+                // D49: integral floats (0.0) are schema-valid integers - decode leniently.
+                fun integral(name: String): Long? {
+                    val v = obj[name] as? kotlinx.serialization.json.JsonPrimitive ?: return null
+                    if (v.isString) return null
+                    return v.longOrNull ?: v.doubleOrNull?.takeIf { it == kotlin.math.floor(it) && it.isFinite() }?.toLong()
+                }
+                val fee = integral("transferFeeBps")
+                    ?: return@withPermission call.respond(HttpStatusCode.BadRequest, err("invalid_body", "transferFeeBps must be an integer"))
+                val min = integral("minTransferMinor")
+                    ?: return@withPermission call.respond(HttpStatusCode.BadRequest, err("invalid_body", "minTransferMinor must be an integer"))
+                val daily = integral("dailyTransferLimitMinor")
+                    ?: return@withPermission call.respond(HttpStatusCode.BadRequest, err("invalid_body", "dailyTransferLimitMinor must be an integer"))
+                if (fee !in 0..Int.MAX_VALUE || min < 1 || daily < 1) {
+                    call.respond(HttpStatusCode.BadRequest, err("wallet", "transferFeeBps: 0..1000 required; minTransferMinor/dailyTransferLimitMinor: >= 1 required"))
+                    return@withPermission
+                }
+                when (val res = config.updateWallet(user.id, WalletConfig(fee.toInt(), min, daily))) {
                     is ConfigService.UpdateResult.Updated ->
                         call.respond(HttpStatusCode.OK, WalletConfigUpdatedDto(version = res.entry.version, config = config.walletConfig.toDto()))
                     is ConfigService.UpdateResult.Invalid ->
