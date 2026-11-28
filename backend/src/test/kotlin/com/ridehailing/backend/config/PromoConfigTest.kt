@@ -57,10 +57,15 @@ class PromoConfigTest {
     }
 
     @Test
-    fun `validity window must be ordered and limit at least 1`() {
-        assertTrue(code(validFrom = 10, validUntil = 10).validationErrors().isNotEmpty())
+    fun `validity window per-field bounds only (no cross-field rule, round-24b parity)`() {
+        // An unordered/equal window is DEAD config (never applies), not invalid -
+        // the schema cannot express the cross-field rule, so the server must not
+        // enforce it (round-24b wallet parity, round-31 ST202).
+        assertTrue(code(validFrom = 10, validUntil = 10).validationErrors().isEmpty())
+        assertTrue(code(validFrom = 20, validUntil = 10).validationErrors().isEmpty())
+        assertTrue(code(validUntil = 0).validationErrors().isNotEmpty())
         assertTrue(code(perUserLimit = 0).validationErrors().isNotEmpty())
-        assertTrue(code(validFrom = 10, validUntil = 11).validationErrors().isEmpty())
+        assertTrue(code(validFrom = -1).validationErrors().isNotEmpty())
     }
 
     @Test

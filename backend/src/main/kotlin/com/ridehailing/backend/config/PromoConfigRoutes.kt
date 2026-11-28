@@ -53,20 +53,27 @@ private fun JsonObject.decodedCode(): PromoCodeConfig? {
     if (keys.any { it !in KNOWN_CODE_KEYS }) return null
     val code = (this["code"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
     val kind = (this["kind"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: return null
-    val value = (this["value"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull ?: return null
     val currency = when (val c = this["currency"]) {
         null -> null // JSON null is schema-valid ([string, 'null'])
         is JsonPrimitive -> if (c.isString) c.content else return null // number/bool -> schema-invalid
         else -> return null // arrays/objects -> schema-invalid
     }
+    val active = when (val a = this["active"]) {
+        null -> true // absent = default (schema default true)
+        is JsonPrimitive -> a.booleanOrNull ?: return null // non-boolean -> schema-invalid, reject
+        else -> return null // objects/arrays -> schema-invalid, reject
+    }
+    // Round-31 ST202 parity: presence-strict defaults - a PRESENT integral field that
+    // fails the integral decode (1.5) is schema-invalid and must reject, never default.
     val validUntil = integralLong("validUntilEpochSec") ?: return null
-    val validFrom = integralLong("validFromEpochSec") ?: 0L
+    val validFrom = if (containsKey("validFromEpochSec")) integralLong("validFromEpochSec") ?: return null else 0L
     val perUser = (integralLong("perUserLimit") ?: return null).let {
         if (it < Int.MIN_VALUE || it > Int.MAX_VALUE) return null else it.toInt()
     }
-    val active = (this["active"] as? JsonPrimitive)?.booleanOrNull ?: true
+    val valueNum = (this["value"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull
+        ?.takeIf { it.isFinite() } ?: return null
     return PromoCodeConfig(
-        code = code, kind = kind, value = value, currency = currency,
+        code = code, kind = kind, value = valueNum, currency = currency,
         validFromEpochSec = validFrom, validUntilEpochSec = validUntil,
         perUserLimit = perUser, active = active,
     )

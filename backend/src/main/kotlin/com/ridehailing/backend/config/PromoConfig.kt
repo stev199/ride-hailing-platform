@@ -44,7 +44,11 @@ data class PromoCodeConfig(
             else -> errs += "kind: PERCENT or AMOUNT required"
         }
         if (validFromEpochSec < 0) errs += "validFromEpochSec: >= 0 required"
-        if (validUntilEpochSec <= validFromEpochSec) errs += "validUntilEpochSec: must be after validFromEpochSec"
+        // Round-31 ST202 (round-24b parity): NO cross-field window rule - the openapi
+        // schema cannot express validUntil > validFrom, and a rule the spec cannot
+        // express would reject schema-valid fuzz bodies (an unordered window is dead
+        // config that simply never applies - harmless, not invalid).
+        if (validUntilEpochSec < 1) errs += "validUntilEpochSec: >= 1 required"
         if (perUserLimit < 1) errs += "perUserLimit: >= 1 required"
         return errs
     }
