@@ -304,8 +304,12 @@ class RideMoneyIntegrationTest {
                 "city":"monaco","rideType":"standard","paymentMethod":"CASH","promoCode":"NOSUCH"}""",
             riderToken,
         )
-        assertEquals(HttpStatusCode.BadRequest, bad.status)
-        assertEquals("promo_not_found", bad.json()["code"]!!.jsonPrimitive.content)
+        // Round-30 ST202 fix: an UNKNOWN promo code is a missing resource -> 404.
+        // Wire truth: the StatusPages status(NotFound) interceptor rewrites ALL 404
+        // bodies to the generic not_found Error (the contract pins the status, not
+        // the code) - the service-level code stays promo_not_found (unit-pinned).
+        assertEquals(HttpStatusCode.NotFound, bad.status)
+        assertEquals("not_found", bad.json()["code"]!!.jsonPrimitive.content)
 
         val store = graph.ledger as com.ridehailing.backend.ledger.InMemoryLedgerStore
         assertEquals(0L, store.snapshotBalances().values.sum(), "double-entry conservation")

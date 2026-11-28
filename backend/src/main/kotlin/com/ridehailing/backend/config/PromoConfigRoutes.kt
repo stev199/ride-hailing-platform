@@ -13,15 +13,22 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.patch
 import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 
 /**
  * P7-6 promo config routes (fares/wallet pattern): GET (CONFIG_READ) + PATCH
  * (CONFIG_WRITE, D75 FULL-REPLACE - the admin sends the edited document, the
  * server validates it completely; invalid configs never touch live state and
  * never burn a version). Every accepted patch bumps the signed bundle version
- * and appends a `config.promos.updated` audit event. The PATCH decodes through
- * the typed PromoConfig DTO (code strings cannot be fuzzed into primitives) and
- * validation errors come back VERBATIM in one message.
+ * and appends a `config.promos.updated` audit event.
+ *
+ * Round-30 ST201 lesson (same class as the round-11 fares partial-reset): the
+ * PATCH body is decoded through a JsonObject and the schema-required `codes`
+ * key must be PRESENT and an array - kotlinx default values must never absorb
+ * a missing key into a silent empty document.
  */
 private fun err(code: String, message: String) = ErrorDto(code = code, message = message)
 
@@ -40,11 +47,21 @@ fun Route.promoConfigRoutes(service: AuthService, config: ConfigService) {
         }
         patch {
             call.withPermission(service, Perm.CONFIG_WRITE) { user ->
+                val obj = call.receive<JsonObject>()
+                val codesEl = obj["codes"] as? JsonArray
+                    ?: return@withPermission call.respond(
+                        HttpStatusCode.BadRequest,
+                        err("invalid_body", "codes is required and must be an array"),
+                    )
                 val body = try {
-                    call.receive<PromoConfig>()
+                    PromoConfig(
+                        Json.decodeFromJsonElement(ListSerializer(PromoCodeConfig.serializer()), codesEl),
+                    )
                 } catch (_: Exception) {
-                    call.respond(HttpStatusCode.BadRequest, err("invalid_body", "promos must be {\"codes\":[...]}"))
-                    return@withPermission
+                    return@withPermission call.respond(
+                        HttpStatusCode.BadRequest,
+                        err("invalid_body", "codes entries do not match the PromoCode schema"),
+                    )
                 }
                 when (val res = config.updatePromos(user.id, body)) {
                     is ConfigService.UpdateResult.Updated ->

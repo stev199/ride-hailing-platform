@@ -62,6 +62,8 @@ class RideService(
     sealed class CreateResult {
         data class Created(val ride: Ride) : CreateResult()
         data class Invalid(val field: String, val code: String) : CreateResult()
+        /** Unknown referenced resource (P7-6: unknown promo code -> 404, RFC 9110 semantics). */
+        data class NotFound(val code: String) : CreateResult()
         data class Conflict(val code: String) : CreateResult()
         data class Forbidden(val code: String) : CreateResult()
     }
@@ -131,10 +133,10 @@ class RideService(
         if (promoRequested != null) {
             // Openapi pattern is enforced here (D49 alignment: documented = validated).
             if (!Regex("^[A-Z0-9]{3,24}$").matches(promoRequested)) {
-                return CreateResult.Invalid("promoCode", "promo_not_found")
+                return CreateResult.NotFound("promo_not_found")
             }
             val promo = promoConfigProvider?.invoke()?.byCode(promoRequested)
-                ?: return CreateResult.Invalid("promoCode", "promo_not_found")
+                ?: return CreateResult.NotFound("promo_not_found")
             if (!promo.active) return CreateResult.Invalid("promoCode", "promo_not_valid")
             if (now.epochSecond < promo.validFromEpochSec || now.epochSecond > promo.validUntilEpochSec) {
                 return CreateResult.Invalid("promoCode", "promo_not_valid")

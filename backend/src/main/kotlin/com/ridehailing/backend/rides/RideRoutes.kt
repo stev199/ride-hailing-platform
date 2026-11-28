@@ -138,6 +138,8 @@ fun Route.rideRoutes(service: AuthService, rides: RideService, publicKeyHex: Str
                     call.respond(HttpStatusCode.Created, r.ride.toDto(publicKeyHex))
                 is RideService.CreateResult.Invalid ->
                     call.respond(HttpStatusCode.BadRequest, err2(r))
+                is RideService.CreateResult.NotFound ->
+                    call.respond(HttpStatusCode.NotFound, err(r.code, "Promo code not found"))
                 is RideService.CreateResult.Conflict ->
                     call.respond(HttpStatusCode.Conflict, err(r.code, "Ride request cannot be fulfilled"))
                 is RideService.CreateResult.Forbidden ->

@@ -1511,6 +1511,15 @@ components:
               validUntilEpochSec: { type: integer, format: int64, minimum: 1 }
               perUserLimit: { type: integer, minimum: 1, maximum: 1000 }
               active: { type: boolean }
+            # Server rule (round-30 ST202): an AMOUNT code MUST carry a currency -
+            # documented = enforced (D49). PERCENT codes need none.
+            if:
+              properties: { kind: { const: AMOUNT } }
+              required: [kind]
+            then:
+              required: [currency]
+              properties:
+                currency: { type: string, minLength: 1, maxLength: 12 }
     PromoConfigUpdated:
       type: object
       required: [version, config]
@@ -2333,7 +2342,7 @@ components:
         promoCode:
           type: string
           pattern: '^[A-Z0-9]{3,24}$'
-          description: Optional promo code (P7-6). Unknown/inactive/expired -> 400; exhausted per-user limit -> 409 promo_limit_reached.
+          description: Optional promo code (P7-6). Unknown -> 404 promo_not_found; inactive/expired -> 400 promo_not_valid; exhausted per-user limit -> 409 promo_limit_reached.
         paymentMethod:
           type: string
           enum: [CASH, WALLET]
