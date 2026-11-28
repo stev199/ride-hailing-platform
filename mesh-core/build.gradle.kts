@@ -6,6 +6,10 @@ group = "com.ridehailing"
 version = "0.1.0"
 
 repositories {
+    // Round-36: Google's central mirror first - repo.maven.apache.org 429s runner
+    // IPs under load (mesh-core-sim CI 46114791648); Maven Central stays as the
+    // last-resort fallback (backend round-36 parity).
+    maven("https://maven-central.storage-download.googleapis.com/maven2/")
     mavenCentral()
 }
 

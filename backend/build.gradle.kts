@@ -9,6 +9,10 @@ group = "com.ridehailing"
 version = "0.1.0"
 
 repositories {
+    // Round-36: Google's central mirror first - repo.maven.apache.org 429s runner
+    // IPs under load (CodeQL analyze-kotlin CI 46132637884); Maven Central itself
+    // stays as the last-resort fallback (local init-script parity, D27).
+    maven("https://maven-central.storage-download.googleapis.com/maven2/")
     mavenCentral()
 }
 
