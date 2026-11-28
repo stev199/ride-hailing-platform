@@ -59,7 +59,9 @@ fun Route.walletConfigRoutes(service: AuthService, config: ConfigService) {
                 fun integral(name: String): Long? {
                     val v = obj[name] as? kotlinx.serialization.json.JsonPrimitive ?: return null
                     if (v.isString) return null
-                    return v.longOrNull ?: v.doubleOrNull?.takeIf { it == kotlin.math.floor(it) && it.isFinite() }?.toLong()
+                    return v.longOrNull ?: v.doubleOrNull
+        ?.takeIf { it == kotlin.math.floor(it) && it.isFinite() && kotlin.math.abs(it) <= 9.0e15 }  // beyond the double exact-integer range the value is either int64-overflowing or precision-lost
+        ?.toLong()
                 }
                 val fee = integral("transferFeeBps")
                     ?: return@withPermission call.respond(HttpStatusCode.BadRequest, err("invalid_body", "transferFeeBps must be an integer"))

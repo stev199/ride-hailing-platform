@@ -1313,7 +1313,7 @@ components:
           type: string
           pattern: '^(?:[^0-9]*[0-9]){8,15}[^0-9]*$'
           description: 8-15 ASCII digits (same shape as the register phone).
-        amountMinor: { type: integer, format: int64, minimum: 1 }
+        amountMinor: { type: integer, format: int64, minimum: 1, maximum: 1000000000000000000 }
         note: { type: [string, "null"], maxLength: 120 }
     WalletTransferResult:
       type: object
@@ -1326,7 +1326,7 @@ components:
       type: object
       required: [amountMinor, reason]
       properties:
-        amountMinor: { type: integer, format: int64, minimum: 1 }
+        amountMinor: { type: integer, format: int64, minimum: 1, maximum: 1000000000000000000 }
         reason: { type: string, minLength: 1, maxLength: 120 }
     AdminWalletCreditResult:
       type: object
@@ -1340,8 +1340,8 @@ components:
       required: [transferFeeBps, minTransferMinor, dailyTransferLimitMinor]
       properties:
         transferFeeBps: { type: integer, minimum: 0, maximum: 1000 }
-        minTransferMinor: { type: integer, format: int64, minimum: 1 }
-        dailyTransferLimitMinor: { type: integer, format: int64, minimum: 1 }
+        minTransferMinor: { type: integer, format: int64, minimum: 1, maximum: 1000000000000000000 }
+        dailyTransferLimitMinor: { type: integer, format: int64, minimum: 1, maximum: 1000000000000000000 }
     WalletConfigUpdated:
       type: object
       required: [version, config]

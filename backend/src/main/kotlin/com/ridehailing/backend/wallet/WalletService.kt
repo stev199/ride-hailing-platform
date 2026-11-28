@@ -84,6 +84,7 @@ class WalletService(
      */
     fun transferPoints(actor: User, toPhone: String, amountMinor: Long, note: String?): TransferResult {
         if (amountMinor <= 0) return TransferResult.Invalid("amountMinor", "invalid_amount")
+        if (amountMinor > MONEY_AMOUNT_CAP) return TransferResult.Invalid("amountMinor", "invalid_amount")
         val cfg = config()
         if (amountMinor < cfg.minTransferMinor) return TransferResult.Invalid("amountMinor", "below_minimum")
         val target = users.byPhone(toPhone) ?: return TransferResult.Invalid("toPhone", "unknown_user")
@@ -223,6 +224,7 @@ class WalletService(
      */
     fun adminCredit(targetId: String, amountMinor: Long, reason: String): TransferResult {
         if (amountMinor <= 0) return TransferResult.Invalid("amountMinor", "invalid_amount")
+        if (amountMinor > MONEY_AMOUNT_CAP) return TransferResult.Invalid("amountMinor", "invalid_amount")
         val target = users.byId(targetId) ?: return TransferResult.Invalid("userId", "unknown_user")
         // The platform fund ISSUES money -> it must be allowed to go negative
         // (double-entry still conserves: every credit to a user is a fund debit).

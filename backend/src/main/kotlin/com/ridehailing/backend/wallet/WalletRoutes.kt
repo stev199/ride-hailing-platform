@@ -28,6 +28,9 @@ import kotlinx.serialization.Serializable
  */
 private fun err(code: String, message: String) = ErrorDto(code = code, message = message)
 
+/** Money cap (1e18 minor): bounds the ledger against BIGINT-overflow fuzz values (round-24c). */
+const val MONEY_AMOUNT_CAP = 1_000_000_000_000_000_000L
+
 @Serializable
 data class WalletBalancesDto(
     /** Present currencies -> minor units (v1: POINTS; CASH accrues with P7-2). */
@@ -77,7 +80,9 @@ data class AdminWalletCreditDto(val balances: Map<String, Long>)
 private fun JsonObject.integralLong(name: String): Long? {
     val v = this[name] as? kotlinx.serialization.json.JsonPrimitive ?: return null
     if (v.isString) return null
-    return v.longOrNull ?: v.doubleOrNull?.takeIf { it == kotlin.math.floor(it) && it.isFinite() }?.toLong()
+    return v.longOrNull ?: v.doubleOrNull
+        ?.takeIf { it == kotlin.math.floor(it) && it.isFinite() && kotlin.math.abs(it) <= 9.0e15 }  // beyond the double exact-integer range the value is either int64-overflowing or precision-lost
+        ?.toLong()
 }
 
 private fun JsonObject.stringField(name: String): String? {
@@ -154,6 +159,9 @@ fun Route.walletRoutes(service: AuthService, wallet: WalletService) {
                     ?: return@withUser call.respond(HttpStatusCode.BadRequest, err("invalid_body", "toPhone must be a string"))
                 val amountMinor = obj.integralLong("amountMinor")
                     ?: return@withUser call.respond(HttpStatusCode.BadRequest, err("invalid_body", "amountMinor must be an integer"))
+                if (amountMinor > MONEY_AMOUNT_CAP) {
+                    return@withUser call.respond(HttpStatusCode.BadRequest, err("invalid_amount", "amountMinor exceeds the documented maximum"))
+                }
                 val note = obj.stringField("note")
                 when (val res = wallet.transferPoints(user, toPhone, amountMinor, note)) {
                     is WalletService.TransferResult.Done -> {
@@ -179,9 +187,16 @@ fun Route.walletRoutes(service: AuthService, wallet: WalletService) {
                 val obj = call.receive<kotlinx.serialization.json.JsonObject>()
                 val amountMinor = obj.integralLong("amountMinor")
                     ?: return@withPermission call.respond(HttpStatusCode.BadRequest, err("invalid_body", "amountMinor must be an integer"))
+                if (amountMinor > MONEY_AMOUNT_CAP) {
+                    return@withPermission call.respond(HttpStatusCode.BadRequest, err("invalid_amount", "amountMinor exceeds the documented maximum"))
+                }
                 val reason = obj.stringField("reason") ?: ""
                 if (reason.isBlank()) {
                     call.respond(HttpStatusCode.BadRequest, err("invalid_reason", "reason is required for admin credit"))
+                    return@withPermission
+                }
+                if (reason.length > 120) {
+                    call.respond(HttpStatusCode.BadRequest, err("invalid_reason", "reason is limited to 120 characters"))
                     return@withPermission
                 }
                 when (val res = wallet.adminCredit(call.parameters["id"] ?: "", amountMinor, reason)) {
