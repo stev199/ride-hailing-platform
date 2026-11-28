@@ -69,6 +69,46 @@ class PromoConfigTest {
     }
 
     @Test
+    fun `perUserLimit bounded 1-1000 (schema maximum, round-33 ST108-ST201)`() {
+        // Round-33 (CI QK4V6R/XT4gZF): a PATCH with perUserLimit 1001 was accepted and
+        // then ECHOED in GET responses - the openapi schema pins 1..1000.
+        assertTrue(code(perUserLimit = 1).validationErrors().isEmpty())
+        assertTrue(code(perUserLimit = 1000).validationErrors().isEmpty(), "schema maximum is valid")
+        assertTrue(code(perUserLimit = 1001).validationErrors().isNotEmpty(), "above the schema maximum rejects")
+        assertTrue(code(perUserLimit = 0).validationErrors().isNotEmpty())
+    }
+
+    @Test
+    fun `amount money cap - boundary-double leniency on the decimal form (round-33 ST202)`() {
+        // The EXACT CI case eDh6YV: 1.0000000000000001e+18 (= 1e18+100 decimal) parses
+        // to the double 1e18+128 - strictly above the cap as bits - but its DECIMAL
+        // FORM reads as the cap at double precision (15 significant digits): accepted,
+        // clamped to the cap so the store stays strictly in-bounds.
+        assertEquals(
+            PromoCodeConfig.MONEY_CAP.toDouble(),
+            PromoCodeConfig.amountValueInMoneyCap("1.0000000000000001e+18"),
+        )
+        // The double bits alone are NOT enough: 1e18+128 > 1e18.
+        assertTrue(
+            1.0000000000000001e+18 > PromoCodeConfig.MONEY_CAP.toDouble(),
+            "premise: the parsed double is strictly above the cap - the DECIMAL FORM decides",
+        )
+        // Strictly beyond -> rejected.
+        assertEquals(null, PromoCodeConfig.amountValueInMoneyCap("1e21"))
+        // Integer text above the cap: exact comparison, no leniency (round-24c parity).
+        assertEquals(null, PromoCodeConfig.amountValueInMoneyCap("1000000000000000001"))
+        // Exact integer AT the cap is valid.
+        assertEquals(
+            PromoCodeConfig.MONEY_CAP.toDouble(),
+            PromoCodeConfig.amountValueInMoneyCap("1000000000000000000"),
+        )
+        // Ordinary in-cap values pass through unchanged.
+        assertEquals(500.0, PromoCodeConfig.amountValueInMoneyCap("500"))
+        // Non-finite / unrepresentable -> rejected.
+        assertEquals(null, PromoCodeConfig.amountValueInMoneyCap("1e400"))
+    }
+
+    @Test
     fun `section rejects duplicates and caps at 50`() {
         assertTrue(PromoConfig(codes = listOf(code(), code())).validationErrors().isNotEmpty())
         val fifty = PromoConfig(codes = (1..50).map { code(code = "C$it".padStart(3, '0')) })

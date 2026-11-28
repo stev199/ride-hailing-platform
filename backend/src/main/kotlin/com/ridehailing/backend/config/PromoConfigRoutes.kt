@@ -34,6 +34,15 @@ import kotlinx.serialization.json.longOrNull
  * - ST202/D49: JSON Schema treats 1.0 as a valid integer - epoch/limit fields decode
  *   with integral-float leniency exactly like the wallet bodies (0.0 == 0 accepted,
  *   0.5 rejected). `value` is a real number (PERCENT fractions) and stays Double.
+ *
+ * Round-33 contract lessons (schemathesis run 46117305495):
+ * - ST201+ST108 (QK4V6R/XT4gZF): the schema maximum perUserLimit <= 1000 is now
+ *   enforced in PromoConfig.validationErrors (the single write path into the store,
+ *   so GET can never echo an out-of-bounds value).
+ * - ST202 (eDh6YV): the AMOUNT money cap reads the DECIMAL FORM with boundary-double
+ *   leniency (PromoCodeConfig.amountValueInMoneyCap): shortest-repr floats one step
+ *   above the cap (1.0000000000000001e+18) are the cap at double precision and clamp
+ *   to it; integer text above the cap keeps the exact round-24c guard.
  */
 private fun err(code: String, message: String) = ErrorDto(code = code, message = message)
 
@@ -68,10 +77,21 @@ private fun JsonObject.decodedCode(): PromoCodeConfig? {
     val validUntil = integralLong("validUntilEpochSec") ?: return null
     val validFrom = if (containsKey("validFromEpochSec")) integralLong("validFromEpochSec") ?: return null else 0L
     val perUser = (integralLong("perUserLimit") ?: return null).let {
+        // Note: the schema maximum (<= 1000) is enforced by PromoConfig.validationErrors
+        // (invalid_promos) so the round-33 rejection rides the documented config code.
         if (it < Int.MIN_VALUE || it > Int.MAX_VALUE) return null else it.toInt()
     }
-    val valueNum = (this["value"] as? JsonPrimitive)?.takeIf { !it.isString }?.doubleOrNull
-        ?.takeIf { it.isFinite() } ?: return null
+    // Strings are schema-invalid for `value` (type: number) and rejected.
+    val valueEl = this["value"] as? JsonPrimitive ?: return null
+    if (valueEl.isString) return null
+    val valueNum = if (kind == PromoCodeConfig.KIND_AMOUNT) {
+        // Round-33 (CI eDh6YV): the 1e18 money cap is decided on the DECIMAL FORM with
+        // boundary-double leniency - see PromoCodeConfig.amountValueInMoneyCap. Band
+        // values are returned CLAMPED to the cap, so the store stays strictly in-bounds.
+        PromoCodeConfig.amountValueInMoneyCap(valueEl.content) ?: return null
+    } else {
+        valueEl.doubleOrNull?.takeIf { it.isFinite() } ?: return null
+    }
     return PromoCodeConfig(
         code = code, kind = kind, value = valueNum, currency = currency,
         validFromEpochSec = validFrom, validUntilEpochSec = validUntil,

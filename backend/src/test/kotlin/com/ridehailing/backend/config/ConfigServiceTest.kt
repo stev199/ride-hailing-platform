@@ -21,6 +21,7 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -226,6 +227,56 @@ class ConfigServiceTest {
         assertEquals(HttpStatusCode.BadRequest, res.status)
         assertEquals("unknown_channel", res.errCode())
         assertEquals(1L, client.get("/v1/config").json()["version"]!!.jsonPrimitive.content.toLong())
+    }
+
+    // ---------- round-33 promo contract (CI run 46117305495) ----------
+
+    @Test
+    fun `promos PATCH rejects perUserLimit above the schema maximum (round-33 ST108-ST201)`() = withApp { client, graph ->
+        createAdminIn(graph, "33610000020", Role.ADMIN_SUPER)
+        val token = client.getToken("33610000020", "admin-password-1")
+        val body = { limit: Int ->
+            """{"codes":[{"code":"WELCOME50","kind":"PERCENT","value":50.0,"validUntilEpochSec":2000000000,"perUserLimit":$limit}]}"""
+        }
+        // ST201 (CI QK4V6R): perUserLimit 1001 vs the schema maximum 1000 -> 400 invalid_promos.
+        val bad = client.patchJson("/v1/admin/config/promos", body(1001), token)
+        assertEquals(HttpStatusCode.BadRequest, bad.status, bad.bodyAsText())
+        assertEquals("invalid_promos", bad.errCode())
+        // ST108 (CI XT4gZF): the store is untouched - GET must never serve the
+        // out-of-bounds value, and no version was burned.
+        val after = client.authed("/v1/admin/config/promos", token)
+        assertEquals(HttpStatusCode.OK, after.status)
+        assertTrue(after.json()["codes"]!!.jsonArray.isEmpty(), "rejected patch must not touch the store: ${after.bodyAsText()}")
+        assertEquals(1L, client.get("/v1/config").json()["version"]!!.jsonPrimitive.content.toLong())
+        // The valid boundary perUserLimit=1000 succeeds and echoes through.
+        val ok = client.patchJson("/v1/admin/config/promos", body(1000), token)
+        assertEquals(HttpStatusCode.OK, ok.status, ok.bodyAsText())
+        val echoed = ok.json()["config"]!!.jsonObject["codes"]!!.jsonArray.single().jsonObject["perUserLimit"]!!.jsonPrimitive.content
+        assertEquals("1000", echoed)
+    }
+
+    @Test
+    fun `promos PATCH AMOUNT value - 1e18 boundary-double leniency (round-33 ST202)`() = withApp { client, graph ->
+        createAdminIn(graph, "33610000021", Role.ADMIN_SUPER)
+        val token = client.getToken("33610000021", "admin-password-1")
+        val body = { value: String ->
+            """{"codes":[{"code":"BIG","kind":"AMOUNT","value":$value,"currency":"PTS","validUntilEpochSec":2000000000,"perUserLimit":1}]}"""
+        }
+        // The EXACT CI case eDh6YV: shortest-repr boundary float one step above the cap
+        // -> accepted (its decimal form IS the cap at double precision), stored AT the cap.
+        val ok = client.patchJson("/v1/admin/config/promos", body("1.0000000000000001e+18"), token)
+        assertEquals(HttpStatusCode.OK, ok.status, ok.bodyAsText())
+        val stored = ok.json()["config"]!!.jsonObject["codes"]!!.jsonArray.single().jsonObject["value"]!!.jsonPrimitive.doubleOrNull
+        assertEquals(PromoCodeConfig.MONEY_CAP.toDouble(), stored, "boundary double is stored AT the cap")
+        // Strictly beyond the cap -> 400.
+        val over = client.patchJson("/v1/admin/config/promos", body("1e21"), token)
+        assertEquals(HttpStatusCode.BadRequest, over.status, over.bodyAsText())
+        // Integer text above the cap: exact comparison, no leniency (round-24c parity).
+        val intText = client.patchJson("/v1/admin/config/promos", body("1000000000000000001"), token)
+        assertEquals(HttpStatusCode.BadRequest, intText.status, intText.bodyAsText())
+        // The accepted config from the first PATCH survived the rejections.
+        val after = client.authed("/v1/admin/config/promos", token)
+        assertEquals(PromoCodeConfig.MONEY_CAP.toDouble(), after.json()["codes"]!!.jsonArray.single().jsonObject["value"]!!.jsonPrimitive.doubleOrNull)
     }
 
     // ---------- helpers (file-local mirrors of the AdminRoutesTest ones) ----------
