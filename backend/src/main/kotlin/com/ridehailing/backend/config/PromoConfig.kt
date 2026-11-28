@@ -18,7 +18,7 @@ data class PromoCodeConfig(
     val kind: String,
     /** PERCENT: 0 < value <= 100. AMOUNT: minor units 1..1e18 (boundary doubles clamp to the cap, round-33). */
     val value: Double,
-    /** Required for AMOUNT (must match the ride currency at apply time). */
+    /** Required for AMOUNT (must match the ride currency at apply time); <= 12 chars for ALL kinds (openapi maxLength). */
     val currency: String? = null,
     val validFromEpochSec: Long = 0,
     val validUntilEpochSec: Long,
@@ -74,10 +74,17 @@ data class PromoCodeConfig(
             KIND_PERCENT -> if (value <= 0.0 || value > 100.0) errs += "value: percent must be 0 < value <= 100"
             KIND_AMOUNT -> {
                 if (value <= 0.0 || value > MONEY_CAP.toDouble()) errs += "value: amount must be 0 < value <= 1e18"
-                if (currency.isNullOrBlank() || currency.length > 12) errs += "currency: required for AMOUNT (<= 12 chars)"
+                if (currency.isNullOrBlank()) errs += "currency: required for AMOUNT"
             }
             else -> errs += "kind: PERCENT or AMOUNT required"
         }
+        // Round-34: the schema currency bound is NOT kind-conditional - the
+        // PromoCodeSection currency is { type: [string, 'null'], maxLength: 12 } for
+        // every kind (the AMOUNT if/then only adds the minLength-1 requirement). The
+        // round-24c-era check guarded AMOUNT only, so a PERCENT code could STORE a
+        // schema-invalid currency and ECHO it in GET/PATCH responses (the round-33
+        // perUserLimit lesson: the single write path must keep the store in-bounds).
+        if (currency != null && currency.length > 12) errs += "currency: <= 12 chars required"
         if (validFromEpochSec < 0) errs += "validFromEpochSec: >= 0 required"
         // Round-31 ST202 (round-24b parity): NO cross-field window rule - the openapi
         // schema cannot express validUntil > validFrom, and a rule the spec cannot

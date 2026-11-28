@@ -2,8 +2,10 @@ package com.ridehailing.backend
 
 import com.ridehailing.backend.auth.Identifiers
 import com.ridehailing.backend.auth.PasswordService
+import com.ridehailing.backend.config.PromoCodeConfig
 import org.yaml.snakeyaml.Yaml
 import java.io.File
+import kotlin.math.nextUp
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -382,6 +384,75 @@ class ContractAlignmentTest {
         assertEquals(200, int("AdminVerificationList", "limit", "maximum"))
     }
 
+    // ---------- P7-6 promo config contract alignment (round-34) ----------
+
+    /**
+     * The promo code item schema is an INLINE object inside PromoConfigSection (no
+     * named component), so the codes items are navigated by hand. Every documented
+     * bound must equal the PromoConfig.validationErrors rule (D49): schema-valid
+     * accepted, schema-invalid rejected with 400 invalid_promos - the single write
+     * path keeps the store in-bounds so GET can never echo schema-invalid config.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private val promoCodeProps: Map<String, Any> by lazy {
+        val section = schemas["PromoConfigSection"] as? Map<String, Any> ?: fail("PromoConfigSection missing")
+        val codes = (section["properties"] as Map<String, Any>)["codes"] as? Map<String, Any>
+            ?: fail("PromoConfigSection.codes missing")
+        assertEquals(50, codes["maxItems"], "server: MAX_CODES 50")
+        val item = codes["items"] as? Map<String, Any> ?: fail("codes.items missing")
+        item["properties"] as? Map<String, Any> ?: fail("codes.items.properties missing")
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    @Test
+    fun `promo bounds mirror the PromoConfig server validation - round-34`() {
+        // perUserLimit 1..1000 (round-33: the schema maximum is enforced server-side).
+        val perUser = promoCodeProps["perUserLimit"] as? Map<String, Any> ?: fail("perUserLimit missing")
+        assertEquals(1, perUser["minimum"], "server: perUserLimit >= 1")
+        assertEquals(1000, perUser["maximum"], "server: perUserLimit <= 1000")
+        // value: the AMOUNT money cap is the wallet 1e18, documented inline exactly
+        // like the round-24c wallet bodies and equal to PromoCodeConfig.MONEY_CAP.
+        val value = promoCodeProps["value"] as? Map<String, Any> ?: fail("value missing")
+        val valueMax = (value["maximum"] as? Long) ?: (value["maximum"] as? Int)?.toLong()
+            ?: fail("value.maximum missing - contract drift (the server caps AMOUNT at 1e18)")
+        assertEquals(PromoCodeConfig.MONEY_CAP, valueMax, "schema value cap must equal the server MONEY_CAP")
+        // currency: maxLength 12 for ALL kinds - both on the shared property and in
+        // the AMOUNT if/then (which only adds the minLength-1 requirement).
+        val currency = promoCodeProps["currency"] as? Map<String, Any> ?: fail("currency missing")
+        assertEquals(listOf("string", "null"), currency["type"], "currency is nullable in every kind")
+        assertEquals(12, currency["maxLength"], "server: currency <= 12 chars for ALL promo kinds")
+        val item = ((schemas["PromoConfigSection"] as Map<String, Any>)["properties"] as Map<String, Any>)["codes"]
+            .let { (it as Map<String, Any>)["items"] as Map<String, Any> }
+        val thenBranch = item["then"] as? Map<String, Any>
+            ?: fail("codes.items.then (AMOUNT currency if/then) missing")
+        val thenCurrency = (thenBranch["properties"] as Map<String, Any>)["currency"] as? Map<String, Any>
+            ?: fail("then.currency missing")
+        assertEquals(12, thenCurrency["maxLength"], "AMOUNT if/then keeps the 12-char bound")
+        assertEquals(1, thenCurrency["minLength"], "AMOUNT if/then requires a non-empty currency")
+
+        // Server-side mirror: PromoConfig.validationErrors flips EXACTLY at the
+        // documented edges (schema-valid accepted, schema-invalid rejected).
+        val base = PromoCodeConfig(
+            code = "PINS34", kind = PromoCodeConfig.KIND_PERCENT, value = 10.0,
+            validUntilEpochSec = 2_000_000_000L,
+        )
+        for (limit in 1..1000) {
+            assertTrue(base.copy(perUserLimit = limit).validationErrors().isEmpty(), "perUserLimit $limit must be schema-valid AND accepted")
+        }
+        assertTrue(base.copy(perUserLimit = 1001).validationErrors().isNotEmpty(), "perUserLimit 1001 is schema-invalid AND rejected")
+        assertTrue(base.copy(currency = "ABCDEFGHIJKL").validationErrors().isEmpty(), "12-char currency is schema-valid AND accepted")
+        assertTrue(base.copy(currency = "ABCDEFGHIJKLM").validationErrors().isNotEmpty(), "13-char currency is schema-invalid AND rejected")
+        // The AMOUNT cap on value: at the documented maximum, accepted; beyond -> rejected.
+        val amountAtCap = PromoCodeConfig.MONEY_CAP.toDouble()
+        assertTrue(
+            base.copy(kind = PromoCodeConfig.KIND_AMOUNT, value = amountAtCap, currency = "PTS").validationErrors().isEmpty(),
+            "AMOUNT value 1e18 (the schema maximum) is accepted",
+        )
+        assertTrue(
+            base.copy(kind = PromoCodeConfig.KIND_AMOUNT, value = amountAtCap.nextUp(), currency = "PTS").validationErrors().isNotEmpty(),
+            "the next double above the schema maximum is rejected (1e18 + 1.0 rounds back to the cap)",
+        )
+    }
 }
 
 

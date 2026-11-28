@@ -57,6 +57,30 @@ class PromoConfigTest {
     }
 
     @Test
+    fun `currency maxLength 12 for ALL promo kinds (round-34)`() {
+        // The openapi currency is { type: [string, 'null'], maxLength: 12 } - NOT
+        // kind-conditional: the round-24c-era check guarded AMOUNT only, so a PERCENT
+        // code could carry a schema-invalid 13-char currency and echo it in GET/PATCH.
+        assertTrue(
+            code(currency = "ABCDEFGHIJKLM").validationErrors().any { it.contains("currency") },
+            "PERCENT with a 13-char currency rejects",
+        )
+        assertTrue(
+            code(kind = PromoCodeConfig.KIND_AMOUNT, value = 500.0, currency = "ABCDEFGHIJKLM")
+                .validationErrors().any { it.contains("currency") },
+            "AMOUNT with a 13-char currency still rejects",
+        )
+        // The 12-char boundary is schema-valid for BOTH kinds; JSON null stays valid
+        // (only AMOUNT turns it into a required-currency error).
+        assertTrue(code(currency = "ABCDEFGHIJKL").validationErrors().isEmpty())
+        assertTrue(
+            code(kind = PromoCodeConfig.KIND_AMOUNT, value = 500.0, currency = "ABCDEFGHIJKL")
+                .validationErrors().isEmpty(),
+        )
+        assertTrue(code(currency = "POINTS").validationErrors().isEmpty())
+    }
+
+    @Test
     fun `validity window per-field bounds only (no cross-field rule, round-24b parity)`() {
         // An unordered/equal window is DEAD config (never applies), not invalid -
         // the schema cannot express the cross-field rule, so the server must not

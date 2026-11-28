@@ -1511,7 +1511,9 @@ components:
             properties:
               code: { type: string, pattern: '^[A-Z0-9]{3,24}$' }
               kind: { type: string, enum: [PERCENT, AMOUNT] }
-              value: { type: number, exclusiveMinimum: 0 }
+              # Round-34 (D49): the AMOUNT money cap is documented like the wallet
+              # bodies (round-24c inline maximum) - documented = enforced.
+              value: { type: number, exclusiveMinimum: 0, maximum: 1000000000000000000 }
               currency: { type: [string, 'null'], maxLength: 12 }
               validFromEpochSec: { type: integer, format: int64, minimum: 0 }
               validUntilEpochSec: { type: integer, format: int64, minimum: 1 }

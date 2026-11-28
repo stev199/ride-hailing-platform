@@ -279,6 +279,31 @@ class ConfigServiceTest {
         assertEquals(PromoCodeConfig.MONEY_CAP.toDouble(), after.json()["codes"]!!.jsonArray.single().jsonObject["value"]!!.jsonPrimitive.doubleOrNull)
     }
 
+    @Test
+    fun `promos PATCH rejects a PERCENT code with a 13-char currency (round-34)`() = withApp { client, graph ->
+        createAdminIn(graph, "33610000022", Role.ADMIN_SUPER)
+        val token = client.getToken("33610000022", "admin-password-1")
+        val body = { currency: String ->
+            """{"codes":[{"code":"WELCOME50","kind":"PERCENT","value":50.0,"currency":"$currency","validUntilEpochSec":2000000000,"perUserLimit":1}]}"""
+        }
+        // The schema currency is { type: [string, 'null'], maxLength: 12 } for ALL kinds -
+        // the AMOUNT-only guard let a schema-invalid PERCENT currency into the store.
+        val bad = client.patchJson("/v1/admin/config/promos", body("ABCDEFGHIJKLM"), token)
+        assertEquals(HttpStatusCode.BadRequest, bad.status, bad.bodyAsText())
+        assertEquals("invalid_promos", bad.errCode())
+        // The store is untouched: GET must never echo the schema-invalid currency and
+        // no version was burned (round-33 ST108 parity).
+        val after = client.authed("/v1/admin/config/promos", token)
+        assertEquals(HttpStatusCode.OK, after.status)
+        assertTrue(after.json()["codes"]!!.jsonArray.isEmpty(), "rejected patch must not touch the store: ${after.bodyAsText()}")
+        assertEquals(1L, client.get("/v1/config").json()["version"]!!.jsonPrimitive.content.toLong())
+        // The 12-char boundary is schema-valid for a PERCENT code and echoes through.
+        val ok = client.patchJson("/v1/admin/config/promos", body("ABCDEFGHIJKL"), token)
+        assertEquals(HttpStatusCode.OK, ok.status, ok.bodyAsText())
+        val echoed = ok.json()["config"]!!.jsonObject["codes"]!!.jsonArray.single().jsonObject["currency"]!!.jsonPrimitive.content
+        assertEquals("ABCDEFGHIJKL", echoed)
+    }
+
     // ---------- helpers (file-local mirrors of the AdminRoutesTest ones) ----------
 
     private fun hexBytes(hex: String): ByteArray =
