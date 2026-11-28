@@ -1,9 +1,9 @@
 # STATE - ride-hailing-platform
 
-Last updated: 2026-11-28 (round 29-30 batch COMPLETE: P7-3 wallet UI + P7-4 driver earnings + P7-5a/b admin money + P7-6 promos ALL COMMITTED (5a41e98 backend promo engine + e4f329a promo UI); PHASE 7 CODE COMPLETE - batch CI on e4f329a in flight; on green -> PHASE 7 GATE (tag phase-7-gate) -> Phase 8 per plan)
+Last updated: 2026-11-28 (round-34 bookkeeping: PHASE 7 CODE COMPLETE; round-33 78b2602 PUSHED but its CI was never dispatched, round-34 627da88 LOCAL-UNPUSHED; BLOCKED by GitHub PAT revocation - BLOCKERS.md B-1 with the full unblock sequence; gate = push 627da88 -> ci.yml green -> tag phase-7-gate -> Phase 8)
 
 Working mode: **SPEED MODE v2 (D69) + NON-STOP RULE (D74)** - three verification tiers (task/batch/gate), never block on CI, parallel local work, ~45 min task budget, STATE/PROGRESS_LOG updated once per batch. Check `gh run list --limit 3` at each task start; fix red before continuing. NON-STOP RULE: never end the turn while BACKLOG.md has todo items (unless a hard stop applies) - finishing a task/batch/phase is NOT a stop reason; blocked tasks go to BLOCKERS.md and the turn moves on; if cut off, STATE.md must already be current so the next session resumes at the recorded task.
-Current phase: 4 (rider booking happy path) - P4-1 fare engine + P4-2 rides API committed (178e400, b3fcabc); round-11 contract run caught 3 violations (offset=null accepted, GET estimate 404-not-405 via {id} shadowing, partial fare PATCH silently default-resetting straightLine/quote) - ALL FIXED this batch, CI verification in flight. Phase 3 code complete; P3-2 offline-map e2e verification re-dispatched (previous run 45593853432 CANCELLED by concurrency before any job ran).
+Current phase: 7 (money + promos) - PHASE 7 CODE COMPLETE (P7-1..P7-6, rounds 29-34); GATE PENDING CI + tag: 78b2602 (round-33) is on origin with NO CI run dispatched, 627da88 (round-34) is local-only - both blocked by the GitHub PAT revocation (BLOCKERS.md B-1). Gate path on unblock: push 627da88 -> dispatch ci.yml -> all green -> tag phase-7-gate -> Phase 8.
 Gate round 11 (2026-11-25, session recycle #5): toolchain wiped again (gh+JDK17+gradle gone; android-sdk/platforms survived). Recovered gh 2.63.2, JDK 17.0.21.1, mirror init script; repo re-cloned clean at 19ffe9b (origin==local). Findings + fixes:
 1. CI reds triaged: 45605167019 (actionlint: live-view.yml line-89 indent = 7 spaces from 19ffe9b - YAML invalid), 45600492576 (spectral: exclusiveMinimum boolean under OAS 3.1 + api-contract 3 failures on the NEW rides endpoints), 45604159692 (live-view dispatch: boot failed - emulator binary absent on ubuntu-24.04, ANDROID_HOME not set). P3-2 verification run 45593853432 was CANCELLED by concurrency with zero jobs (superseded before starting).
 2. api-contract 3 violations FIXED with tests (151 backend tests green local): (a) GET /v1/rides?offset=null was silently defaulted -> 400 invalid_pagination on present-but-malformed params; (b) GET /v1/rides/estimate hit GET /v1/rides/{id} ("estimate" as an id) -> 401 - explicit GET 405 route + catch-all route("{...}") (registered LAST) answering 405+Allow for known paths, 404 for unknown, with /test/* deliberately NOT known (release absence proofs keep 404); (c) PATCH /v1/admin/config/fares decoded partial bodies through default-valued fields -> silently RESET straightLine/quote - now demands every schema-required key (cities/straightLine/quote + nested) and 400s otherwise. Spec: FareConfig.quote section added (QuotePolicy component, required), exclusiveMinimum in OAS 3.1 numeric form, hooks fare body carries quote.
@@ -54,12 +54,12 @@ Degraded-verification statement (A3/A6): local emulator-based verification and c
 - CI runs green: ...45507128835 (P0-C FORMAL CLOSE: all jobs green incl. 6/6 android-ui on google_apis with real pixel evidence + e2e-cross-actor finally on REAL emulators; gallery filmstrip + videos served), 45494296659/45492000401 (rounds 9/8), 45462273542 (first full-pipeline green), 45407895919 (P1-CONTRACT); Pages /latest HTTP 200
 - Fix attempts used this turn: the P2-3 evidence chain consumed ~15 CI iterations (WAY over the D23 3-attempt budget, recorded honestly): a CHAIN of 8 root causes, each closed with hard log evidence before the next surfaced (no blind retries): (1) AGP post-test uninstall wipes app dirs, (2) UiAutomation shell = app uid on aosp_atd, (3) scoped storage denies cross-app pulls, (4) INTERNET permission missing, (5) cleartext HTTP policy blocked the viewer POST, (6) guest screenrecord dead + ATD display pipeline off by design -> google_apis, (7) gallery media never copied into _site (PRE-EXISTING: every gallery image ever 404'd), (8) e2e-cross-actor ran hollow-green (PRE-EXISTING: no SDK on the job + degraded exit-0). Video+storyboard evidence now real and served
 
-## Next 5 tasks (round 29 refresh, 2026-11-28)
+## Next 5 tasks (round-34 refresh, 2026-11-28 - BLOCKED until a fresh PAT, BLOCKERS.md B-1 unblock sequence)
 
-1. Verify the round-29 batch CI run on f6c85be (P7-3 wallet UI + P7-4 earnings + P7-5a/b admin money): every affected job expected (backend, android, admin-web, contract); fix red, re-dispatch (D29 override if the docs-only HEAD skips jobs)
-2. P7-6 promos: promo-code config section (percent/amount, validity window, per-user limit), booking apply + discount inside the quote math, admin editor (LAST Phase 7 item)
-3. Phase 7 gate: on full green - tag phase-7-gate citing the run + gate table row (NON-STOP D74: gate = short report then straight to Phase 8)
-4. live-view (user directive "make sure web-view works"): dispatch GREEN 46107881216 @ 9dfd5ad verified THIS session (round-21 smoke chain); re-dispatch after the Phase 7 batch only if CI surfaces regressions
+1. Push 627da88 (round-34, local-only), then dispatch ci.yml on the new HEAD - round-33 78b2602 is already on origin but its CI was never dispatched (token died first), so the dispatched run must cover BOTH promo rounds' cells
+2. Fetch the mesh-core-sim job log of run 46117305495 to close the round-34 flake verdict (local 3/3 rerun PASS, structurally deterministic; log-tail confirmation pending)
+3. Phase 7 gate: if the run is green - tag phase-7-gate on the green sha citing the run + gate table row (NON-STOP D74: gate = short report then straight to Phase 8)
+4. Seed BACKLOG Phase 8 + dispatch live-view.yml for current-HEAD web-view evidence (local smoke at 627da88 already GREEN - see round-34 record)
 5. Keep the ledger honesty invariant: any money work must assert closed-system conservation in tests (snapshotBalances sum == 0) - carried through P7-5a refund tests
 
 ## Session environment (2026-11-25 recycle #5 recovery)
@@ -419,3 +419,21 @@ Phase 6 remainder: P6-4 admin live map (todo).
 - Follow-up (first action next session): check the newest CI run on main - if
   green, tag the Phase-6 verification-center increment complete in BACKLOG
   (P6-3 verify-in-flight -> done). P6-4 admin live map is the next task.
+
+## Round-33 (2026-11-28): promo bounds hardening - 78b2602 PUSHED, CI NOT dispatched
+
+- Commit 78b2602 "fix(contract): round-33 promo bounds + 1e18 boundary leniency" is on origin (pushed minutes before the token died); its CI was NEVER dispatched (the revocation hit first) - dispatch after the unblock (BLOCKERS.md B-1 step 2 covers the new HEAD).
+- promo perUserLimit bounds 1..1000 enforced server-side: closes ST108 XT4gZF (schema bound) + ST201 QK4V6R (server accepted out-of-bound limits).
+- AMOUNT 1e18 boundary-double leniency: ST202 eDh6YV fixed - oversized values no longer fail, the value is CLAMPED to the cap (wallet round-24c pattern).
+- backend 213 tests green local.
+
+## Round-34 (2026-11-28): promo schema cap + BLOCKER (GitHub PAT revoked) - 627da88 LOCAL-UNPUSHED
+
+- Commit 627da88 "fix(contract): round-34 promo schema cap + currency bound alignment" is LOCAL ONLY (push blocked, BLOCKERS.md B-1).
+- openapi promo value maximum 1e18 documented (wallet round-24c pattern: documented = enforced).
+- currency maxLength 12 enforced for ALL promo kinds (was AMOUNT-only).
+- ContractAlignmentTest pins the promo bounds so spec/service drift fails the suite.
+- backend 216 tests green local.
+- Mesh-core-sim red in run 46117305495: local 3/3 rerun PASS, test structurally deterministic => verdict FLAKE (likely CI registry 429, the round-21d/21e dependency-flake family); CI log-tail confirmation PENDING the token (unblock step 3).
+- WEB-VIEW (user directive "make sure web-view works"): local smoke at 627da88 GREEN - express server starts clean, / 401 without token, /api/serials guarded-spawn degrades gracefully with adb missing (no crash), /api/state 200 with token, HTML + HttpOnly-cookie auth works. Live-view CI dispatch pending the token.
+- BLOCKER (BLOCKERS.md B-1): GitHub PAT revoked mid-round-34 (401 Bad credentials on /user and /repo, verified twice). Unblock sequence recorded there: (1) push 627da88 -> (2) dispatch ci.yml on the new HEAD -> (3) close the mesh flake verdict from the run-46117305495 log -> (4) if green, tag phase-7-gate on the green sha -> (5) seed BACKLOG Phase 8 -> (6) dispatch live-view.yml for current-HEAD web-view evidence.
