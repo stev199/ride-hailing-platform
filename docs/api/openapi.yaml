@@ -872,6 +872,14 @@ paths:
               schema: { $ref: "#/components/schemas/Error" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
+        # Round-36c: duplicate promo code values in the submitted document (distinct
+        # objects are schema-valid - JSON Schema has no per-field uniqueness) answer
+        # 409 duplicate_promo_code, never a schema-valid 400.
+        "409":
+          description: duplicate_promo_code
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
         "415": { $ref: "#/components/responses/UnsupportedMediaType" }
   /v1/admin/config/fares:
     get:
@@ -1504,6 +1512,12 @@ components:
         codes:
           type: array
           maxItems: 50
+          # Round-36c (ST202 Mot8It): whole-item duplicates are schema-INVALID (this
+          # uniqueItems). Per-field code uniqueness is NOT expressible in JSON Schema,
+          # so distinct-object duplicate-code documents remain schema-valid and the
+          # server answers the documented 409 duplicate_promo_code (see the PATCH
+          # responses) - ST202-compatible.
+          uniqueItems: true
           items:
             type: object
             required: [code, kind, value, validUntilEpochSec, perUserLimit]

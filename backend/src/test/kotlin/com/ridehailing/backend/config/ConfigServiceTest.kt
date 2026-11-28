@@ -326,6 +326,37 @@ class ConfigServiceTest {
         assertEquals("invalid_promos", bad.errCode())
     }
 
+    @Test
+    fun `promos PATCH duplicate codes answer the documented 409 (round-36c ST202 Mot8It)`() = withApp { client, graph ->
+        createAdminIn(graph, "33610000024", Role.ADMIN_SUPER)
+        val token = client.getToken("33610000024", "admin-password-1")
+        val body = { n: Int ->
+            val entry = """{"code":"000","kind":"AMOUNT","value":100.0,"currency":"PTS","validUntilEpochSec":1,"perUserLimit":1}"""
+            """{"codes":[${List(n) { entry }.joinToString(",")}]}"""
+        }
+        // The EXACT CI case Mot8It: 49 IDENTICAL schema-valid entries (whole-item
+        // duplicates are schema-invalid via uniqueItems, but the server must never
+        // 400 a schema-valid document) -> documented 409 duplicate_promo_code.
+        val identical = client.patchJson("/v1/admin/config/promos", body(49), token)
+        assertEquals(HttpStatusCode.Conflict, identical.status, identical.bodyAsText())
+        assertEquals("duplicate_promo_code", identical.errCode())
+        assertTrue(!identical.bodyAsText().contains("duplicate code 000; codes: duplicate"),
+            "each duplicated code is reported exactly once: ${identical.bodyAsText()}")
+        // Distinct objects sharing a code value: schema-valid too -> same documented 409.
+        val distinct = """{"codes":[{"code":"WELCOME","kind":"PERCENT","value":10.0,"validUntilEpochSec":2000000000,"perUserLimit":1},{"code":"WELCOME","kind":"PERCENT","value":20.0,"validUntilEpochSec":2000000000,"perUserLimit":1}]}"""
+        val both = client.patchJson("/v1/admin/config/promos", distinct, token)
+        assertEquals(HttpStatusCode.Conflict, both.status, both.bodyAsText())
+        assertEquals("duplicate_promo_code", both.errCode())
+        // The store is untouched and no version was burned (ST108 parity).
+        val after = client.authed("/v1/admin/config/promos", token)
+        assertEquals(HttpStatusCode.OK, after.status)
+        assertTrue(after.json()["codes"]!!.jsonArray.isEmpty(), "rejected patch must not touch the store: ${after.bodyAsText()}")
+        assertEquals(1L, client.get("/v1/config").json()["version"]!!.jsonPrimitive.content.toLong())
+        // A document without duplicates still succeeds.
+        val ok = client.patchJson("/v1/admin/config/promos", body(1), token)
+        assertEquals(HttpStatusCode.OK, ok.status, ok.bodyAsText())
+    }
+
     // ---------- helpers (file-local mirrors of the AdminRoutesTest ones) ----------
 
     private fun hexBytes(hex: String): ByteArray =

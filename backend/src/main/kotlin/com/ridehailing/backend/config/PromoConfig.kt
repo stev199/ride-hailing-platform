@@ -121,8 +121,13 @@ data class PromoConfig(
         val errs = mutableListOf<String>()
         if (codes.size > MAX_CODES) errs += "codes: at most $MAX_CODES codes"
         val seen = mutableSetOf<String>()
+        val dupReported = mutableSetOf<String>()
         for (c in codes) {
-            if (!seen.add(c.code)) errs += "codes: duplicate code ${c.code}"
+            // Round-36c: report each duplicated code ONCE (49 identical entries used to
+            // produce 49 identical messages and a truncated error body).
+            if (!seen.add(c.code)) {
+                if (dupReported.add(c.code)) errs += "codes: duplicate code ${c.code}"
+            }
             errs += c.validationErrors().map { "${c.code}.$it" }
         }
         return errs

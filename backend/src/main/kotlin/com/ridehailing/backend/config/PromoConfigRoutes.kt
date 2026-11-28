@@ -51,6 +51,12 @@ import kotlinx.serialization.json.longOrNull
  * the ABSENT key, so schema-valid currency:null codes 400'd with invalid_body.
  * JsonNull is now folded into the schema-valid null arm (the AMOUNT then-branch
  * keeps pinning currency to type:string, so AMOUNT+null stays schema-invalid).
+ *
+ * Round-36c (run 46133134351, case Mot8It): 49 IDENTICAL schema-valid entries
+ * still 400'd on duplicate-code validation - JSON Schema cannot express per-field
+ * uniqueness, so schema-valid duplicate-code documents must not 400. The PATCH
+ * route now answers 409 duplicate_promo_code (documented, and ST202-compatible:
+ * 409 is in the accepted status set), one message per duplicated code value.
  */
 private fun err(code: String, message: String) = ErrorDto(code = code, message = message)
 
@@ -142,6 +148,18 @@ fun Route.promoConfigRoutes(service: AuthService, config: ConfigService) {
                         err("invalid_body", "codes entries do not match the PromoCode schema"),
                     )
                     decoded.add(c)
+                }
+                // Round-36c (ST202 Mot8It): JSON Schema cannot express per-field
+                // uniqueness, so a schema-valid document with duplicate code values must
+                // not 400 - it answers the DOCUMENTED 409 duplicate_promo_code instead
+                // (whole-item exact duplicates are additionally schema-invalidated by
+                // the uniqueItems constraint round-36c added to the codes array).
+                val dupes = decoded.groupBy { it.code }.filterValues { it.size > 1 }.keys
+                if (dupes.isNotEmpty()) {
+                    return@withPermission call.respond(
+                        HttpStatusCode.Conflict,
+                        err("duplicate_promo_code", "codes: duplicate code ${dupes.sorted().joinToString(", ")}"),
+                    )
                 }
                 when (val res = config.updatePromos(user.id, PromoConfig(decoded))) {
                     is ConfigService.UpdateResult.Updated ->

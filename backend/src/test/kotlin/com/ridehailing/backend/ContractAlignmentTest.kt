@@ -3,6 +3,7 @@ package com.ridehailing.backend
 import com.ridehailing.backend.auth.Identifiers
 import com.ridehailing.backend.auth.PasswordService
 import com.ridehailing.backend.config.PromoCodeConfig
+import com.ridehailing.backend.config.PromoConfig
 import org.yaml.snakeyaml.Yaml
 import java.io.File
 import kotlin.math.nextUp
@@ -521,6 +522,39 @@ class ContractAlignmentTest {
         assertTrue(amountBase.copy(currency = "   ").validationErrors().isNotEmpty(), "whitespace-only AMOUNT currency is schema-invalid AND rejected")
         assertTrue(amountBase.copy(currency = "A B").validationErrors().isEmpty(), "spaced AMOUNT currency is schema-valid AND accepted")
         assertTrue(base.copy(currency = "   ").validationErrors().isEmpty(), "PERCENT + whitespace-only currency is schema-valid AND accepted (length-only rule)")
+    }
+
+    /**
+     * Round-36c pin: duplicate promo codes. JSON Schema cannot express per-field
+     * uniqueness, so:
+     * - whole-item duplicates are schema-INVALID via uniqueItems on the codes array;
+     * - distinct-object duplicate-code documents stay schema-valid and the PATCH
+     *   answers the DOCUMENTED 409 duplicate_promo_code (ST202-compatible: 409 is
+     *   in the accepted status set, 400 is not - case Mot8It).
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Test
+    fun `promo code uniqueness - uniqueItems documented + 409 duplicate_promo_code - round-36c`() {
+        val codesProp = ((schemas["PromoConfigSection"] as Map<String, Any>)["properties"] as Map<String, Any>)["codes"]
+            as? Map<String, Any> ?: fail("PromoConfigSection.codes missing")
+        assertEquals(true, codesProp["uniqueItems"], "whole-item duplicates are schema-invalid (uniqueItems)")
+
+        val patch = ((rootSpec["paths"] as? Map<String, Any>)?.get("/v1/admin/config/promos") as? Map<String, Any>)
+            ?.get("patch") as? Map<String, Any> ?: fail("/v1/admin/config/promos PATCH missing")
+        val responses = patch["responses"] as? Map<String, Any> ?: fail("PATCH responses missing")
+        assertTrue(responses.containsKey("409"), "409 duplicate_promo_code must be documented on the PATCH path")
+
+        // Server mirror: validationErrors reports each duplicated code exactly once.
+        val dupes = listOf(
+            PromoCodeConfig(code = "DUP", kind = PromoCodeConfig.KIND_PERCENT, value = 10.0, validUntilEpochSec = 2_000_000_000L),
+            PromoCodeConfig(code = "DUP", kind = PromoCodeConfig.KIND_PERCENT, value = 20.0, validUntilEpochSec = 2_000_000_000L),
+        )
+        val errs = PromoConfig(dupes).validationErrors()
+        assertEquals(
+            listOf("codes: duplicate code DUP"),
+            errs.filter { it.startsWith("codes: duplicate") },
+            "each duplicated code value is reported exactly once",
+        )
     }
 }
 
