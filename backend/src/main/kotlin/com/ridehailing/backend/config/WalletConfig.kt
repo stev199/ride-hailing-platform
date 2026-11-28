@@ -23,7 +23,10 @@ data class WalletConfig(
         val errs = mutableListOf<String>()
         if (transferFeeBps < 0 || transferFeeBps > 1000) errs += "transferFeeBps: 0..1000 required"
         if (minTransferMinor < 1) errs += "minTransferMinor: >= 1 required"
-        if (dailyTransferLimitMinor < minTransferMinor) errs += "dailyTransferLimitMinor: must be >= minTransferMinor"
+        // NOTE: dailyTransferLimitMinor < minTransferMinor is ACCEPTED (per-field
+        // schema bounds only, D49 generator-precision - a cross-field rule the spec
+        // cannot express would reject schema-valid fuzz values with 400 ST202). An
+        // admin who sets the cap below the minimum simply disables transfers.
         if (commissionBps < 0 || commissionBps > 3000) errs += "commissionBps: 0..3000 required"
         return errs
     }

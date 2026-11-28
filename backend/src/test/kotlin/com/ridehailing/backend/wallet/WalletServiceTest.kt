@@ -172,7 +172,9 @@ class WalletServiceTest {
     fun `wallet config validation rejects impossible fee and limit combinations`() {
         assertTrue(WalletConfig(transferFeeBps = 1500).validationErrors().isNotEmpty())
         assertTrue(WalletConfig(minTransferMinor = 0).validationErrors().isNotEmpty())
-        assertTrue(WalletConfig(minTransferMinor = 500, dailyTransferLimitMinor = 100).validationErrors().isNotEmpty())
+        // dailyTransferLimitMinor < minTransferMinor is ACCEPTED (per-field bounds
+        // only - D49 generator precision; such a config just disables transfers).
+        assertTrue(WalletConfig(minTransferMinor = 500, dailyTransferLimitMinor = 100).validationErrors().isEmpty())
         assertTrue(WalletConfig().validationErrors().isEmpty(), "defaults are valid")
     }
 
