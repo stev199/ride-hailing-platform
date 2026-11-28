@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import com.ridehailing.core.map.OfflineMapCard
 import com.ridehailing.core.map.PlacesCard
 import com.ridehailing.core.screens.SessionScreen
+import com.ridehailing.core.screens.WalletScreen
 import com.ridehailing.core.ui.AppMode
 import com.ridehailing.core.ui.ModeNavApp
 import com.ridehailing.core.ui.RideHailingTheme
@@ -78,6 +79,8 @@ class MainActivity : ComponentActivity() {
                             },
                         )
                     },
+                    // P7-3 rider wallet tab (driver shell stays two-tab by passing nothing).
+                    walletBody = { WalletScreen() },
                 )
             }
         }

@@ -18,4 +18,23 @@
     <string name="auth_languageFr">الفرنسية</string>
     <string name="auth_languageAr">العربية</string>
     <string name="auth_languageNote">يُخزَّن الآن؛ ويُطبَّق على التطبيق كله عند إضافة اللغات لكل تطبيق (بوابة المرحلة 2).</string>
+    <string name="wallet_sign_in_prompt">سجّل الدخول في علامة الإعدادات لاستخدام محفظتك.</string>
+    <string name="wallet_balance">الرصيد</string>
+    <string name="wallet_points">نقطة</string>
+    <string name="wallet_held">محجوز للرحلات</string>
+    <string name="wallet_limits_title">الحدود والرسوم</string>
+    <string name="wallet_transfer_fee">رسوم التحويل: %1$s</string>
+    <string name="wallet_min_transfer">الحد الأدنى للتحويل: %1$s</string>
+    <string name="wallet_daily_limit">الحد اليومي: %1$s</string>
+    <string name="wallet_limits_unavailable">الحدود غير متاحة (لا توجد تكوينة مخزنة - اتصل بالإنترنت مرة واحدة).</string>
+    <string name="wallet_transfer_title">تحويل النقاط</string>
+    <string name="wallet_transfer_to">هاتف المستلم</string>
+    <string name="wallet_transfer_amount">المبلغ (وحدات صغرى)</string>
+    <string name="wallet_transfer_note">ملاحظة (اختياري)</string>
+    <string name="wallet_transfer_do">تحويل</string>
+    <string name="wallet_transfer_ok">تم إرسال %1$s (رسوم %2$s) - الرصيد الآن %3$s</string>
+    <string name="wallet_history_title">النشاط الأخير</string>
+    <string name="wallet_history_empty">لا توجد معاملات بعد.</string>
+    <string name="wallet_topup_note">الشحن v1: يحصل على الأرصاد من المشغل (المشرف). القسائم ووكلاء النقد واردون مع عمل موفر الخدمة.</string>
 </resources>
+

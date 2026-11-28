@@ -18,4 +18,23 @@
     <string name="auth_languageFr">Français</string>
     <string name="auth_languageAr">العربية</string>
     <string name="auth_languageNote">Mémorisé maintenant ; appliqué à toute l’app avec les langues par application (jalonnage Phase 2).</string>
+    <string name="wallet_sign_in_prompt">Connectez-vous dans l’onglet Réglages pour utiliser votre portefeuille.</string>
+    <string name="wallet_balance">Solde</string>
+    <string name="wallet_points">points</string>
+    <string name="wallet_held">Bloqué pour les courses</string>
+    <string name="wallet_limits_title">Limites &amp; frais</string>
+    <string name="wallet_transfer_fee">Frais de transfert : %1$s</string>
+    <string name="wallet_min_transfer">Transfert minimum : %1$s</string>
+    <string name="wallet_daily_limit">Limite quotidienne : %1$s</string>
+    <string name="wallet_limits_unavailable">Limites indisponibles (aucune configuration en cache - passez en ligne une fois).</string>
+    <string name="wallet_transfer_title">Transférer des points</string>
+    <string name="wallet_transfer_to">Téléphone du destinataire</string>
+    <string name="wallet_transfer_amount">Montant (unités mineures)</string>
+    <string name="wallet_transfer_note">Note (facultatif)</string>
+    <string name="wallet_transfer_do">Transférer</string>
+    <string name="wallet_transfer_ok">Envoyé %1$s (frais %2$s) - solde maintenant %3$s</string>
+    <string name="wallet_history_title">Activité récente</string>
+    <string name="wallet_history_empty">Aucune transaction pour le moment.</string>
+    <string name="wallet_topup_note">Rechargement v1 : les crédits sont émis par l’opérateur (admin). Les bons et agents de caisse arrivent avec le travail prestataire.</string>
 </resources>
+

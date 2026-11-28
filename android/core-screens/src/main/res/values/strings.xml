@@ -18,4 +18,23 @@
     <string name="auth_languageFr">Français</string>
     <string name="auth_languageAr">العربية</string>
     <string name="auth_languageNote">Stored now; applied app-wide when per-app locales land (Phase 2 gate).</string>
+
+    <string name="wallet_sign_in_prompt">Sign in on the Settings tab to use your wallet.</string>
+    <string name="wallet_balance">Balance</string>
+    <string name="wallet_points">points</string>
+    <string name="wallet_held">Held for bookings</string>
+    <string name="wallet_limits_title">Limits &amp; fees</string>
+    <string name="wallet_transfer_fee">Transfer fee: %1$s</string>
+    <string name="wallet_min_transfer">Minimum transfer: %1$s</string>
+    <string name="wallet_daily_limit">Daily limit: %1$s</string>
+    <string name="wallet_limits_unavailable">Limits unavailable (no config cached yet - go online once).</string>
+    <string name="wallet_transfer_title">Transfer points</string>
+    <string name="wallet_transfer_to">Recipient phone</string>
+    <string name="wallet_transfer_amount">Amount (minor units)</string>
+    <string name="wallet_transfer_note">Note (optional)</string>
+    <string name="wallet_transfer_do">Transfer</string>
+    <string name="wallet_transfer_ok">Sent %1$s (fee %2$s) - balance now %3$s</string>
+    <string name="wallet_history_title">Recent activity</string>
+    <string name="wallet_history_empty">No transactions yet.</string>
+    <string name="wallet_topup_note">Top-up v1: credits are issued by the operator (admin). Vouchers and cash agents arrive with the provider work.</string>
 </resources>

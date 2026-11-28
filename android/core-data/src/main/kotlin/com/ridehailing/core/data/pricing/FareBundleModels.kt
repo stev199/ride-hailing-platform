@@ -32,6 +32,8 @@ data class FareBundleEnvelopeDto(
 data class CanonicalConfigDto(
     val loginMethods: kotlinx.serialization.json.JsonObject? = null,
     val fares: DeviceFareConfig = DeviceFareConfig(),
+    /** P7-1 wallet section (limits/fees for the rider wallet UI). null = older bundle. */
+    val wallet: com.ridehailing.core.data.network.DeviceWalletConfig? = null,
 )
 
 @Serializable

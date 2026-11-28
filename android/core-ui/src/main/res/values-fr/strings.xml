@@ -6,4 +6,5 @@
     <string name="core_nav_settings">Paramètres</string>
     <string name="core_body_home">Coque prête. Cartes, réservation et boîte d\'envoi en P2-2/1c.</string>
     <string name="core_body_settings">Thème, langue et réglages de compte avec l\'UI d\'authentification (P2-4).</string>
+    <string name="core_nav_wallet">Portefeuille</string>
 </resources>

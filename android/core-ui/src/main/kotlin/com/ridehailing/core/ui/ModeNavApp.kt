@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -37,6 +38,7 @@ import androidx.navigation.compose.rememberNavController
 object TabRoutes {
     const val HOME: String = "home"
     const val SETTINGS: String = "settings"
+    const val WALLET: String = "wallet"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,6 +51,8 @@ fun ModeNavApp(
     settingsBody: @Composable () -> Unit = {
         TabBody(text = stringResource(R.string.core_body_settings))
     },
+    /** P7-3: optional wallet tab - null keeps the shell two-tab (driver app unchanged). */
+    walletBody: (@Composable () -> Unit)? = null,
 ) {
     val titleRes = when (mode) {
         AppMode.RIDER -> R.string.core_title_rider
@@ -77,6 +81,15 @@ fun ModeNavApp(
                     label = { Text(stringResource(R.string.core_nav_settings)) },
                     modifier = Modifier.semantics { testTag = "tab_settings" },
                 )
+                if (walletBody != null) {
+                    NavigationBarItem(
+                        selected = currentRoute == TabRoutes.WALLET,
+                        onClick = { navController.navigateSingleTop(TabRoutes.WALLET) },
+                        icon = { Icon(Icons.Filled.Star, contentDescription = null) }, // core icon set: wallet glyph is extended-only - Star reads as points
+                        label = { Text(stringResource(R.string.core_nav_wallet)) },
+                        modifier = Modifier.semantics { testTag = "tab_wallet" },
+                    )
+                }
             }
         },
     ) { padding ->
@@ -95,6 +108,11 @@ fun ModeNavApp(
                 }
                 composable(TabRoutes.SETTINGS) {
                     settingsBody()
+                }
+                if (walletBody != null) {
+                    composable(TabRoutes.WALLET) {
+                        walletBody()
+                    }
                 }
             }
         }
