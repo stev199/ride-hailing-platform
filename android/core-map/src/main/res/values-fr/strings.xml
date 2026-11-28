@@ -89,4 +89,5 @@
     <string name="driver_action_error">Action refusée : %1$s</string>
     <string name="driver_duty_error">Changement de service refusé : %1$s</string>
     <string name="driver_signin_hint">Connectez-vous depuis Réglages pour passer en ligne (chauffeurs uniquement).</string>
+    <string name="booking_promo_hint">Code promo (facultatif)</string>
 </resources>

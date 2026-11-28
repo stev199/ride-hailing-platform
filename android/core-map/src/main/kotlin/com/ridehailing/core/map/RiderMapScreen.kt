@@ -97,6 +97,7 @@ fun RiderMapScreen(
                         onAssignTarget = bookingVm::setAssignTarget,
                         onSelectRideType = bookingVm::selectRideType,
                         onNoteChange = bookingVm::setNote,
+                        onPromoChange = bookingVm::setPromo,
                         onBook = bookingVm::book,
                     )
                 }

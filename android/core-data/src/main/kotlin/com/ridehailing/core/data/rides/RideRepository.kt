@@ -75,7 +75,8 @@ class RidesOutboxTransport @Inject constructor(
                 local.copy(
                     serverId = ride.id,
                     status = statusFromServer(ride.status),
-                    fareMinor = ride.quote.amountMinor,
+                    // P7-6: the CHARGE (quote minus promo discount) is the money truth.
+                    fareMinor = ride.chargeAmountMinor.takeIf { it > 0 } ?: ride.quote.amountMinor,
                     currency = ride.quote.currency,
                     updatedAtMs = clock.millis(),
                 ),
@@ -145,6 +146,8 @@ data class RideDraft(
     val rideType: String,
     val paymentMethod: String = "CASH",
     val note: String? = null,
+    /** P7-6: optional promo code (server validates; the charge is discounted). */
+    val promoCode: String? = null,
 )
 
 sealed class EstimateOutcome {
@@ -220,6 +223,7 @@ class RideRepository @Inject constructor(
                 note = draft.note,
                 pickupName = draft.pickupLabel,
                 dropoffName = draft.dropoffLabel,
+                promoCode = draft.promoCode,
             ),
         )
         outbox.enqueue(RideOutbox.TYPE_RIDE_CREATE, rideId, payload)

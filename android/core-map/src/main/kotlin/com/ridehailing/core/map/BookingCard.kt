@@ -64,6 +64,7 @@ fun BookingCard(
     onAssignTarget: (AssignTarget) -> Unit,
     onSelectRideType: (String) -> Unit,
     onNoteChange: (String) -> Unit,
+    onPromoChange: (String) -> Unit,
     onBook: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -247,6 +248,16 @@ fun BookingCard(
                 singleLine = true,
                 placeholder = { Text(stringResource(R.string.booking_note_hint)) },
                 modifier = Modifier.fillMaxWidth().semantics { testTag = "booking_note" },
+            )
+
+            // P7-6: optional promo code - the server validates and discounts the charge
+            // (unknown/inactive/expired/limit codes surface verbatim in bookingError).
+            TextField(
+                value = state.promoCode,
+                onValueChange = onPromoChange,
+                singleLine = true,
+                placeholder = { Text(stringResource(R.string.booking_promo_hint)) },
+                modifier = Modifier.fillMaxWidth().semantics { testTag = "booking_promo" },
             )
 
             Button(

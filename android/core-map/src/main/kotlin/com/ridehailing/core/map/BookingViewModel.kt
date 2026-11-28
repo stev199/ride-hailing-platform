@@ -93,6 +93,8 @@ data class BookingUiState(
     val routeDistanceKm: Double? = null,
     val routeDurationMin: Double? = null,
     val note: String = "",
+    /** P7-6: optional promo code typed by the rider (server validates at booking). */
+    val promoCode: String = "",
     val booking: Boolean = false,
     val bookingError: String? = null,
     /** Booking accepted locally but NOT yet acked by the backend (outbox pending). */
@@ -147,6 +149,9 @@ class BookingViewModel @Inject constructor(
     fun setAssignTarget(target: AssignTarget) = _state.update { it.copy(assigning = target) }
 
     fun setNote(raw: String) = _state.update { it.copy(note = raw.take(240)) }
+
+    /** P7-6: promo codes are uppercase A-Z0-9 3..24 - normalize as the rider types. */
+    fun setPromo(raw: String) = _state.update { it.copy(promoCode = raw.uppercase().filter { c -> c.isLetterOrDigit() }.take(24)) }
 
     fun selectRideType(rideType: String) = _state.update { it.copy(selectedRideType = rideType) }
 
@@ -219,6 +224,7 @@ class BookingViewModel @Inject constructor(
                         dropoffLabel = dropoff.name, dropoffLat = dropoff.lat, dropoffLng = dropoff.lng,
                         city = MapConfig.DEFAULT_CITY, rideType = rideType,
                         note = _state.value.note.ifBlank { null },
+                        promoCode = _state.value.promoCode.trim().takeIf { it.isNotEmpty() },
                     ),
                 )
                 val entity = rides.observe(rideId).first()

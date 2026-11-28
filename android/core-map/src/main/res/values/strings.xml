@@ -89,4 +89,5 @@
     <string name="driver_action_error">Action refused: %1$s</string>
     <string name="driver_duty_error">Duty change refused: %1$s</string>
     <string name="driver_signin_hint">Sign in from Settings to go online (drivers only).</string>
+    <string name="booking_promo_hint">Promo code (optional)</string>
 </resources>

@@ -89,4 +89,5 @@
     <string name="driver_action_error">رُفض الإجراء: %1$s</string>
     <string name="driver_duty_error">رُفض تغيير الخدمة: %1$s</string>
     <string name="driver_signin_hint">سجّل الدخول من الإعدادات للاتصال بالخدمة (للسائقين فقط).</string>
+    <string name="booking_promo_hint">رمز الترویج (اختياري)</string>
 </resources>
