@@ -1512,22 +1512,41 @@ components:
               code: { type: string, pattern: '^[A-Z0-9]{3,24}$' }
               kind: { type: string, enum: [PERCENT, AMOUNT] }
               # Round-34 (D49): the AMOUNT money cap is documented like the wallet
-              # bodies (round-24c inline maximum) - documented = enforced.
+              # bodies (round-24c inline maximum) - documented = enforced. The shared
+              # exclusiveMinimum 0 covers the "0 < value" rule of BOTH kinds.
               value: { type: number, exclusiveMinimum: 0, maximum: 1000000000000000000 }
               currency: { type: [string, 'null'], maxLength: 12 }
               validFromEpochSec: { type: integer, format: int64, minimum: 0 }
               validUntilEpochSec: { type: integer, format: int64, minimum: 1 }
               perUserLimit: { type: integer, minimum: 1, maximum: 1000 }
               active: { type: boolean }
-            # Server rule (round-30 ST202): an AMOUNT code MUST carry a currency -
-            # documented = enforced (D49). PERCENT codes need none.
-            if:
-              properties: { kind: { const: AMOUNT } }
-              required: [kind]
-            then:
-              required: [currency]
-              properties:
-                currency: { type: string, minLength: 1, maxLength: 12 }
+            # Kind-conditional server rules (D49: documented = enforced), one matching
+            # if/then per kind. `kind` is required + enum [PERCENT, AMOUNT], so each
+            # branch is exact.
+            allOf:
+              # Round-30 ST202: an AMOUNT code MUST carry a currency. Round-35: the
+              # server blank-rule (isNullOrBlank) is expressed with the engine-proof
+              # whitespace pattern (DECISIONS D49: explicit ASCII classes only,
+              # unanchored search, like displayName) - a whitespace-only currency is
+              # schema-INVALID exactly like the 400 invalid_promos it earns. The
+              # SHARED currency above stays pattern-free (PERCENT is length-only
+              # server-side since round-34).
+              - if:
+                  properties: { kind: { const: AMOUNT } }
+                  required: [kind]
+                then:
+                  required: [currency]
+                  properties:
+                    currency: { type: string, minLength: 1, maxLength: 12, pattern: '[^ \t\n\u000B\f\r ]' }
+              # Round-30 server rule: a PERCENT value is a percent - 0 < value <= 100
+              # (PromoConfig.validationErrors). Round-35: documented so a schema-valid
+              # 150 no longer walks into a server 400.
+              - if:
+                  properties: { kind: { const: PERCENT } }
+                  required: [kind]
+                then:
+                  properties:
+                    value: { type: number, exclusiveMinimum: 0, maximum: 100 }
     PromoConfigUpdated:
       type: object
       required: [version, config]

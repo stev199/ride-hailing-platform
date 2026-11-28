@@ -81,6 +81,33 @@ class PromoConfigTest {
     }
 
     @Test
+    fun `currency whitespace rule matches the openapi pattern (round-35)`() {
+        // The openapi AMOUNT if/then documents the server blank-rule (isNullOrBlank)
+        // with the engine-proof whitespace pattern (DECISIONS D49): whitespace-only
+        // currencies are schema-INVALID, so the 400 invalid_promos they earn is a
+        // documented negative-path answer, never a schema-valid body drifting to 400.
+        assertTrue(
+            code(kind = PromoCodeConfig.KIND_AMOUNT, value = 500.0, currency = "P").validationErrors().isEmpty(),
+            "1-char currency is accepted",
+        )
+        assertTrue(
+            code(kind = PromoCodeConfig.KIND_AMOUNT, value = 500.0, currency = "   ")
+                .validationErrors().any { it.contains("currency") },
+            "whitespace-only currency is rejected for AMOUNT (isNullOrBlank)",
+        )
+        assertTrue(
+            code(kind = PromoCodeConfig.KIND_AMOUNT, value = 500.0, currency = "A B").validationErrors().isEmpty(),
+            "currency containing whitespace around non-blank content is accepted",
+        )
+        // PERCENT stays length-only (round-34): no blank rule server-side, so the
+        // SHARED openapi currency must stay pattern-free - otherwise a schema-invalid
+        // value would be accepted (ST201 negative_data_rejection).
+        assertTrue(code(currency = "   ").validationErrors().isEmpty())
+        assertTrue(code(currency = "ABCDEFGHIJKL").validationErrors().isEmpty())
+        assertTrue(code(currency = "ABCDEFGHIJKLM").validationErrors().isNotEmpty())
+    }
+
+    @Test
     fun `validity window per-field bounds only (no cross-field rule, round-24b parity)`() {
         // An unordered/equal window is DEAD config (never applies), not invalid -
         // the schema cannot express the cross-field rule, so the server must not

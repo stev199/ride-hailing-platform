@@ -18,7 +18,7 @@ data class PromoCodeConfig(
     val kind: String,
     /** PERCENT: 0 < value <= 100. AMOUNT: minor units 1..1e18 (boundary doubles clamp to the cap, round-33). */
     val value: Double,
-    /** Required for AMOUNT (must match the ride currency at apply time); <= 12 chars for ALL kinds (openapi maxLength). */
+    /** Required for AMOUNT (must match the ride currency at apply time; non-blank - the openapi AMOUNT if/then documents the rule with the D49 engine-proof whitespace pattern); <= 12 chars for ALL kinds (openapi maxLength). */
     val currency: String? = null,
     val validFromEpochSec: Long = 0,
     val validUntilEpochSec: Long,

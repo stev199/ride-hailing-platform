@@ -403,6 +403,25 @@ class ContractAlignmentTest {
         item["properties"] as? Map<String, Any> ?: fail("codes.items.properties missing")
     }
 
+    /**
+     * The promo items carry ONE matching if/then per kind inside an allOf (round-35
+     * structure; round-30 added the AMOUNT branch, round-35 the PERCENT one): the
+     * kind-conditional server rules must be documented per kind exactly. `kind` is
+     * required + enum [PERCENT, AMOUNT], so each branch is exact.
+     */
+    @Suppress("UNCHECKED_CAST")
+    private fun promoKindBranch(kind: String): Map<String, Any> {
+        val item = ((schemas["PromoConfigSection"] as Map<String, Any>)["properties"] as Map<String, Any>)["codes"]
+            .let { (it as Map<String, Any>)["items"] as Map<String, Any> }
+        val branches = item["allOf"] as? List<Map<String, Any>>
+            ?: fail("codes.items.allOf (kind-conditional promo if/then branches) missing")
+        return branches.firstOrNull { b ->
+            val cond = b["if"] as? Map<String, Any>
+            val k = (cond?.get("properties") as? Map<String, Any>)?.get("kind") as? Map<String, Any>
+            (k?.get("const") as? String) == kind
+        } ?: fail("codes.items.allOf has no if/then branch for kind $kind")
+    }
+
     @Suppress("UNCHECKED_CAST")
     @Test
     fun `promo bounds mirror the PromoConfig server validation - round-34`() {
@@ -421,12 +440,9 @@ class ContractAlignmentTest {
         val currency = promoCodeProps["currency"] as? Map<String, Any> ?: fail("currency missing")
         assertEquals(listOf("string", "null"), currency["type"], "currency is nullable in every kind")
         assertEquals(12, currency["maxLength"], "server: currency <= 12 chars for ALL promo kinds")
-        val item = ((schemas["PromoConfigSection"] as Map<String, Any>)["properties"] as Map<String, Any>)["codes"]
-            .let { (it as Map<String, Any>)["items"] as Map<String, Any> }
-        val thenBranch = item["then"] as? Map<String, Any>
-            ?: fail("codes.items.then (AMOUNT currency if/then) missing")
-        val thenCurrency = (thenBranch["properties"] as Map<String, Any>)["currency"] as? Map<String, Any>
-            ?: fail("then.currency missing")
+        val thenCurrency = (promoKindBranch("AMOUNT")["then"] as Map<String, Any>)["properties"]
+            .let { (it as Map<String, Any>)["currency"] as? Map<String, Any> }
+            ?: fail("AMOUNT then.currency missing")
         assertEquals(12, thenCurrency["maxLength"], "AMOUNT if/then keeps the 12-char bound")
         assertEquals(1, thenCurrency["minLength"], "AMOUNT if/then requires a non-empty currency")
 
@@ -452,6 +468,59 @@ class ContractAlignmentTest {
             base.copy(kind = PromoCodeConfig.KIND_AMOUNT, value = amountAtCap.nextUp(), currency = "PTS").validationErrors().isNotEmpty(),
             "the next double above the schema maximum is rejected (1e18 + 1.0 rounds back to the cap)",
         )
+    }
+
+    /**
+     * Round-35 pin: the two remaining promo drifts are documented = enforced.
+     * - PERCENT value cap (server: 0 < value <= 100, kind-conditional since round-30)
+     *   as a matching if/then next to the AMOUNT one;
+     * - the AMOUNT blank-rule (server isNullOrBlank) as the engine-proof whitespace
+     *   pattern (DECISIONS D49, the displayName rule) on the if/then currency.
+     * Both directions are pinned: schema-valid accepted, schema-invalid rejected.
+     */
+    @Suppress("UNCHECKED_CAST")
+    @Test
+    fun `promo percent cap and currency whitespace pattern mirror the server - round-35`() {
+        val base = PromoCodeConfig(
+            code = "PINS35", kind = PromoCodeConfig.KIND_PERCENT, value = 10.0,
+            validUntilEpochSec = 2_000_000_000L,
+        )
+        // PERCENT branch: value { type: number, exclusiveMinimum: 0, maximum: 100 }.
+        val percentThen = promoKindBranch("PERCENT")["then"] as? Map<String, Any>
+            ?: fail("codes.items.allOf[PERCENT].then (PERCENT value cap if/then) missing")
+        val percentValue = (percentThen["properties"] as Map<String, Any>)["value"] as? Map<String, Any>
+            ?: fail("PERCENT then.value missing")
+        assertEquals(100.0, numberOf(percentValue, "maximum", "PromoConfigSection"), "server: PERCENT value <= 100 (100 itself is accepted)")
+        val percentMin = (percentValue["exclusiveMinimum"] as? Number)?.toDouble()
+            ?: fail("PERCENT then.value.exclusiveMinimum (numeric, OAS 3.1) missing")
+        assertEquals(0.0, percentMin, "server rejects PERCENT value 0 and negatives (value <= 0.0)")
+        for (v in listOf(1.0, 50.0, 99.999, 100.0)) {
+            assertTrue(base.copy(value = v).validationErrors().isEmpty(), "PERCENT value $v is schema-valid AND accepted")
+        }
+        for (v in listOf(0.0, -1.0, 100.0.nextUp(), 150.0, 1e18)) {
+            assertTrue(base.copy(value = v).validationErrors().isNotEmpty(), "PERCENT value $v is schema-invalid AND rejected")
+        }
+
+        // AMOUNT branch: the if/then currency carries the whitespace pattern.
+        val thenCurrency = (promoKindBranch("AMOUNT")["then"] as Map<String, Any>)["properties"]
+            .let { (it as Map<String, Any>)["currency"] as? Map<String, Any> }
+            ?: fail("AMOUNT then.currency missing")
+        val wsPattern = thenCurrency["pattern"] as? String
+            ?: fail("AMOUNT if/then currency has no pattern - contract drift (the server blank-rule is undocumented)")
+        val wsRe = Regex(wsPattern)
+        assertTrue(!wsRe.containsMatchIn("   "), "whitespace-only currency is schema-invalid (unanchored search semantics)")
+        assertTrue(wsRe.containsMatchIn("P"), "1-char currency stays schema-valid")
+        assertTrue(wsRe.containsMatchIn("A B"), "whitespace AROUND non-blank content stays schema-valid")
+        // The SHARED currency stays pattern-free: PERCENT is length-only server-side
+        // (round-34), so "   " on a PERCENT code is schema-valid AND accepted - a
+        // shared pattern would flip that into a ST201 negative_data_rejection.
+        val sharedCurrency = promoCodeProps["currency"] as? Map<String, Any> ?: fail("currency missing")
+        assertTrue(!sharedCurrency.containsKey("pattern"), "the SHARED currency must stay pattern-free (PERCENT has no blank rule)")
+        val amountBase = base.copy(kind = PromoCodeConfig.KIND_AMOUNT, value = 500.0)
+        assertTrue(amountBase.copy(currency = "P").validationErrors().isEmpty(), "1-char AMOUNT currency is schema-valid AND accepted")
+        assertTrue(amountBase.copy(currency = "   ").validationErrors().isNotEmpty(), "whitespace-only AMOUNT currency is schema-invalid AND rejected")
+        assertTrue(amountBase.copy(currency = "A B").validationErrors().isEmpty(), "spaced AMOUNT currency is schema-valid AND accepted")
+        assertTrue(base.copy(currency = "   ").validationErrors().isEmpty(), "PERCENT + whitespace-only currency is schema-valid AND accepted (length-only rule)")
     }
 }
 
