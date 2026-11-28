@@ -12,24 +12,27 @@ import kotlin.test.fail
 class RideStateMachineTest {
 
     @Test
-    fun `requested ride can be accepted cancelled timed-out or expired`() {
+    fun `requested ride can be accepted cancelled cancelled-by-admin timed-out or expired`() {
         val allowed = RideStatus.REQUESTED.allowed()
         assertEquals(
-            setOf(RideStatus.ACCEPTED, RideStatus.CANCELLED_BY_RIDER, RideStatus.CANCELLED_TIMEOUT, RideStatus.EXPIRED),
+            setOf(
+                RideStatus.ACCEPTED, RideStatus.CANCELLED_BY_RIDER, RideStatus.CANCELLED_BY_ADMIN,
+                RideStatus.CANCELLED_TIMEOUT, RideStatus.EXPIRED,
+            ),
             allowed,
         )
     }
 
     @Test
-    fun `in-progress ride can only complete`() {
-        assertEquals(setOf(RideStatus.COMPLETED), RideStatus.IN_PROGRESS.allowed())
+    fun `in-progress ride can complete or be platform-cancelled (P7-5a)`() {
+        assertEquals(setOf(RideStatus.COMPLETED, RideStatus.CANCELLED_BY_ADMIN), RideStatus.IN_PROGRESS.allowed())
     }
 
     @Test
     fun `terminal states have no transitions`() {
         for (s in listOf(
             RideStatus.COMPLETED, RideStatus.CANCELLED_BY_RIDER, RideStatus.CANCELLED_BY_DRIVER,
-            RideStatus.CANCELLED_TIMEOUT, RideStatus.EXPIRED,
+            RideStatus.CANCELLED_BY_ADMIN, RideStatus.CANCELLED_TIMEOUT, RideStatus.EXPIRED,
         )) {
             assertTrue(s.allowed().isEmpty(), "$s must be terminal")
             assertTrue(s.terminal)

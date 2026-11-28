@@ -47,6 +47,8 @@ class WalletService(
         const val REASON_RELEASE = "wallet.release"
         const val REASON_TRANSFER = "wallet.transfer"
         const val REASON_ADMIN_CREDIT = "wallet.admin_credit"
+        /** P7-5a: admin refund of a completed WALLET ride (capture reversal). */
+        const val REASON_REFUND = "wallet.refund"
     }
 
     sealed class TransferResult {
@@ -214,6 +216,69 @@ class WalletService(
             HoldResult.Held
         } catch (_: InsufficientBalanceException) {
             HoldResult.Invalid("amountMinor", "insufficient_balance")
+        }
+    }
+
+    /** P7-5a refund outcome (verbatim codes the admin route translates). */
+    sealed class RefundResult {
+        data class Done(
+            val riderGotMinor: Long,
+            val driverDebitedMinor: Long,
+            val commissionReversedMinor: Long,
+        ) : RefundResult()
+        data class Invalid(val field: String, val code: String) : RefundResult()
+    }
+
+    /**
+     * P7-5a: admin refund of a COMPLETED WALLET ride - the EXACT reversal of the
+     * capture transaction: driver debited what he actually got (fare minus the
+     * commission that was configured at completion), platform fee wallet debited the
+     * commission, rider credited the FULL fare. ONE atomic transaction (money
+     * conserves by construction). The capture credit is located in the DRIVER's
+     * ledger history (reason wallet.capture, refType ride.completed, refId ride id);
+     * a ride with no visible capture is not refundable here (409 refund_not_allowed).
+     */
+    fun refundCompletedRide(riderId: String, driverId: String, rideId: String, fareMinor: Long): RefundResult {
+        if (fareMinor <= 0) return RefundResult.Invalid("fareMinor", "invalid_amount")
+        // Page through the driver history (200/page, honest bound 5 pages) to find
+        // the capture credit for this ride.
+        var creditMinor: Long? = null
+        var offset = 0
+        while (creditMinor == null && offset <= 800) {
+            val page = history(driverId, 200, offset)
+            if (page.isEmpty()) break
+            creditMinor = page.firstOrNull {
+                it.reason == REASON_CAPTURE && it.refType == "ride.completed" &&
+                    it.refId == rideId && it.direction == Direction.CREDIT
+            }?.amountMinor
+            offset += 200
+        }
+        val credit = creditMinor ?: return RefundResult.Invalid("refund", "capture_not_found")
+        val driverWallet = ledger.walletFor(driverId, POINTS)
+            ?: return RefundResult.Invalid("refund", "driver_wallet_missing")
+        val commission = maxOf(0L, fareMinor - credit)
+        val riderWallet = ledger.ensureWallet(riderId, POINTS)
+        val legs = mutableListOf(
+            LedgerLeg(driverWallet.id, credit, Direction.DEBIT),
+            LedgerLeg(riderWallet.id, fareMinor, Direction.CREDIT),
+        )
+        if (commission > 0) {
+            val feeWallet = ledger.walletFor(PLATFORM_FEE_OWNER, POINTS)
+                ?: ledger.ensureWallet(PLATFORM_FEE_OWNER, POINTS)
+            legs += LedgerLeg(feeWallet.id, commission, Direction.DEBIT)
+        }
+        return try {
+            ledger.postTransaction(
+                legs,
+                refType = "ride.refunded", refId = rideId, reason = REASON_REFUND,
+            )
+            RefundResult.Done(
+                riderGotMinor = fareMinor,
+                driverDebitedMinor = credit,
+                commissionReversedMinor = commission,
+            )
+        } catch (_: InsufficientBalanceException) {
+            RefundResult.Invalid("refund", "insufficient_driver_balance")
         }
     }
 

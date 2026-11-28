@@ -11,6 +11,7 @@ import io.ktor.server.application.call
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
+import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -110,7 +111,13 @@ private fun Ride.toAdminListItemDto() = AdminRideListItemDto(
     updatedAtEpochSec = updatedAtEpochSec,
 )
 
-fun Route.adminTripRoutes(service: AuthService, store: RideStore, eventChain: EventChain) {
+fun Route.adminTripRoutes(
+    service: AuthService,
+    store: RideStore,
+    eventChain: EventChain,
+    rideService: RideService,
+    wallet: com.ridehailing.backend.wallet.WalletService,
+) {
     route("/v1/admin/rides") {
         get {
             call.withPermission(service, Perm.TRIPS_READ) { _ ->
@@ -141,8 +148,79 @@ fun Route.adminTripRoutes(service: AuthService, store: RideStore, eventChain: Ev
                 call.respond(HttpStatusCode.OK, AdminRideDetailDto(ride = ride.toAdminListItemDto(), timeline = timeline))
             }
         }
+        // P7-5a: platform cancel (TRIPS_WRITE) - any non-terminal ride, fee-free,
+        // pending WALLET hold released by the service (money returns to the rider).
+        post("/{id}/cancel") {
+            call.withPermission(service, Perm.TRIPS_WRITE) { user ->
+                when (val res = rideService.adminCancel(user.id, call.parameters["id"] ?: "")) {
+                    is RideService.CancelResult.Cancelled -> call.respond(
+                        HttpStatusCode.OK,
+                        AdminRideActionDto(rideId = res.ride.id, status = res.ride.status.name),
+                    )
+                    is RideService.CancelResult.Error -> call.respond(
+                        HttpStatusCode.fromValue(res.status),
+                        err(res.code, res.code.replace('_', ' ')),
+                    )
+                }
+            }
+        }
+        // P7-5a: refund a COMPLETED WALLET ride (MONEY_WRITE) - exact capture
+        // reversal, one atomic transaction; verbatim codes surfaced.
+        post("/{id}/refund") {
+            call.withPermission(service, Perm.MONEY_WRITE) { _ ->
+                val ride = store.byId(call.parameters["id"] ?: "")
+                if (ride == null) {
+                    call.respond(HttpStatusCode.NotFound, err("ride_not_found", "No such ride"))
+                    return@withPermission
+                }
+                if (ride.status != RideStatus.COMPLETED || ride.paymentMethod != "WALLET") {
+                    call.respond(HttpStatusCode.Conflict, err("refund_not_allowed", "refund not allowed"))
+                    return@withPermission
+                }
+                when (val res = wallet.refundCompletedRide(ride.riderId, ride.driverId ?: "", ride.id, ride.quoteAmountMinor)) {
+                    is com.ridehailing.backend.wallet.WalletService.RefundResult.Done -> {
+                        eventChain.append(
+                            "money.refunded",
+                            mapOf(
+                                "rideId" to ride.id,
+                                "riderGotMinor" to res.riderGotMinor.toString(),
+                                "driverDebitedMinor" to res.driverDebitedMinor.toString(),
+                                "commissionReversedMinor" to res.commissionReversedMinor.toString(),
+                            ),
+                        )
+                        call.respond(
+                            HttpStatusCode.OK,
+                            AdminRefundDto(
+                                rideId = ride.id,
+                                riderGotMinor = res.riderGotMinor,
+                                driverDebitedMinor = res.driverDebitedMinor,
+                                commissionReversedMinor = res.commissionReversedMinor,
+                            ),
+                        )
+                    }
+                    is com.ridehailing.backend.wallet.WalletService.RefundResult.Invalid -> {
+                        val status = when (res.code) {
+                            "capture_not_found", "driver_wallet_missing", "insufficient_driver_balance" -> HttpStatusCode.Conflict
+                            else -> HttpStatusCode.BadRequest
+                        }
+                        call.respond(status, err(res.code, res.code.replace('_', ' ')))
+                    }
+                }
+            }
+        }
     }
 }
+
+@Serializable
+data class AdminRideActionDto(val rideId: String, val status: String)
+
+@Serializable
+data class AdminRefundDto(
+    val rideId: String,
+    val riderGotMinor: Long,
+    val driverDebitedMinor: Long,
+    val commissionReversedMinor: Long,
+)
 
 /** Extract payload.rideId from a chain event's canonical JSON (null when absent). */
 private fun rideIdOf(payloadJson: String): String? = try {

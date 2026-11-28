@@ -220,6 +220,44 @@ class RideService(
         return CancelResult.Cancelled(cancelled)
     }
 
+    /**
+     * P7-5a: platform cancel (TRIPS_WRITE) - ANY non-terminal ride can be aborted by
+     * the operator (incl. an in-progress trip), fee-free (the platform is not a
+     * counterparty to its own cancellation). A pending WALLET hold is RELEASED
+     * best-effort so the rider's money returns; a release that cannot happen
+     * (hold already gone) is recorded in the event chain, never silently dropped.
+     */
+    fun adminCancel(actorId: String, rideId: String): CancelResult {
+        val ride = store.byId(rideId) ?: return CancelResult.Error(404, "ride_not_found")
+        if (ride.status.terminal) return CancelResult.Error(409, "cancel_not_allowed")
+        val now = clock()
+        ride.status.requireTransitionTo(RideStatus.CANCELLED_BY_ADMIN)
+        var releaseOutcome = "not_applicable"
+        if (ride.paymentMethod == "WALLET") {
+            val wallet = walletProvider?.invoke()
+            val released = wallet?.release(ride.riderId, ride.quoteAmountMinor, "ride", ride.id)
+            releaseOutcome = when (released) {
+                is com.ridehailing.backend.wallet.WalletService.HoldResult.Held -> "released"
+                is com.ridehailing.backend.wallet.WalletService.HoldResult.Invalid ->
+                    "release_failed:${released.code}"
+                null -> "wallet_absent"
+            }
+        }
+        val cancelled = store.updateStatus(rideId, RideStatus.CANCELLED_BY_ADMIN, now.epochSecond, 0L)!!
+        eventRecorder?.append(
+            "ride.cancelled",
+            mapOf(
+                "rideId" to rideId,
+                "riderId" to ride.riderId,
+                "cancelFeeMinor" to "0",
+                "by" to "admin",
+                "actorId" to actorId,
+                "walletRelease" to releaseOutcome,
+            ),
+        )
+        return CancelResult.Cancelled(cancelled)
+    }
+
     // ---------- P5: driver duty + dispatch (spec delivery plan 5) ----------
 
     /**

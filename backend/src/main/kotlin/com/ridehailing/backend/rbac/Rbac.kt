@@ -43,6 +43,8 @@ enum class Perm {
     MONEY_WRITE,
     /** Read trips (admin list + detail + ride timeline). */
     TRIPS_READ,
+    /** P7-5a: platform trip actions (admin cancel of any non-terminal ride). */
+    TRIPS_WRITE,
     /** Read the driver verification queue/submissions. */
     VERIFICATION_READ,
     /** Approve/reject verification submissions. */
@@ -64,7 +66,7 @@ object Rbac {
         Role.ADMIN_OPS to setOf(
             Perm.USERS_READ, Perm.USERS_WRITE, Perm.USERS_BAN, Perm.USERS_RESET_PASSWORD,
             Perm.SESSIONS_ADMIN, Perm.AUDIT_READ, Perm.CONFIG_READ, Perm.CONFIG_WRITE,
-            Perm.MESH_READ, Perm.MESH_ADMIN, Perm.MONEY_READ, Perm.TRIPS_READ,
+            Perm.MESH_READ, Perm.MESH_ADMIN, Perm.MONEY_READ, Perm.TRIPS_READ, Perm.TRIPS_WRITE,
             Perm.VERIFICATION_READ, Perm.VERIFICATION_WRITE,
         ),
         Role.ADMIN_SUPPORT to setOf(

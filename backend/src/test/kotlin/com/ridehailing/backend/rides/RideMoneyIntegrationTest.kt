@@ -161,4 +161,85 @@ class RideMoneyIntegrationTest {
         assertEquals(HttpStatusCode.BadRequest, res.status, res.bodyAsText())
         assertEquals("wallet_requires_upfront_quote", res.json()["code"]!!.jsonPrimitive.content)
     }
+
+    @Test
+    fun `P7-5a admin cancel releases the wallet hold and conserves value`() = withApp { client, graph ->
+        val rider = createUserIn(graph, "33440000031", Role.RIDER)
+        val riderToken = client.getToken("33440000031", "password-1")
+        val driver = createUserIn(graph, "33440000032", Role.DRIVER)
+        val driverToken = client.getToken("33440000032", "password-1")
+        val ops = createUserIn(graph, "33440000033", Role.ADMIN_OPS)
+        val opsToken = client.getToken("33440000033", "password-1")
+
+        graph.walletService.adminCredit(rider.id, 10_000, "seed")
+        val booking = client.bookRide(riderToken, "WALLET")
+        assertEquals(HttpStatusCode.Created, booking.status)
+        val rideId = booking.json()["id"]!!.jsonPrimitive.content
+        val fareMinor = booking.json()["quote"]!!.jsonObject["amountMinor"]!!.jsonPrimitive.content.toLong()
+
+        // Hold exists after accept.
+        assertEquals(HttpStatusCode.OK, client.postJson("/v1/rides/$rideId/accept", "{}", driverToken).status)
+        assertEquals(fareMinor, graph.walletService.held(rider.id))
+
+        // Platform cancel: fee-free, hold released back to the rider.
+        val cancel = client.postJson("/v1/admin/rides/$rideId/cancel", "{}", opsToken)
+        assertEquals(HttpStatusCode.OK, cancel.status, cancel.bodyAsText())
+        assertEquals("CANCELLED_BY_ADMIN", cancel.json()["status"]!!.jsonPrimitive.content)
+        assertEquals(10_000L, graph.walletService.balances(rider.id)[WalletService.POINTS], "hold released")
+        assertEquals(0L, graph.walletService.held(rider.id))
+
+        // Terminal ride cannot be cancelled twice.
+        val again = client.postJson("/v1/admin/rides/$rideId/cancel", "{}", opsToken)
+        assertEquals(HttpStatusCode.Conflict, again.status)
+        assertEquals("cancel_not_allowed", again.json()["code"]!!.jsonPrimitive.content)
+
+        val store = graph.ledger as com.ridehailing.backend.ledger.InMemoryLedgerStore
+        assertEquals(0L, store.snapshotBalances().values.sum(), "double-entry conservation")
+        assertTrue(ops.id.isNotEmpty())
+    }
+
+    @Test
+    fun `P7-5a admin refund reverses the capture exactly`() = withApp { client, graph ->
+        val rider = createUserIn(graph, "33440000041", Role.RIDER)
+        val riderToken = client.getToken("33440000041", "password-1")
+        val driver = createUserIn(graph, "33440000042", Role.DRIVER)
+        val driverToken = client.getToken("33440000042", "password-1")
+        createUserIn(graph, "33440000043", Role.ADMIN_FINANCE)
+        val financeToken = client.getToken("33440000043", "password-1")
+
+        graph.walletService.adminCredit(rider.id, 10_000, "seed")
+        graph.config.updateWallet("test", graph.config.walletConfig.copy(commissionBps = 1000))
+
+        val booking = client.bookRide(riderToken, "WALLET")
+        val rideId = booking.json()["id"]!!.jsonPrimitive.content
+        val fareMinor = booking.json()["quote"]!!.jsonObject["amountMinor"]!!.jsonPrimitive.content.toLong()
+        check(client.postJson("/v1/rides/$rideId/accept", "{}", driverToken).status == HttpStatusCode.OK)
+        for (target in listOf("arrive", "start", "complete")) {
+            check(client.postJson("/v1/rides/$rideId/$target", "{}", driverToken).status == HttpStatusCode.OK)
+        }
+        val commission = fareMinor * 1_000 / 10_000
+        check(graph.walletService.balances(driver.id)[WalletService.POINTS] == fareMinor - commission)
+
+        // Refund: rider gets the FULL fare back, driver debited what he got,
+        // commission reversed - one atomic transaction.
+        val refund = client.postJson("/v1/admin/rides/$rideId/refund", "{}", financeToken)
+        assertEquals(HttpStatusCode.OK, refund.status, refund.bodyAsText())
+        assertEquals(fareMinor, refund.json()["riderGotMinor"]!!.jsonPrimitive.content.toLong())
+        assertEquals(fareMinor - commission, refund.json()["driverDebitedMinor"]!!.jsonPrimitive.content.toLong())
+        assertEquals(commission, refund.json()["commissionReversedMinor"]!!.jsonPrimitive.content.toLong())
+
+        assertEquals(10_000L, graph.walletService.balances(rider.id)[WalletService.POINTS], "rider whole again")
+        assertEquals(0L, graph.walletService.balances(driver.id)[WalletService.POINTS], "driver debited")
+        assertEquals(0L, graph.walletService.balances(WalletService.PLATFORM_FEE_OWNER)[WalletService.POINTS], "commission reversed")
+
+        // CASH rides are not refundable through the ledger.
+        val cashBooking = client.bookRide(riderToken, "CASH")
+        val cashId = cashBooking.json()["id"]!!.jsonPrimitive.content
+        val cashRefund = client.postJson("/v1/admin/rides/$cashId/refund", "{}", financeToken)
+        assertEquals(HttpStatusCode.Conflict, cashRefund.status)
+        assertEquals("refund_not_allowed", cashRefund.json()["code"]!!.jsonPrimitive.content)
+
+        val store = graph.ledger as com.ridehailing.backend.ledger.InMemoryLedgerStore
+        assertEquals(0L, store.snapshotBalances().values.sum(), "double-entry conservation")
+    }
 }

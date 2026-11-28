@@ -79,6 +79,8 @@ private val ROUTE_METHODS: Map<String, String> = mapOf(
     "/v1/admin/config/wallet" to "GET, PATCH",
     "/v1/admin/rides" to "GET",
     "/v1/admin/rides/{id}" to "GET",
+    "/v1/admin/rides/{id}/cancel" to "POST",
+    "/v1/admin/rides/{id}/refund" to "POST",
     "/v1/admin/live" to "GET",
     "/v1/wallet" to "GET",
     "/v1/wallet/transactions" to "GET",
@@ -128,6 +130,8 @@ private fun allowFor(path: String): String = when {
     path == "/v1/wallet/transfer" -> "POST"
     path.startsWith("/v1/admin/config/fares") -> "GET, PATCH"
     path.startsWith("/v1/admin/config/wallet") -> "GET, PATCH"
+    path.startsWith("/v1/admin/rides/") && path.endsWith("/cancel") -> "POST"
+    path.startsWith("/v1/admin/rides/") && path.endsWith("/refund") -> "POST"
     path.startsWith("/v1/admin/rides") -> "GET"
     path.startsWith("/v1/rides/") && path.endsWith("/cancel") -> "POST"
     // P5 driver action paths (must precede the generic /v1/rides/ rule).
@@ -383,7 +387,7 @@ fun Application.module(
         fareRoutes(auth.service, auth.fareService, auth.config)
         rideRoutes(auth.service, auth.rideService, auth.config.publicKeyHex())
         driverRoutes(auth.service, auth.rideService)
-        adminTripRoutes(auth.service, auth.rideStore, auth.eventChain)
+        adminTripRoutes(auth.service, auth.rideStore, auth.eventChain, auth.rideService, auth.walletService)
         adminLiveRoutes(auth.service, auth.rideService, auth.rideStore)
         verificationRoutes(auth.service, auth.verification)
         walletRoutes(auth.service, auth.walletService)

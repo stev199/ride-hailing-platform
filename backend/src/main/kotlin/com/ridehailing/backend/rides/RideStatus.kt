@@ -20,17 +20,20 @@ enum class RideStatus {
     COMPLETED,
     CANCELLED_BY_RIDER,
     CANCELLED_BY_DRIVER,
+    CANCELLED_BY_ADMIN,
     CANCELLED_TIMEOUT,
     EXPIRED,
     ;
 
     /** Legal transitions from this state (empty = terminal). Function, not a property: enum-entry initializers cannot reference sibling entries. */
     fun allowed(): Set<RideStatus> = when (this) {
-        REQUESTED -> setOf(ACCEPTED, CANCELLED_BY_RIDER, CANCELLED_TIMEOUT, EXPIRED)
-        ACCEPTED -> setOf(ARRIVED, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER)
-        ARRIVED -> setOf(IN_PROGRESS, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER)
-        IN_PROGRESS -> setOf(COMPLETED)
-        COMPLETED, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_TIMEOUT, EXPIRED -> emptySet()
+        // P7-5a: the platform can cancel ANY non-terminal ride (admin abort incl. an
+        // in-progress trip) - fee-free, wallet hold released by the service layer.
+        REQUESTED -> setOf(ACCEPTED, CANCELLED_BY_RIDER, CANCELLED_BY_ADMIN, CANCELLED_TIMEOUT, EXPIRED)
+        ACCEPTED -> setOf(ARRIVED, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_BY_ADMIN)
+        ARRIVED -> setOf(IN_PROGRESS, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_BY_ADMIN)
+        IN_PROGRESS -> setOf(COMPLETED, CANCELLED_BY_ADMIN)
+        COMPLETED, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_BY_ADMIN, CANCELLED_TIMEOUT, EXPIRED -> emptySet()
     }
 
     val terminal: Boolean get() = allowed().isEmpty()

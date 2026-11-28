@@ -519,7 +519,7 @@ paths:
         - name: status
           in: query
           required: false
-          schema: { type: string, enum: [REQUESTED, ACCEPTED, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_TIMEOUT, EXPIRED] }
+          schema: { type: string, enum: [REQUESTED, ACCEPTED, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_BY_ADMIN, CANCELLED_TIMEOUT, EXPIRED] }
         - name: city
           in: query
           required: false
@@ -568,6 +568,79 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+  /v1/admin/rides/{id}/cancel:
+    post:
+      operationId: adminCancelRide
+      description: >-
+        Platform cancel (TRIPS_WRITE): ANY non-terminal ride can be aborted by the
+        operator (incl. an in-progress trip), fee-free. A pending WALLET hold is
+        released best-effort (money returns to the rider main wallet); the release
+        outcome is recorded in the event chain.
+      summary: Cancel a ride (platform action)
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRideAction"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Unknown ride
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: cancel_not_allowed (terminal ride)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+  /v1/admin/rides/{id}/refund:
+    post:
+      operationId: adminRefundRide
+      description: >-
+        Refund a COMPLETED WALLET ride (MONEY_WRITE): the EXACT reversal of the capture
+        transaction - driver debited what he got, platform fee wallet debited the
+        commission, rider credited the full fare, ONE atomic ledger transaction. CASH
+        rides and non-completed rides answer 409 refund_not_allowed; a driver balance
+        that cannot cover the reversal answers 409 insufficient_driver_balance.
+      summary: Refund a completed wallet ride
+      tags: [admin]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Refunded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminRefund"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404":
+          description: Unknown ride
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+        "409":
+          description: refund_not_allowed / capture_not_found / insufficient_driver_balance
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
   /v1/admin/live:
     get:
       operationId: adminGetLiveSnapshot
@@ -1250,6 +1323,22 @@ components:
         cancelFeeMinor: { type: integer, format: int64 }
         createdAtEpochSec: { type: integer, format: int64 }
         updatedAtEpochSec: { type: integer, format: int64 }
+    AdminRideAction:
+      type: object
+      required: [rideId, status]
+      additionalProperties: false
+      properties:
+        rideId: { type: string }
+        status: { type: string, enum: [REQUESTED, ACCEPTED, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_BY_ADMIN, CANCELLED_TIMEOUT, EXPIRED] }
+    AdminRefund:
+      type: object
+      required: [rideId, riderGotMinor, driverDebitedMinor, commissionReversedMinor]
+      additionalProperties: false
+      properties:
+        rideId: { type: string }
+        riderGotMinor: { type: integer, format: int64, minimum: 1 }
+        driverDebitedMinor: { type: integer, format: int64, minimum: 0 }
+        commissionReversedMinor: { type: integer, format: int64, minimum: 0 }
     AdminRideList:
       type: object
       required: [rides, limit, offset]
@@ -1456,7 +1545,7 @@ components:
       required: [id, status, city, rideType, paymentMethod, pickupLat, pickupLon, dropoffLat, dropoffLon, quote, cancelFeeMinor, createdAtEpochSec, updatedAtEpochSec]
       properties:
         id: { type: string, format: uuid }
-        status: { type: string, enum: [REQUESTED, ACCEPTED, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_TIMEOUT, EXPIRED] }
+        status: { type: string, enum: [REQUESTED, ACCEPTED, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_BY_ADMIN, CANCELLED_TIMEOUT, EXPIRED] }
         city: { type: string }
         rideType: { type: string }
         paymentMethod: { type: string }
@@ -2225,7 +2314,7 @@ components:
           format: uuid
         status:
           type: string
-          enum: [REQUESTED, ACCEPTED, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_TIMEOUT, EXPIRED]
+          enum: [REQUESTED, ACCEPTED, ARRIVED, IN_PROGRESS, COMPLETED, CANCELLED_BY_RIDER, CANCELLED_BY_DRIVER, CANCELLED_BY_ADMIN, CANCELLED_TIMEOUT, EXPIRED]
         city:
           type: string
         rideType:

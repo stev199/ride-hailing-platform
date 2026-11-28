@@ -60,7 +60,7 @@ fun statusFromServer(raw: String): RideStatus = when (raw) {
     "ACCEPTED", "ARRIVED" -> RideStatus.ACCEPTED
     "IN_PROGRESS" -> RideStatus.IN_PROGRESS
     "COMPLETED" -> RideStatus.COMPLETED
-    "CANCELLED_BY_RIDER", "CANCELLED_BY_DRIVER", "CANCELLED_TIMEOUT", "EXPIRED" -> RideStatus.CANCELLED
+    "CANCELLED_BY_RIDER", "CANCELLED_BY_DRIVER", "CANCELLED_BY_ADMIN", "CANCELLED_TIMEOUT", "EXPIRED" -> RideStatus.CANCELLED
     else -> RideStatus.REQUESTED
 }
 
